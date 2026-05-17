@@ -13,6 +13,27 @@ type MigrationGoal =
   | 'Not sure';
 type MaritalStatus = 'Single' | 'Married' | 'De facto' | 'Separated' | 'Divorced' | 'Widowed';
 type YesNo = 'Yes' | 'No';
+type DocumentKey =
+  | 'passportBioPage'
+  | 'resume'
+  | 'qualificationsDoc'
+  | 'transcripts'
+  | 'englishResultDoc'
+  | 'skillsAssessmentDoc'
+  | 'refusalDocs'
+  | 'otherSupportingDocs';
+
+interface FileUploadConfig {
+  key: DocumentKey;
+  label: string;
+  acceptedTypes: string;
+  required: boolean;
+}
+
+interface SelectedFileState {
+  file: File;
+  warning?: string;
+}
 
 interface IntakeFormData {
   fullName: string;
@@ -58,7 +79,9 @@ interface IntakeFormData {
   qualificationsDoc: string;
   transcripts: string;
   englishResultDoc: string;
+  skillsAssessmentDoc: string;
   refusalDocs: string;
+  otherSupportingDocs: string;
 }
 
 const DRAFT_KEY = 'vpm-intake-draft-v1';
@@ -107,8 +130,22 @@ const initialData: IntakeFormData = {
   qualificationsDoc: '',
   transcripts: '',
   englishResultDoc: '',
+  skillsAssessmentDoc: '',
   refusalDocs: '',
+  otherSupportingDocs: '',
 };
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const documentUploadConfig: FileUploadConfig[] = [
+  { key: 'passportBioPage', label: 'Passport bio page', acceptedTypes: '.pdf,.jpg,.jpeg,.png', required: true },
+  { key: 'resume', label: 'CV / resume', acceptedTypes: '.pdf,.doc,.docx', required: true },
+  { key: 'qualificationsDoc', label: 'Qualification certificate', acceptedTypes: '.pdf,.jpg,.jpeg,.png,.doc,.docx', required: true },
+  { key: 'transcripts', label: 'Academic transcript', acceptedTypes: '.pdf,.jpg,.jpeg,.png,.doc,.docx', required: true },
+  { key: 'englishResultDoc', label: 'English test result', acceptedTypes: '.pdf,.jpg,.jpeg,.png,.doc,.docx', required: false },
+  { key: 'skillsAssessmentDoc', label: 'Skills assessment (if available)', acceptedTypes: '.pdf,.jpg,.jpeg,.png,.doc,.docx', required: false },
+  { key: 'refusalDocs', label: 'Visa refusal or cancellation letter (if applicable)', acceptedTypes: '.pdf,.jpg,.jpeg,.png,.doc,.docx', required: false },
+  { key: 'otherSupportingDocs', label: 'Other supporting documents', acceptedTypes: '.pdf,.jpg,.jpeg,.png,.doc,.docx', required: false },
+];
 
 const sectionNav = [
   { id: 'client-details', label: 'Client details' },
@@ -140,6 +177,7 @@ export default function IntakePage() {
   const [touched, setTouched] = useState<Partial<Record<keyof IntakeFormData, boolean>>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [draftStatus, setDraftStatus] = useState('Autosaving draft locally…');
+  const [selectedFiles, setSelectedFiles] = useState<Partial<Record<DocumentKey, SelectedFileState>>>({});
 
   useEffect(() => {
     const savedDraft = window.localStorage.getItem(DRAFT_KEY);
@@ -171,6 +209,23 @@ export default function IntakePage() {
     return flags;
   }, [formData]);
 
+  const requiredRiskDocuments = useMemo(() => {
+    const docs: string[] = [];
+    if (formData.previousRefusal === 'Yes' || formData.previousCancellation === 'Yes') {
+      docs.push('Visa refusal or cancellation letter');
+    }
+    if (formData.overstayRemoval === 'Yes') {
+      docs.push('Overstay/removal evidence and timeline notes');
+    }
+    if (formData.criminalHistory === 'Yes') {
+      docs.push('Police/court documents');
+    }
+    if (formData.healthCondition === 'Yes') {
+      docs.push('Medical reports');
+    }
+    return docs;
+  }, [formData]);
+
   const validate = (data: IntakeFormData) => {
     const errors: Partial<Record<keyof IntakeFormData, string>> = {};
 
@@ -186,6 +241,14 @@ export default function IntakePage() {
   };
 
   const missingKeyItems = keyItems.filter((item) => !formData[item].trim());
+  const uploadedDocumentNames = documentUploadConfig
+    .filter((doc) => selectedFiles[doc.key]?.file)
+    .map((doc) => doc.label);
+  const missingRequiredDocuments = documentUploadConfig
+    .filter((doc) => doc.required && !selectedFiles[doc.key]?.file)
+    .map((doc) => doc.label);
+  const isRefusalDocumentRequired = formData.previousRefusal === 'Yes' || formData.previousCancellation === 'Yes';
+  const hasRequiredRefusalDoc = Boolean(selectedFiles.refusalDocs?.file);
   const completionCount = Object.values(formData).filter(Boolean).length;
   const completionPercent = Math.round((completionCount / Object.keys(formData).length) * 100);
 
@@ -228,6 +291,33 @@ export default function IntakePage() {
   };
 
   const shouldShowError = (field: keyof IntakeFormData) => Boolean(validationErrors[field] && (submitAttempted || touched[field]));
+
+  const onSelectFile = (key: DocumentKey, acceptedTypes: string, fileList: FileList | null) => {
+    if (!fileList?.[0]) return;
+    const file = fileList[0];
+    const acceptedExtensions = acceptedTypes.split(',').map((entry) => entry.trim().toLowerCase());
+    const extension = `.${file.name.split('.').pop()?.toLowerCase()}`;
+    let warning = '';
+
+    if (!acceptedExtensions.includes(extension)) {
+      warning = 'This file type is not supported for this field. Please choose PDF, JPG, PNG, DOC, or DOCX as listed.';
+    } else if (file.size > MAX_FILE_SIZE_BYTES) {
+      warning = 'This file is larger than 10MB. Please upload a smaller file.';
+    }
+
+    setSelectedFiles((prev) => ({
+      ...prev,
+      [key]: { file, warning },
+    }));
+  };
+
+  const removeSelectedFile = (key: DocumentKey) => {
+    setSelectedFiles((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   return (
     <section className="intake-layout">
@@ -288,13 +378,84 @@ export default function IntakePage() {
 
         <Fieldset id="risk-screening" title="Risk screening" helper="These questions help us identify any complexity early."><Select label="Any previous visa refusal?" value={formData.previousRefusal} options={['Yes', 'No']} onChange={(v) => onChange('previousRefusal', v)} /></Fieldset>
 
-        <Fieldset id="documents" title="Documents checklist" helper="List what you already have; uploads can be integrated later."><Input label="Passport bio page" value={formData.passportBioPage} onChange={(v) => onChange('passportBioPage', v)} placeholder="Attach later - placeholder" /></Fieldset>
+        <Fieldset id="documents" title="Documents checklist" helper="Upload your files for front-end preview only. Files stay in this browser session and are not sent anywhere yet.">
+          <div className="file-upload-grid">
+            {documentUploadConfig.map((doc) => (
+              <FileUploadField
+                key={doc.key}
+                label={doc.label}
+                acceptedTypes={doc.acceptedTypes}
+                selectedFile={selectedFiles[doc.key]?.file}
+                warning={selectedFiles[doc.key]?.warning}
+                required={doc.required}
+                onFileChange={(files) => onSelectFile(doc.key, doc.acceptedTypes, files)}
+                onRemove={() => removeSelectedFile(doc.key)}
+              />
+            ))}
+          </div>
+        </Fieldset>
 
         <p className="disclaimer">This questionnaire is for preliminary assessment only and does not confirm eligibility or guarantee any visa outcome.</p>
       </form>
 
-      <aside className="intake-summary card"><h2>Review summary</h2><p><strong>Completion status:</strong> {completionPercent}%</p><p><strong>Estimated readiness:</strong> {readinessStatus}</p></aside>
+      <aside className="intake-summary card">
+        <h2>Review summary</h2>
+        <p><strong>Completion status:</strong> {completionPercent}%</p>
+        <p><strong>Estimated readiness:</strong> {readinessStatus}</p>
+        <h3>Document status</h3>
+        <p><strong>Uploaded:</strong> {uploadedDocumentNames.length > 0 ? uploadedDocumentNames.join(', ') : 'No documents selected yet.'}</p>
+        <p><strong>Missing important documents:</strong> {missingRequiredDocuments.length > 0 ? missingRequiredDocuments.join(', ') : 'All key documents appear uploaded.'}</p>
+        <p>
+          <strong>Risk-related documents:</strong>{' '}
+          {isRefusalDocumentRequired
+            ? hasRequiredRefusalDoc
+              ? 'Required based on your risk answers and appears uploaded.'
+              : 'Required based on your risk answers and still missing.'
+            : 'Not currently required from refusal/cancellation answers.'}
+        </p>
+        {requiredRiskDocuments.length > 0 ? (
+          <p><strong>Additional risk evidence suggested:</strong> {requiredRiskDocuments.join(', ')}.</p>
+        ) : null}
+      </aside>
     </section>
+  );
+}
+
+function FileUploadField({
+  label,
+  acceptedTypes,
+  selectedFile,
+  warning,
+  required,
+  onFileChange,
+  onRemove,
+}: {
+  label: string;
+  acceptedTypes: string;
+  selectedFile?: File;
+  warning?: string;
+  required?: boolean;
+  onFileChange: (files: FileList | null) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className={`file-upload ${warning ? 'file-upload--warning' : ''}`}>
+      <label className="field">
+        <span>{label} {required ? <em className="required-indicator" aria-label="required">*</em> : null}</span>
+        <input type="file" accept={acceptedTypes} onChange={(event) => onFileChange(event.target.files)} />
+      </label>
+      <small className="file-upload__hint">Accepted: {acceptedTypes.replaceAll('.', '').toUpperCase().replaceAll(',', ', ')}</small>
+      {selectedFile ? (
+        <div className="file-upload__meta">
+          <p><strong>Selected:</strong> {selectedFile.name}</p>
+          <p><strong>Size:</strong> {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+          <button type="button" className="secondary-btn" onClick={onRemove}>Remove file</button>
+        </div>
+      ) : (
+        <p className="file-upload__empty">No file selected yet.</p>
+      )}
+      {warning ? <small className="field-error">{warning}</small> : null}
+    </div>
   );
 }
 
