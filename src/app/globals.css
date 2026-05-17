@@ -178,10 +178,30 @@ a {
 
 .section-nav a {
   border: 1px solid #d1d5db;
-  border-radius: 999px;
+  border-radius: 12px;
   padding: 0.35rem 0.7rem;
   font-size: 0.86rem;
   background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.section-link-hint {
+  color: #b45309;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.missing-hint {
+  color: #374151;
 }
 
 .section-nav a:hover {
