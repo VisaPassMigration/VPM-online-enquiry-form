@@ -169,3 +169,62 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+.section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.section-nav a {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.86rem;
+  background: #f9fafb;
+}
+
+.section-nav a:hover {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.fieldset-helper {
+  margin: 0.1rem 0 0.9rem;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.required-indicator {
+  color: #b91c1c;
+  font-style: normal;
+}
+
+.field--error input,
+.field--error select,
+.field--error textarea {
+  border-color: #dc2626;
+}
+
+.field-error {
+  color: #b91c1c;
+  font-size: 0.82rem;
+}
+
+.secondary-btn {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.secondary-btn:hover {
+  background: #f3f4f6;
+}
+
+.draft-status {
+  color: #374151;
+  font-size: 0.92rem;
+}
