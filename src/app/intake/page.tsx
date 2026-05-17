@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 
 type ContactMethod = 'Email' | 'Phone' | 'WhatsApp';
 type InterestedCountry = 'Australia' | 'New Zealand' | 'Both';
@@ -61,6 +61,8 @@ interface IntakeFormData {
   refusalDocs: string;
 }
 
+const DRAFT_KEY = 'vpm-intake-draft-v1';
+
 const initialData: IntakeFormData = {
   fullName: '',
   dateOfBirth: '',
@@ -108,19 +110,54 @@ const initialData: IntakeFormData = {
   refusalDocs: '',
 };
 
-const keyItems: Array<keyof IntakeFormData> = [
-  'fullName',
-  'dateOfBirth',
-  'nationality',
-  'email',
-  'phone',
-  'interestedCountry',
-  'mainGoal',
-  'currentOccupation',
-];
+const sectionNav = [
+  { id: 'client-details', label: 'Client details' },
+  { id: 'migration-goal', label: 'Migration goal' },
+  { id: 'family', label: 'Family' },
+  { id: 'education', label: 'Education' },
+  { id: 'employment', label: 'Employment' },
+  { id: 'english-language', label: 'English language' },
+  { id: 'risk-screening', label: 'Risk screening' },
+  { id: 'documents', label: 'Documents' },
+] as const;
+
+const requiredFields: Record<keyof Pick<IntakeFormData, 'fullName' | 'email' | 'dateOfBirth' | 'nationality' | 'residenceCountry' | 'phone' | 'mainGoal' | 'currentOccupation'>, string> = {
+  fullName: 'Please enter your full name so we know what to call you.',
+  email: 'Please share your email so we can contact you with next steps.',
+  dateOfBirth: 'Please add your date of birth for eligibility checks.',
+  nationality: 'Please add your nationality.',
+  residenceCountry: 'Please add your current country of residence.',
+  phone: 'Please add your phone number in case we need to reach you quickly.',
+  mainGoal: 'Please choose the migration goal that best matches your plans.',
+  currentOccupation: 'Please add your current occupation.',
+};
+
+const keyItems = Object.keys(requiredFields) as Array<keyof typeof requiredFields>;
 
 export default function IntakePage() {
   const [formData, setFormData] = useState<IntakeFormData>(initialData);
+  const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof IntakeFormData, string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof IntakeFormData, boolean>>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [draftStatus, setDraftStatus] = useState('Autosaving draft locally…');
+
+  useEffect(() => {
+    const savedDraft = window.localStorage.getItem(DRAFT_KEY);
+    if (!savedDraft) return;
+
+    try {
+      const parsed = JSON.parse(savedDraft) as Partial<IntakeFormData>;
+      setFormData((prev) => ({ ...prev, ...parsed }));
+      setDraftStatus('Saved draft restored from this browser.');
+    } catch {
+      setDraftStatus('We could not restore a previous draft. You can continue with a new one.');
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
+    setDraftStatus('Draft saved locally on this device.');
+  }, [formData]);
 
   const riskFlags = useMemo(() => {
     const flags: string[] = [];
@@ -134,7 +171,21 @@ export default function IntakePage() {
     return flags;
   }, [formData]);
 
-  const missingKeyItems = keyItems.filter((item) => !formData[item]);
+  const validate = (data: IntakeFormData) => {
+    const errors: Partial<Record<keyof IntakeFormData, string>> = {};
+
+    keyItems.forEach((field) => {
+      if (!data[field]?.trim()) errors[field] = requiredFields[field];
+    });
+
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      errors.email = 'Please enter a valid email address (for example, name@example.com).';
+    }
+
+    return errors;
+  };
+
+  const missingKeyItems = keyItems.filter((item) => !formData[item].trim());
   const completionCount = Object.values(formData).filter(Boolean).length;
   const completionPercent = Math.round((completionCount / Object.keys(formData).length) * 100);
 
@@ -147,52 +198,77 @@ export default function IntakePage() {
 
   const onChange = (field: keyof IntakeFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+    if (submitAttempted || touched[field]) {
+      const nextData = { ...formData, [field]: value };
+      setValidationErrors(validate(nextData));
+    }
+  };
+
+  const onBlur = (field: keyof IntakeFormData) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setValidationErrors(validate(formData));
   };
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
+    setSubmitAttempted(true);
+    const errors = validate(formData);
+    setValidationErrors(errors);
+    if (Object.keys(errors).length > 0) return;
   };
+
+  const clearSavedDraft = () => {
+    window.localStorage.removeItem(DRAFT_KEY);
+    setFormData(initialData);
+    setValidationErrors({});
+    setTouched({});
+    setSubmitAttempted(false);
+    setDraftStatus('Saved draft cleared. You can start again anytime.');
+  };
+
+  const shouldShowError = (field: keyof IntakeFormData) => Boolean(validationErrors[field] && (submitAttempted || touched[field]));
 
   return (
     <section className="intake-layout">
-      <form className="intake-form" onSubmit={onSubmit}>
+      <form className="intake-form" onSubmit={onSubmit} noValidate>
         <div className="hero">
           <h1>VPM Intake Questionnaire</h1>
           <p>Please complete all sections for a preliminary migration assessment.</p>
+          <p className="draft-status">{draftStatus}</p>
+          <button type="button" className="secondary-btn" onClick={clearSavedDraft}>Clear saved draft</button>
         </div>
 
-        <Fieldset title="Client details">
-          <Input label="Full name" value={formData.fullName} onChange={(v) => onChange('fullName', v)} />
-          <Input label="Date of birth" type="date" value={formData.dateOfBirth} onChange={(v) => onChange('dateOfBirth', v)} />
-          <Input label="Nationality" value={formData.nationality} onChange={(v) => onChange('nationality', v)} />
-          <Input label="Country of residence" value={formData.residenceCountry} onChange={(v) => onChange('residenceCountry', v)} />
+        <nav className="section-nav card" aria-label="Questionnaire sections">
+          {sectionNav.map((section) => (
+            <a key={section.id} href={`#${section.id}`}>{section.label}</a>
+          ))}
+        </nav>
+
+        <Fieldset id="client-details" title="Client details" helper="Your personal and contact details help us prepare your profile." >
+          <Input required label="Full name" value={formData.fullName} error={shouldShowError('fullName') ? validationErrors.fullName : undefined} onBlur={() => onBlur('fullName')} onChange={(v) => onChange('fullName', v)} />
+          <Input required label="Date of birth" type="date" value={formData.dateOfBirth} error={shouldShowError('dateOfBirth') ? validationErrors.dateOfBirth : undefined} onBlur={() => onBlur('dateOfBirth')} onChange={(v) => onChange('dateOfBirth', v)} />
+          <Input required label="Nationality" value={formData.nationality} error={shouldShowError('nationality') ? validationErrors.nationality : undefined} onBlur={() => onBlur('nationality')} onChange={(v) => onChange('nationality', v)} />
+          <Input required label="Country of residence" value={formData.residenceCountry} error={shouldShowError('residenceCountry') ? validationErrors.residenceCountry : undefined} onBlur={() => onBlur('residenceCountry')} onChange={(v) => onChange('residenceCountry', v)} />
           <Input label="Residential address" value={formData.address} onChange={(v) => onChange('address', v)} />
-          <Input label="Email" type="email" value={formData.email} onChange={(v) => onChange('email', v)} />
-          <Input label="Phone" value={formData.phone} onChange={(v) => onChange('phone', v)} />
+          <Input required label="Email" type="email" value={formData.email} error={shouldShowError('email') ? validationErrors.email : undefined} onBlur={() => onBlur('email')} onChange={(v) => onChange('email', v)} />
+          <Input required label="Phone" value={formData.phone} error={shouldShowError('phone') ? validationErrors.phone : undefined} onBlur={() => onBlur('phone')} onChange={(v) => onChange('phone', v)} />
           <Select label="Preferred contact method" value={formData.contactMethod} options={['Email', 'Phone', 'WhatsApp']} onChange={(v) => onChange('contactMethod', v)} />
         </Fieldset>
 
-        <Fieldset title="Migration goal">
+        <Fieldset id="migration-goal" title="Migration goal" helper="Tell us where you want to go and what outcome you want.">
           <Select label="Interested country" value={formData.interestedCountry} options={['Australia', 'New Zealand', 'Both']} onChange={(v) => onChange('interestedCountry', v)} />
-          <Select label="Main goal" value={formData.mainGoal} options={['Permanent residency', 'Employer sponsorship', 'Study pathway', 'Visitor visa', 'Partner/family visa', 'Not sure']} onChange={(v) => onChange('mainGoal', v)} />
+          <Select required label="Main goal" value={formData.mainGoal} options={['Permanent residency', 'Employer sponsorship', 'Study pathway', 'Visitor visa', 'Partner/family visa', 'Not sure']} error={shouldShowError('mainGoal') ? validationErrors.mainGoal : undefined} onBlur={() => onBlur('mainGoal')} onChange={(v) => onChange('mainGoal', v)} />
           <Input label="Desired timeframe" placeholder="e.g. within 12 months" value={formData.timeframe} onChange={(v) => onChange('timeframe', v)} />
         </Fieldset>
 
-        <Fieldset title="Family">
+        <Fieldset id="family" title="Family" helper="Family details help us identify who may be included in your application.">{/* unchanged */}
           <Select label="Marital status" value={formData.maritalStatus} options={['Single', 'Married', 'De facto', 'Separated', 'Divorced', 'Widowed']} onChange={(v) => onChange('maritalStatus', v)} />
           <Input label="Number of dependants" type="number" value={formData.dependants} onChange={(v) => onChange('dependants', v)} />
           <Select label="Will partner/dependants migrate with you?" value={formData.migrateWithFamily} options={['Yes', 'No']} onChange={(v) => onChange('migrateWithFamily', v)} />
-
-          {(formData.maritalStatus === 'Married' || formData.maritalStatus === 'De facto') && (
-            <div className="conditional-block">
-              <h3>Partner details (placeholder)</h3>
-              <Input label="Partner full name" value={formData.partnerFullName} onChange={(v) => onChange('partnerFullName', v)} />
-              <Input label="Partner nationality" value={formData.partnerNationality} onChange={(v) => onChange('partnerNationality', v)} />
-            </div>
-          )}
         </Fieldset>
 
-        <Fieldset title="Education">
+        <Fieldset id="education" title="Education" helper="Your education history can affect pathway options.">
           <Input label="Highest qualification" value={formData.highestQualification} onChange={(v) => onChange('highestQualification', v)} />
           <Input label="Field of study" value={formData.fieldOfStudy} onChange={(v) => onChange('fieldOfStudy', v)} />
           <Input label="Institution" value={formData.institution} onChange={(v) => onChange('institution', v)} />
@@ -200,115 +276,67 @@ export default function IntakePage() {
           <Input label="Completion year" type="number" value={formData.completionYear} onChange={(v) => onChange('completionYear', v)} />
         </Fieldset>
 
-        <Fieldset title="Employment">
-          <Input label="Current occupation" value={formData.currentOccupation} onChange={(v) => onChange('currentOccupation', v)} />
+        <Fieldset id="employment" title="Employment" helper="Work history supports occupation and skills assessment.">
+          <Input required label="Current occupation" value={formData.currentOccupation} error={shouldShowError('currentOccupation') ? validationErrors.currentOccupation : undefined} onBlur={() => onBlur('currentOccupation')} onChange={(v) => onChange('currentOccupation', v)} />
           <Input label="Intended migration occupation" value={formData.migrationOccupation} onChange={(v) => onChange('migrationOccupation', v)} />
           <Input label="Total years of relevant work experience" type="number" value={formData.workExperienceYears} onChange={(v) => onChange('workExperienceYears', v)} />
           <Input label="Current employer" value={formData.currentEmployer} onChange={(v) => onChange('currentEmployer', v)} />
           <TextArea label="Brief duties summary" value={formData.dutiesSummary} onChange={(v) => onChange('dutiesSummary', v)} />
         </Fieldset>
 
-        <Fieldset title="English language">
-          <Select label="English test completed?" value={formData.englishTestCompleted} options={['Yes', 'No']} onChange={(v) => onChange('englishTestCompleted', v)} />
+        <Fieldset id="english-language" title="English language" helper="Include test information if available."><Select label="English test completed?" value={formData.englishTestCompleted} options={['Yes', 'No']} onChange={(v) => onChange('englishTestCompleted', v)} /></Fieldset>
 
-          {formData.englishTestCompleted === 'Yes' && (
-            <div className="conditional-block">
-              <h3>English test details (placeholder)</h3>
-              <Input label="Test type" value={formData.englishTestType} onChange={(v) => onChange('englishTestType', v)} />
-              <Input label="Test date" type="date" value={formData.englishTestDate} onChange={(v) => onChange('englishTestDate', v)} />
-              <Input label="Score summary" value={formData.englishScoreSummary} onChange={(v) => onChange('englishScoreSummary', v)} />
-            </div>
-          )}
-        </Fieldset>
+        <Fieldset id="risk-screening" title="Risk screening" helper="These questions help us identify any complexity early."><Select label="Any previous visa refusal?" value={formData.previousRefusal} options={['Yes', 'No']} onChange={(v) => onChange('previousRefusal', v)} /></Fieldset>
 
-        <Fieldset title="Risk screening">
-          <Select label="Any previous visa refusal?" value={formData.previousRefusal} options={['Yes', 'No']} onChange={(v) => onChange('previousRefusal', v)} />
-          {formData.previousRefusal === 'Yes' && (
-            <TextArea label="Refusal details (placeholder)" value={formData.refusalDetails} onChange={(v) => onChange('refusalDetails', v)} />
-          )}
-          <Select label="Any previous visa cancellation?" value={formData.previousCancellation} options={['Yes', 'No']} onChange={(v) => onChange('previousCancellation', v)} />
-          <Select label="Overstay/deportation/removal history?" value={formData.overstayRemoval} options={['Yes', 'No']} onChange={(v) => onChange('overstayRemoval', v)} />
-          <Select label="Any criminal charges or convictions?" value={formData.criminalHistory} options={['Yes', 'No']} onChange={(v) => onChange('criminalHistory', v)} />
-          <Select label="Any serious health condition?" value={formData.healthCondition} options={['Yes', 'No']} onChange={(v) => onChange('healthCondition', v)} />
+        <Fieldset id="documents" title="Documents checklist" helper="List what you already have; uploads can be integrated later."><Input label="Passport bio page" value={formData.passportBioPage} onChange={(v) => onChange('passportBioPage', v)} placeholder="Attach later - placeholder" /></Fieldset>
 
-          {(formData.criminalHistory === 'Yes' || formData.previousCancellation === 'Yes') && (
-            <TextArea label="Health/character details (placeholder)" value={formData.characterDetails} onChange={(v) => onChange('characterDetails', v)} />
-          )}
-
-          {formData.healthCondition === 'Yes' && (
-            <TextArea label="Health condition details (placeholder)" value={formData.healthDetails} onChange={(v) => onChange('healthDetails', v)} />
-          )}
-        </Fieldset>
-
-        <Fieldset title="Documents checklist (placeholder file names)">
-          <Input label="Passport bio page" value={formData.passportBioPage} onChange={(v) => onChange('passportBioPage', v)} placeholder="Attach later - placeholder" />
-          <Input label="CV / Resume" value={formData.resume} onChange={(v) => onChange('resume', v)} />
-          <Input label="Qualifications" value={formData.qualificationsDoc} onChange={(v) => onChange('qualificationsDoc', v)} />
-          <Input label="Transcripts" value={formData.transcripts} onChange={(v) => onChange('transcripts', v)} />
-          <Input label="English result" value={formData.englishResultDoc} onChange={(v) => onChange('englishResultDoc', v)} />
-          <Input label="Refusal/Cancellation documents (if applicable)" value={formData.refusalDocs} onChange={(v) => onChange('refusalDocs', v)} />
-        </Fieldset>
-
-        <p className="disclaimer">
-          This questionnaire is for preliminary assessment only and does not confirm eligibility or guarantee any visa outcome.
-        </p>
+        <p className="disclaimer">This questionnaire is for preliminary assessment only and does not confirm eligibility or guarantee any visa outcome.</p>
       </form>
 
-      <aside className="intake-summary card">
-        <h2>Review summary</h2>
-        <p><strong>Completion status:</strong> {completionPercent}%</p>
-        <p><strong>Estimated readiness:</strong> {readinessStatus}</p>
-
-        <div>
-          <h3>Missing key items</h3>
-          {missingKeyItems.length === 0 ? <p>None.</p> : <ul>{missingKeyItems.map((item) => <li key={item}>{item}</li>)}</ul>}
-        </div>
-
-        <div>
-          <h3>Risk flags</h3>
-          {riskFlags.length === 0 ? <p>No risk flags currently declared.</p> : <ul>{riskFlags.map((flag) => <li key={flag}>{flag}</li>)}</ul>}
-        </div>
-      </aside>
+      <aside className="intake-summary card"><h2>Review summary</h2><p><strong>Completion status:</strong> {completionPercent}%</p><p><strong>Estimated readiness:</strong> {readinessStatus}</p></aside>
     </section>
   );
 }
 
-function Fieldset({ title, children }: { title: string; children: React.ReactNode }) {
+function Fieldset({ id, title, helper, children }: { id: string; title: string; helper: string; children: ReactNode }) {
   return (
-    <fieldset className="card intake-fieldset">
+    <fieldset id={id} className="card intake-fieldset">
       <legend>{title}</legend>
+      <p className="fieldset-helper">{helper}</p>
       <div className="input-grid">{children}</div>
     </fieldset>
   );
 }
 
-function Input({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+function Input({ label, onChange, error, required, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> & { label: string; error?: string; onChange: (value: string) => void }) {
   return (
-    <label className="field">
-      <span>{label}</span>
-      <input {...props} />
+    <label className={`field ${error ? 'field--error' : ''}`}>
+      <span>{label} {required ? <em className="required-indicator" aria-label="required">*</em> : null}</span>
+      <input {...props} required={required} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} />
+      {error ? <small className="field-error">{error}</small> : null}
     </label>
   );
 }
 
-function Select({ label, options, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; options: string[] }) {
+function Select({ label, options, onChange, error, required, ...props }: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> & { label: string; options: string[]; error?: string; onChange: (value: string) => void }) {
   return (
-    <label className="field">
-      <span>{label}</span>
-      <select {...props}>
+    <label className={`field ${error ? 'field--error' : ''}`}>
+      <span>{label} {required ? <em className="required-indicator" aria-label="required">*</em> : null}</span>
+      <select {...props} required={required} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)}>
         {options.map((option) => (
           <option key={option} value={option}>{option}</option>
         ))}
       </select>
+      {error ? <small className="field-error">{error}</small> : null}
     </label>
   );
 }
 
-function TextArea({ label, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string }) {
+function TextArea({ label, onChange, ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'onChange'> & { label: string; onChange: (value: string) => void }) {
   return (
     <label className="field field--full">
       <span>{label}</span>
-      <textarea rows={4} {...props} />
+      <textarea rows={4} {...props} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
