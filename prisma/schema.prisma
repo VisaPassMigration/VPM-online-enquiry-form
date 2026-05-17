@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubmissionStatus {
+  draft
+  submitted
+  intake_triage_in_progress
+  awaiting_client_documents
+  document_review_in_progress
+  risk_review_in_progress
+  preliminary_points_review_in_progress
+  senior_review_in_progress
+  ready_for_client_summary
+  client_summary_sent
+  on_hold
+  closed
+}
+
+enum DocumentType {
+  passportBioPage
+  resume
+  qualificationsDoc
+  transcripts
+  englishResultDoc
+  skillsAssessmentDoc
+  refusalDocs
+  otherSupportingDocs
+}
+
+enum DocumentVerificationStatus {
+  not_uploaded
+  uploaded_unchecked
+  under_review
+  verified
+  rejected
+  needs_reupload
+}
+
+enum UploadedBy {
+  client
+  staff
+}
+
+enum ReviewStage {
+  intake_triage
+  document_completeness_check
+  risk_assessment
+  preliminary_points_review
+  senior_consultant_check
+  client_summary_ready
+}
+
+enum ReviewDecision {
+  insufficient_information
+  needs_more_documents
+  needs_risk_clarification
+  ready_for_consultant_summary
+  manual_hold
+}
+
+enum RiskSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum RiskDetectedBy {
+  system
+  staff
+}
+
+enum RiskResolutionStatus {
+  open
+  under_review
+  resolved
+  accepted_with_controls
+}
+
+enum PointsGeneratedBy {
+  system
+  staff
+}
+
+enum AuditEventType {
+  submission_created
+  submission_updated
+  submission_submitted
+  document_uploaded
+  document_verified
+  document_rejected
+  status_transition_executed
+  risk_flag_created
+  risk_flag_resolved
+  points_snapshot_generated
+  points_snapshot_regenerated
+  client_summary_released
+}
+
+model IntakeSubmission {
+  id                      String           @id @default(uuid())
+  status                  SubmissionStatus @default(draft)
+  payload                 Json
+  currentReviewState      SubmissionReviewState?
+  documents               SubmissionDocument[]
+  reviews                 StaffReview[]
+  pointsSnapshots         PointsSnapshot[]
+  riskFlags               RiskFlag[]
+  auditEvents             AuditEvent[]
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  submittedAt             DateTime?
+  clientSummaryReleasedAt DateTime?
+}
+
+model SubmissionDocument {
+  id                        String                     @id @default(uuid())
+  submissionId              String
+  submission                IntakeSubmission           @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  documentType              DocumentType
+  originalFilename          String
+  mimeType                  String
+  fileSizeBytes             Int
+  storageKey                String
+  uploadedBy                UploadedBy
+  verificationStatus        DocumentVerificationStatus @default(uploaded_unchecked)
+  verificationNotesInternal String?
+  rejectionReasonClientSafe String?
+  verifiedBy                String?
+  uploadedAt                DateTime                   @default(now())
+  verifiedAt                DateTime?
+
+  @@index([submissionId])
+  @@index([documentType])
+}
+
+model StaffReview {
+  id                 String         @id @default(uuid())
+  submissionId       String
+  submission         IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  stage              ReviewStage
+  decision           ReviewDecision
+  internalNotes      String
+  missingEvidence    String[]
+  nextActionOwner    String?
+  nextActionDueDate  DateTime?
+  clientSafeSummary  String?
+  reviewedBy         String
+  createdAt          DateTime       @default(now())
+
+  @@index([submissionId])
+  @@index([stage])
+}
+
+model SubmissionReviewState {
+  id                    String           @id @default(uuid())
+  submissionId          String           @unique
+  submission            IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  currentStage          ReviewStage
+  lastDecision          ReviewDecision?
+  mandatoryStagesComplete Boolean        @default(false)
+  releaseChecklistSigned Boolean         @default(false)
+  seniorSignOffBy       String?
+  seniorSignOffAt       DateTime?
+  updatedAt             DateTime         @updatedAt
+}
+
+model PointsSnapshot {
+  id               String           @id @default(uuid())
+  submissionId     String
+  submission       IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  calculatorVersion String
+  inputPayload     Json
+  totalPoints      Int
+  pointsBreakdown  Json
+  missingItems     String[]
+  generatedBy      PointsGeneratedBy
+  preliminaryLabel String           @default("Preliminary only; subject to human review.")
+  generatedAt      DateTime         @default(now())
+
+  @@index([submissionId])
+}
+
+model RiskFlag {
+  id                        String               @id @default(uuid())
+  submissionId              String
+  submission                IntakeSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  riskCode                  String
+  severity                  RiskSeverity
+  detectedBy                RiskDetectedBy
+  resolutionStatus          RiskResolutionStatus @default(open)
+  resolutionSummaryInternal String?
+  clientSafeDisclosure      String?
+  resolvedBy                String?
+  detectedAt                DateTime             @default(now())
+  resolvedAt                DateTime?
+
+  @@index([submissionId])
+  @@index([severity])
+}
+
+model AuditEvent {
+  id            String           @id @default(uuid())
+  submissionId  String
+  submission    IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  eventType     AuditEventType
+  actorId       String?
+  actorRole     String?
+  eventAt       DateTime         @default(now())
+  fromStatus    SubmissionStatus?
+  toStatus      SubmissionStatus?
+  reason        String?
+  metadata      Json?
+
+  @@index([submissionId])
+  @@index([eventType])
+}
