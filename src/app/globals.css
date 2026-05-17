@@ -259,3 +259,23 @@ a {
   margin: 0.3rem 0;
   font-size: 0.85rem;
 }
+
+.points-summary {
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+  border-radius: 10px;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.points-total {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0.2rem 0 0.4rem;
+  color: #1d4ed8;
+}
+
+.points-summary ul {
+  margin: 0.4rem 0;
+  padding-left: 1rem;
+}
