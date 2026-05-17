@@ -117,6 +117,8 @@ model IntakeSubmission {
   updatedAt               DateTime         @updatedAt
   submittedAt             DateTime?
   clientSummaryReleasedAt DateTime?
+
+  @@index([status, updatedAt])
 }
 
 model SubmissionDocument {
@@ -132,12 +134,19 @@ model SubmissionDocument {
   verificationStatus        DocumentVerificationStatus @default(uploaded_unchecked)
   verificationNotesInternal String?
   rejectionReasonClientSafe String?
+  // Waiver fields allow mandatory document review gates to be satisfied with explicit staff-approved exceptions.
+  waived                    Boolean                    @default(false)
+  waivedReason              String?
+  waivedBy                  String?
+  waivedAt                  DateTime?
+  // Actor identity fields remain plain strings in V1 and may later be normalized into StaffUser relations.
   verifiedBy                String?
   uploadedAt                DateTime                   @default(now())
   verifiedAt                DateTime?
 
   @@index([submissionId])
   @@index([documentType])
+  @@index([submissionId, verificationStatus])
 }
 
 model StaffReview {
@@ -151,11 +160,13 @@ model StaffReview {
   nextActionOwner    String?
   nextActionDueDate  DateTime?
   clientSafeSummary  String?
+  // Actor identity fields remain plain strings in V1 and may later be normalized into StaffUser relations.
   reviewedBy         String
   createdAt          DateTime       @default(now())
 
   @@index([submissionId])
   @@index([stage])
+  @@index([submissionId, createdAt])
 }
 
 model SubmissionReviewState {
@@ -166,6 +177,9 @@ model SubmissionReviewState {
   lastDecision          ReviewDecision?
   mandatoryStagesComplete Boolean        @default(false)
   releaseChecklistSigned Boolean         @default(false)
+  // Workflow guardrails must still be enforced in service/API logic, not only database schema constraints.
+  createdAt             DateTime         @default(now())
+  // Actor identity fields remain plain strings in V1 and may later be normalized into StaffUser relations.
   seniorSignOffBy       String?
   seniorSignOffAt       DateTime?
   updatedAt             DateTime         @updatedAt
@@ -197,12 +211,14 @@ model RiskFlag {
   resolutionStatus          RiskResolutionStatus @default(open)
   resolutionSummaryInternal String?
   clientSafeDisclosure      String?
+  // Actor identity fields remain plain strings in V1 and may later be normalized into StaffUser relations.
   resolvedBy                String?
   detectedAt                DateTime             @default(now())
   resolvedAt                DateTime?
 
   @@index([submissionId])
   @@index([severity])
+  @@index([submissionId, resolutionStatus, severity])
 }
 
 model AuditEvent {
@@ -210,6 +226,7 @@ model AuditEvent {
   submissionId  String
   submission    IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   eventType     AuditEventType
+  // Actor identity fields remain plain strings in V1 and may later be normalized into StaffUser relations.
   actorId       String?
   actorRole     String?
   eventAt       DateTime         @default(now())
@@ -220,4 +237,5 @@ model AuditEvent {
 
   @@index([submissionId])
   @@index([eventType])
+  @@index([submissionId, eventAt])
 }
