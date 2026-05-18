@@ -19,6 +19,36 @@ const safeText = (value: string | number | undefined | null) => {
   return String(value);
 };
 
+const COMM_STATUS_META: Record<string, { label: string; helper: string; pillClass: string }> = {
+  drafted_internal: {
+    label: 'Drafted',
+    helper: 'Prepared internally, not sent.',
+    pillClass: 'pill--placeholder',
+  },
+  pending_staff_release: {
+    label: 'Pending release',
+    helper: 'Staff has requested release/checks.',
+    pillClass: 'pill--warning',
+  },
+  released: {
+    label: 'Released',
+    helper: 'Sent or officially released.',
+    pillClass: 'pill--ok',
+  },
+  blocked: {
+    label: 'Blocked',
+    helper: 'System prevented release due to guardrails.',
+    pillClass: 'pill--warning',
+  },
+  failed: {
+    label: 'Failed',
+    helper: 'Release/send was attempted but did not complete.',
+    pillClass: 'pill--danger',
+  },
+};
+
+const communicationTypeLabel = (type: string) => type.split('_').map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
+
 const renderRows = (pairs: Array<[string, string | number | undefined | null]>) => (
   <dl className="review-grid">
     {pairs.map(([label, value]) => (
@@ -263,7 +293,50 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       </section>
 
       <section className="section review-section"><h3>Communication records</h3>{submission.clientCommunications.length === 0 ? <p>No communication records available.</p> : (
-        <div className="table-wrap"><table className="dashboard-table"><thead><tr><th>Type</th><th>Status</th><th>Subject</th><th>Created</th><th>Released</th><th>Internal reason</th><th>Actions</th></tr></thead><tbody>{submission.clientCommunications.map((comm) => <tr key={comm.id}><td>{comm.type}</td><td>{comm.status}</td><td>{comm.subject}</td><td>{displayDate(comm.createdAt)}</td><td>{comm.releasedAt ? displayDate(comm.releasedAt) : 'Not released'}</td><td>{comm.internalReason}</td><td>{comm.type === 'request_more_information' && comm.status !== 'released' ? <form action={runReleaseRequestMoreInformationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason/checklist" /><button type="submit">Release Request Email</button></form> : '—'}</td></tr>)}</tbody></table></div>
+        <>
+          <div className="communication-status-guide" role="note" aria-label="Communication status guide">
+            <p><strong>Drafted</strong> = prepared internally, not sent.</p>
+            <p><strong>Pending release</strong> = staff has requested release/checks.</p>
+            <p><strong>Released</strong> = sent or officially released.</p>
+            <p><strong>Blocked</strong> = system prevented release due to guardrails.</p>
+            <p><strong>Failed</strong> = release/send was attempted but did not complete.</p>
+          </div>
+          <p className="communication-note">Communication history is used for audit, staff accountability, and follow-up tracking.</p>
+          <div className="communication-timeline" aria-label="Client communication timeline">
+            {submission.clientCommunications.map((comm) => {
+              const statusMeta = COMM_STATUS_META[comm.status] ?? {
+                label: comm.status,
+                helper: 'Status detail unavailable.',
+                pillClass: 'pill--placeholder',
+              };
+              const isFailed = comm.status === 'failed';
+
+              return <article key={comm.id} className={`communication-card ${isFailed ? 'communication-card--failed' : ''}`}>
+                <header className="communication-card__header">
+                  <div>
+                    <p className="communication-card__type">{communicationTypeLabel(comm.type)}</p>
+                    <h4>{comm.subject}</h4>
+                  </div>
+                  <span className={`pill ${statusMeta.pillClass}`}>{statusMeta.label}</span>
+                </header>
+                <p className="communication-card__helper">{statusMeta.helper}</p>
+                <dl className="communication-card__meta">
+                  <div><dt>Body preview</dt><dd>{comm.bodyText}</dd></div>
+                  <div><dt>Internal reason</dt><dd>{comm.internalReason}</dd></div>
+                  <div><dt>Created date</dt><dd>{displayDate(comm.createdAt)}</dd></div>
+                  <div><dt>Released date</dt><dd>{comm.releasedAt ? displayDate(comm.releasedAt) : 'Not released'}</dd></div>
+                  <div><dt>Released by</dt><dd>{comm.releasedBy || 'Not available'}</dd></div>
+                  <div><dt>Provider</dt><dd>{comm.provider || 'Not available'}</dd></div>
+                  <div><dt>Provider message ID</dt><dd>{comm.providerMessageId || 'Not available'}</dd></div>
+                  {isFailed && <div><dt>Failure reason</dt><dd className="communication-card__failure">{comm.failureReason || 'Not available'}</dd></div>}
+                </dl>
+                <div className="communication-card__actions">
+                  {comm.type === 'request_more_information' && comm.status !== 'released' ? <form action={runReleaseRequestMoreInformationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason/checklist" /><button type="submit">Release Request Email</button></form> : <span>—</span>}
+                </div>
+              </article>;
+            })}
+          </div>
+        </>
       )}</section>
 
       <section className="section review-section"><h3>Client details</h3>{renderRows([
