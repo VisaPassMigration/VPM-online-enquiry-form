@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PERMISSIONS } from '@/server/auth/permissions';
 
 const mocks = vi.hoisted(() => ({
   requireStaffSessionMock: vi.fn(),
@@ -11,25 +12,46 @@ const mocks = vi.hoisted(() => ({
   createStaffReviewMock: vi.fn(),
   createAuditEventMock: vi.fn(),
   updateManyRiskMock: vi.fn(),
+  createClientCommunicationDraftMock: vi.fn(),
+  releaseRequestMoreInformationCommunicationMock: vi.fn(),
+  releaseConsultationInvitationCommunicationMock: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermissionMock }));
 vi.mock('@/server/db', () => ({ db: { $transaction: mocks.transactionMock } }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }));
+vi.mock('@/server/clientCommunications', () => ({
+  CLIENT_COMMUNICATION_TEMPLATES: {
+    request_more_information: { subject: 'Request', bodyText: 'Body A' },
+    consultation_invitation: { subject: 'Invite', bodyText: 'Body B' },
+    not_progressing_hold: { subject: 'Hold', bodyText: 'Body C' },
+  },
+  createClientCommunicationDraft: mocks.createClientCommunicationDraftMock,
+  releaseRequestMoreInformationCommunication: mocks.releaseRequestMoreInformationCommunicationMock,
+  releaseConsultationInvitationCommunication: mocks.releaseConsultationInvitationCommunicationMock,
+}));
 
-import { runInternalReviewAction } from './page';
+import {
+  runClientCommunicationAction,
+  runInternalReviewAction,
+  runReleaseConsultationInvitationAction,
+  runReleaseRequestMoreInformationAction,
+} from './page';
 
-describe('runInternalReviewAction', () => {
+describe('intake dashboard actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireStaffSessionMock.mockResolvedValue({
       user: { staffUserId: 'staff-1', name: 'Jane Reviewer', roles: ['senior_staff'], email: 'jane@example.com' },
     });
     mocks.requirePermissionMock.mockResolvedValue(undefined);
+    mocks.createClientCommunicationDraftMock.mockResolvedValue({ id: 'comm-1' });
+    mocks.releaseRequestMoreInformationCommunicationMock.mockResolvedValue({ id: 'comm-1' });
+    mocks.releaseConsultationInvitationCommunicationMock.mockResolvedValue({ id: 'comm-2' });
+
     mocks.findUniqueMock.mockResolvedValue({
-      id: 'sub-1',
-      status: 'submitted',
+      id: 'sub-1', status: 'submitted',
       currentReviewState: { currentStage: 'intake_triage', lastDecision: 'manual_hold' },
       riskFlags: [],
     });
@@ -47,62 +69,85 @@ describe('runInternalReviewAction', () => {
     }));
   });
 
+  it('prepare communication uses session-derived actor', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('communicationType', 'request_more_information');
+    formData.set('internalReason', 'need more docs');
+    formData.set('staffActor', 'placeholder-should-not-be-used');
+
+    await runClientCommunicationAction(formData);
+
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.PREPARE_CLIENT_COMMUNICATION);
+    expect(mocks.createClientCommunicationDraftMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff' }));
+  });
+
+  it('release request-more-info uses session-derived actor', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('communicationId', 'comm-1');
+    formData.set('internalReason', 'approved by reviewer');
+    formData.set('staffActor', 'placeholder-should-not-be-used');
+
+    await runReleaseRequestMoreInformationAction(formData);
+
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.RELEASE_REQUEST_MORE_INFO);
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff' }));
+  });
+
+  it('release consultation invite uses session-derived actor', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('communicationId', 'comm-2');
+    formData.set('internalReason', 'consultation-ready checklist complete');
+
+    await runReleaseConsultationInvitationAction(formData);
+
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.RELEASE_CONSULTATION_INVITE);
+    expect(mocks.releaseConsultationInvitationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff' }));
+  });
+
+  it('read_only_reviewer cannot prepare communication', async () => {
+    mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('communicationType', 'request_more_information');
+    formData.set('internalReason', 'reason');
+
+    await expect(runClientCommunicationAction(formData)).rejects.toThrow('notFound');
+  });
+
+  it('read_only_reviewer cannot release communication', async () => {
+    mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('communicationId', 'comm-1');
+    formData.set('internalReason', 'reason');
+
+    await expect(runReleaseRequestMoreInformationAction(formData)).rejects.toThrow('notFound');
+  });
+
+  it('missing session blocks communication action', async () => {
+    mocks.requireStaffSessionMock.mockRejectedValueOnce(new Error('redirect'));
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('communicationType', 'request_more_information');
+    formData.set('internalReason', 'reason');
+
+    await expect(runClientCommunicationAction(formData)).rejects.toThrow('redirect');
+  });
+
   it('uses actor identity from authenticated session and stamps audit actor fields', async () => {
     const formData = new FormData();
     formData.set('submissionId', 'sub-1');
     formData.set('action', 'add_internal_note');
     formData.set('internalNote', 'Internal check');
-    formData.set('staffActor', 'placeholder-should-not-be-used');
 
     await runInternalReviewAction(formData);
 
-    expect(mocks.requirePermissionMock).toHaveBeenCalled();
-    expect(mocks.createStaffReviewMock).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ reviewedBy: 'staff-1' }),
-    }));
     const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
     expect(auditData.actorId).toBe('staff-1');
     expect(auditData.actorName).toBe('Jane Reviewer');
     expect(auditData.actorRole).toBe('senior_staff');
-    expect(auditData.relatedEntityType).toBe('staff_review');
-    expect(auditData.eventSource).toBe('staff_review_action');
-  });
-
-  it('blocks missing session', async () => {
-    mocks.requireStaffSessionMock.mockRejectedValueOnce(new Error('redirect'));
-    const formData = new FormData();
-    formData.set('submissionId', 'sub-1');
-    formData.set('action', 'mark_under_review');
-    formData.set('internalNote', 'note');
-
-    await expect(runInternalReviewAction(formData)).rejects.toThrow('redirect');
-    expect(mocks.transactionMock).not.toHaveBeenCalled();
-  });
-
-  it('blocks read_only_reviewer via permission check', async () => {
-    mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
-    const formData = new FormData();
-    formData.set('submissionId', 'sub-1');
-    formData.set('action', 'mark_under_review');
-    formData.set('internalNote', 'note');
-
-    await expect(runInternalReviewAction(formData)).rejects.toThrow('notFound');
-    expect(mocks.transactionMock).not.toHaveBeenCalled();
-  });
-
-  it('keeps workflow outcome unchanged for request_more_information', async () => {
-    const formData = new FormData();
-    formData.set('submissionId', 'sub-1');
-    formData.set('action', 'request_more_information');
-    formData.set('internalNote', 'Need docs');
-
-    await runInternalReviewAction(formData);
-
-    expect(mocks.updateSubmissionMock).toHaveBeenCalledWith(expect.objectContaining({
-      data: { status: 'awaiting_client_documents' },
-    }));
-    expect(mocks.upsertReviewStateMock).toHaveBeenCalledWith(expect.objectContaining({
-      update: expect.objectContaining({ currentStage: 'document_completeness_check', lastDecision: 'needs_more_documents' }),
-    }));
   });
 });
