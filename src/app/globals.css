@@ -299,3 +299,96 @@ a {
   margin: 0.4rem 0;
   padding-left: 1rem;
 }
+
+.dashboard-note {
+  border-left: 4px solid #1d4ed8;
+  background: #eff6ff;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.8rem;
+}
+
+.kpi-card {
+  margin-bottom: 0;
+}
+
+.kpi-card p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.88rem;
+}
+
+.kpi-card h4 {
+  margin: 0.45rem 0 0;
+  font-size: 1.3rem;
+}
+
+.dashboard-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+}
+
+.pill--placeholder {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.pill--ok {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.pill--warning {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.pill--danger {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1050px;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  text-align: left;
+  padding: 0.65rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.86rem;
+  vertical-align: top;
+}
+
+.dashboard-table th {
+  background: #f9fafb;
+  color: #374151;
+}
