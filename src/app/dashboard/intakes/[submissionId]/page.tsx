@@ -5,6 +5,17 @@ import { Prisma, RiskResolutionStatus, RiskSeverity, ReviewDecision, ReviewStage
 
 import { db } from '@/server/db';
 import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, releaseConsultationInvitationCommunication, releaseRequestMoreInformationCommunication } from '@/server/clientCommunications';
+import {
+  createConsultationBooking,
+  markConsultationBooked,
+  markConsultationCancelled,
+  markConsultationCompleted,
+  markConsultationNoShow,
+  markConsultationRescheduled,
+  markCsaIssued,
+  markDepositPaid,
+  recordConsultationOutcome,
+} from '@/server/consultationBookings';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -268,6 +279,91 @@ async function runReleaseConsultationInvitationAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+async function runConsultationBookingAction(formData: FormData) {
+  'use server';
+
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const action = String(formData.get('action') ?? '').trim();
+  const actorId = String(formData.get('staffActor') ?? '').trim();
+  const reason = String(formData.get('internalReason') ?? '').trim();
+  const bookingId = String(formData.get('bookingId') ?? '').trim();
+
+  if (!submissionId || !action || !actorId || !reason) return;
+
+  const actorRole = 'staff';
+
+  try {
+    if (action === 'create_booking') {
+      const clientName = String(formData.get('clientName') ?? '').trim();
+      const clientEmail = String(formData.get('clientEmail') ?? '').trim();
+      const assignedSeniorStaffId = String(formData.get('assignedSeniorStaffId') ?? '').trim();
+      const assignedSeniorStaffName = String(formData.get('assignedSeniorStaffName') ?? '').trim();
+      const bookingDateTimeRaw = String(formData.get('bookingDateTime') ?? '').trim();
+      const bookingTimezone = String(formData.get('bookingTimezone') ?? '').trim();
+      const bookingSourceRaw = String(formData.get('bookingSource') ?? '').trim();
+
+      if (!clientName || !clientEmail) return;
+
+      const bookingSource = (
+        bookingSourceRaw === 'manual_staff_entry' ||
+        bookingSourceRaw === 'internal_booking_link' ||
+        bookingSourceRaw === 'calendly' ||
+        bookingSourceRaw === 'google_calendar' ||
+        bookingSourceRaw === 'other'
+      ) ? bookingSourceRaw : 'manual_staff_entry';
+
+      await createConsultationBooking({
+        submissionId,
+        clientName,
+        clientEmail,
+        assignedSeniorStaffId: assignedSeniorStaffId || undefined,
+        assignedSeniorStaffName: assignedSeniorStaffName || undefined,
+        bookingDateTime: bookingDateTimeRaw ? new Date(bookingDateTimeRaw) : undefined,
+        bookingTimezone: bookingTimezone || undefined,
+        bookingSource,
+        notesInternal: reason,
+        actorId,
+        actorRole,
+        reason,
+      });
+    } else {
+      if (!bookingId) return;
+
+      if (action === 'mark_booked') {
+        await markConsultationBooked({ bookingId, submissionId, actorId, actorRole, reason });
+      } else if (action === 'mark_completed') {
+        await markConsultationCompleted({ bookingId, submissionId, actorId, actorRole, reason });
+      } else if (action === 'mark_no_show') {
+        await markConsultationNoShow({ bookingId, submissionId, actorId, actorRole, reason });
+      } else if (action === 'mark_cancelled') {
+        await markConsultationCancelled({ bookingId, submissionId, actorId, actorRole, reason });
+      } else if (action === 'mark_rescheduled') {
+        await markConsultationRescheduled({ bookingId, submissionId, actorId, actorRole, reason });
+      } else if (action === 'record_outcome') {
+        const outcome = String(formData.get('consultationOutcome') ?? '').trim();
+        if (!outcome) return;
+        await recordConsultationOutcome({
+          bookingId,
+          submissionId,
+          outcome,
+          csaRecommended: String(formData.get('csaRecommended') ?? '') === 'true',
+          actorId,
+          actorRole,
+          reason,
+        });
+      } else if (action === 'mark_csa_issued') {
+        await markCsaIssued({ bookingId, submissionId, actorId, actorRole, reason });
+      } else if (action === 'mark_deposit_paid') {
+        await markDepositPaid({ bookingId, submissionId, actorId, actorRole, reason });
+      }
+    }
+  } catch {
+    // Keep page stable for staff users if an action fails.
+  }
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
@@ -279,6 +375,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       currentReviewState: true,
       auditEvents: { orderBy: { eventAt: 'desc' }, take: 30 },
       clientCommunications: { orderBy: { createdAt: 'desc' } },
+      consultationBookings: { orderBy: { createdAt: 'desc' } },
     },
   });
 
@@ -385,6 +482,98 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
           </div>
         </>
       )}</section>
+      <section className="section review-section">
+        <h3>Consultation Booking Management</h3>
+        <p>Consultation booking records are for internal operations and KPI tracking. Client outcomes and calendar events are not created from this section.</p>
+        <form action={runConsultationBookingAction} className="intake-form">
+          <input type="hidden" name="submissionId" value={submission.id} />
+          <input type="hidden" name="action" value="create_booking" />
+          <h4>Create consultation booking record</h4>
+          <label><strong>Client name (required)</strong></label>
+          <input name="clientName" required />
+          <label><strong>Client email (required)</strong></label>
+          <input name="clientEmail" type="email" required />
+          <label><strong>Assigned senior staff ID</strong></label>
+          <input name="assignedSeniorStaffId" />
+          <label><strong>Assigned senior staff name</strong></label>
+          <input name="assignedSeniorStaffName" />
+          <label><strong>Booking date/time</strong></label>
+          <input name="bookingDateTime" type="datetime-local" />
+          <label><strong>Timezone</strong></label>
+          <input name="bookingTimezone" placeholder="Australia/Sydney" />
+          <label><strong>Source</strong></label>
+          <select name="bookingSource" defaultValue="manual_staff_entry">
+            <option value="manual_staff_entry">Manual staff entry</option>
+            <option value="internal_booking_link">Internal booking link</option>
+            <option value="calendly">Calendly</option>
+            <option value="google_calendar">Google Calendar reference</option>
+            <option value="other">Other</option>
+          </select>
+          <label><strong>Staff actor placeholder (required)</strong></label>
+          <input name="staffActor" required placeholder="staff-placeholder" />
+          <label><strong>Internal note/reason (required)</strong></label>
+          <textarea name="internalReason" required rows={3} />
+          <div className="button-row"><button type="submit">Create Booking Record</button></div>
+        </form>
+        {submission.consultationBookings.length === 0 ? <p>No consultation booking records available.</p> : (
+          <div className="communication-timeline" aria-label="Consultation booking records">
+            {submission.consultationBookings.map((booking) => (
+              <article key={booking.id} className="communication-card">
+                <header className="communication-card__header">
+                  <div>
+                    <p className="communication-card__type">Booking record</p>
+                    <h4>{booking.clientName}</h4>
+                  </div>
+                  <span className="pill pill--placeholder">{booking.status}</span>
+                </header>
+                <dl className="communication-card__meta">
+                  <div><dt>Assigned senior staff</dt><dd>{booking.assignedSeniorStaffName || booking.assignedSeniorStaffId || 'Not assigned'}</dd></div>
+                  <div><dt>Booking date/time</dt><dd>{booking.bookingDateTime ? displayDate(booking.bookingDateTime) : 'Not set'}</dd></div>
+                  <div><dt>Timezone</dt><dd>{booking.bookingTimezone || 'Not set'}</dd></div>
+                  <div><dt>Source</dt><dd>{booking.bookingSource}</dd></div>
+                  <div><dt>Consultation outcome</dt><dd>{booking.consultationOutcome || 'Not recorded'}</dd></div>
+                  <div><dt>CSA recommended</dt><dd>{booking.csaRecommended === null ? 'Not recorded' : boolText(booking.csaRecommended ?? undefined)}</dd></div>
+                  <div><dt>CSA issued</dt><dd>{boolText(booking.csaIssued)}</dd></div>
+                  <div><dt>Deposit paid</dt><dd>{boolText(booking.depositPaid)}</dd></div>
+                  <div><dt>Internal notes</dt><dd>{booking.notesInternal || 'Not recorded'}</dd></div>
+                  <div><dt>Created</dt><dd>{displayDate(booking.createdAt)}</dd></div>
+                  <div><dt>Updated</dt><dd>{displayDate(booking.updatedAt)}</dd></div>
+                </dl>
+                <form action={runConsultationBookingAction} className="inline-release-form">
+                  <input type="hidden" name="submissionId" value={submission.id} />
+                  <input type="hidden" name="bookingId" value={booking.id} />
+                  <input name="staffActor" required placeholder="staff-placeholder" />
+                  <input name="internalReason" required placeholder="Internal note/reason" />
+                  <button type="submit" name="action" value="mark_booked">Mark Booked</button>
+                  <button type="submit" name="action" value="mark_completed">Mark Completed</button>
+                  <button type="submit" name="action" value="mark_no_show">Mark No-Show</button>
+                  <button type="submit" name="action" value="mark_cancelled">Mark Cancelled</button>
+                  <button type="submit" name="action" value="mark_rescheduled">Mark Rescheduled</button>
+                  <button type="submit" name="action" value="mark_csa_issued">Mark CSA Issued</button>
+                  <button type="submit" name="action" value="mark_deposit_paid">Mark Deposit Paid</button>
+                </form>
+                <form action={runConsultationBookingAction} className="intake-form">
+                  <input type="hidden" name="submissionId" value={submission.id} />
+                  <input type="hidden" name="bookingId" value={booking.id} />
+                  <input type="hidden" name="action" value="record_outcome" />
+                  <label><strong>Consultation outcome</strong></label>
+                  <textarea name="consultationOutcome" required rows={3} />
+                  <label><strong>CSA recommended</strong></label>
+                  <select name="csaRecommended" defaultValue="false">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                  </select>
+                  <label><strong>Staff actor placeholder (required)</strong></label>
+                  <input name="staffActor" required placeholder="staff-placeholder" />
+                  <label><strong>Internal note/reason (required)</strong></label>
+                  <textarea name="internalReason" required rows={2} />
+                  <button type="submit">Record Consultation Outcome</button>
+                </form>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="section review-section"><h3>Client details</h3>{renderRows([
         ['First name', payload.firstName as string], ['Last name', payload.lastName as string], ['Date of birth', payload.dateOfBirth as string],
