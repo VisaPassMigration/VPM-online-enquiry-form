@@ -56,6 +56,63 @@ export async function getConsultsPerSeniorStaffMember(now = new Date()) {
   return grouped.map((row) => ({ seniorStaffId: row.assignedSeniorStaffId!, bookedCount: row._count._all }));
 }
 
+export async function getSeniorStaffCapacityRows(now = new Date()) {
+  const start = startOfUtcWeek(now);
+  const bookings = await db.consultationBooking.findMany({
+    where: { assignedSeniorStaffId: { not: null }, bookedAt: { gte: start } },
+    select: {
+      assignedSeniorStaffId: true,
+      assignedSeniorStaffName: true,
+      status: true,
+      completedAt: true,
+    },
+  });
+
+  const map = new Map<
+    string,
+    { seniorStaffName: string; bookedThisWeek: number; completedThisWeek: number; weeklyTarget: number; remainingCapacity: number }
+  >();
+
+  for (const booking of bookings) {
+    const id = booking.assignedSeniorStaffId!;
+    const existing = map.get(id) ?? {
+      seniorStaffName: booking.assignedSeniorStaffName ?? `Staff ${id}`,
+      bookedThisWeek: 0,
+      completedThisWeek: 0,
+      weeklyTarget: WEEKLY_CAPACITY_PER_SENIOR,
+      remainingCapacity: WEEKLY_CAPACITY_PER_SENIOR,
+    };
+
+    existing.bookedThisWeek += 1;
+    if (booking.status === 'completed' && booking.completedAt) {
+      existing.completedThisWeek += 1;
+    }
+    existing.remainingCapacity = Math.max(existing.weeklyTarget - existing.bookedThisWeek, 0);
+    map.set(id, existing);
+  }
+
+  return [...map.values()].sort((a, b) => a.seniorStaffName.localeCompare(b.seniorStaffName));
+}
+
+export async function getUpcomingConsultations(limit = 10, now = new Date()) {
+  return db.consultationBooking.findMany({
+    where: {
+      bookingDateTime: { gte: now },
+      status: { in: ['booked', 'rescheduled'] },
+    },
+    select: {
+      id: true,
+      clientName: true,
+      assignedSeniorStaffName: true,
+      bookingDateTime: true,
+      bookingTimezone: true,
+      status: true,
+    },
+    orderBy: { bookingDateTime: 'asc' },
+    take: limit,
+  });
+}
+
 export async function getWeeklyCapacityTarget(now = new Date()) {
   const perStaff = await getConsultsPerSeniorStaffMember(now);
   const seniorCount = perStaff.length;

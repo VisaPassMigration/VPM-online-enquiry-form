@@ -2,6 +2,18 @@ import Link from 'next/link';
 import { Prisma, RiskSeverity, RiskResolutionStatus, SubmissionStatus } from '@prisma/client';
 
 import { db } from '@/server/db';
+import {
+  getCancellationsThisWeek,
+  getCompletedToCsaIssuedConversion,
+  getConsultsBookedThisWeek,
+  getConsultsBookedToday,
+  getConsultsCompletedThisWeek,
+  getCsaIssuedToDepositPaidConversion,
+  getNoShowsThisWeek,
+  getRemainingWeeklyCapacity,
+  getSeniorStaffCapacityRows,
+  getUpcomingConsultations,
+} from '@/server/consultationKpis';
 
 type DashboardStatus =
   | 'Awaiting review'
@@ -86,6 +98,30 @@ const getPayloadField = (payload: Prisma.JsonValue, key: keyof IntakePayload): s
 };
 
 export default async function DashboardPage() {
+  const [
+    consultsBookedToday,
+    consultsBookedThisWeek,
+    consultsCompletedThisWeek,
+    noShowsThisWeek,
+    cancellationsThisWeek,
+    remainingWeeklyCapacity,
+    completedToCsaIssued,
+    csaIssuedToDepositPaid,
+    seniorStaffCapacityRows,
+    upcomingConsultations,
+  ] = await Promise.all([
+    getConsultsBookedToday(),
+    getConsultsBookedThisWeek(),
+    getConsultsCompletedThisWeek(),
+    getNoShowsThisWeek(),
+    getCancellationsThisWeek(),
+    getRemainingWeeklyCapacity(),
+    getCompletedToCsaIssuedConversion(),
+    getCsaIssuedToDepositPaidConversion(),
+    getSeniorStaffCapacityRows(),
+    getUpcomingConsultations(),
+  ]);
+
   const submittedIntakes = await db.intakeSubmission.findMany({
     where: { submittedAt: { not: null } },
     include: {
@@ -147,6 +183,11 @@ export default async function DashboardPage() {
         outcome should be released without human review.
       </section>
 
+      <section className="section dashboard-note" role="note" aria-label="Consultation KPI tracking note">
+        <strong>Note:</strong> Consultation KPIs are for internal operations tracking only. Status and outcome updates remain
+        staff-controlled.
+      </section>
+
       <section className="section">
         <div className="section-heading-row">
           <h3>Intake KPI snapshot</h3>
@@ -159,6 +200,107 @@ export default async function DashboardPage() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="section">
+        <div className="section-heading-row">
+          <h3>Consultation KPI snapshot</h3>
+        </div>
+        <div className="dashboard-kpi-grid">
+          {[
+            { label: 'Consults booked today', value: consultsBookedToday },
+            { label: 'Consults booked this week', value: consultsBookedThisWeek },
+            { label: 'Consults completed this week', value: consultsCompletedThisWeek },
+            { label: 'No-shows this week', value: noShowsThisWeek },
+            { label: 'Cancellations this week', value: cancellationsThisWeek },
+            { label: 'Remaining weekly capacity', value: remainingWeeklyCapacity },
+            {
+              label: 'Completed → CSA issued conversion',
+              value: `${Math.round(completedToCsaIssued.conversionRate * 100)}% (${completedToCsaIssued.csaIssued}/${completedToCsaIssued.completed})`,
+            },
+            {
+              label: 'CSA issued → deposit paid conversion',
+              value: `${Math.round(csaIssuedToDepositPaid.conversionRate * 100)}% (${csaIssuedToDepositPaid.depositPaid}/${csaIssuedToDepositPaid.csaIssued})`,
+            },
+          ].map((kpi) => (
+            <article className="card kpi-card" key={kpi.label}>
+              <p>{kpi.label}</p>
+              <h4>{kpi.value}</h4>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-heading-row">
+          <h3>Senior Staff Capacity</h3>
+        </div>
+        {seniorStaffCapacityRows.length === 0 ? (
+          <div className="card">
+            <p>No senior staff consultation bookings yet this week.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Senior staff name</th>
+                  <th>Booked this week</th>
+                  <th>Completed this week</th>
+                  <th>Weekly target: 25</th>
+                  <th>Remaining capacity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seniorStaffCapacityRows.map((row) => (
+                  <tr key={row.seniorStaffName}>
+                    <td>{row.seniorStaffName}</td>
+                    <td>{row.bookedThisWeek}</td>
+                    <td>{row.completedThisWeek}</td>
+                    <td>{row.weeklyTarget}</td>
+                    <td>{row.remainingCapacity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="section">
+        <div className="section-heading-row">
+          <h3>Upcoming Consultations</h3>
+        </div>
+        {upcomingConsultations.length === 0 ? (
+          <div className="card">
+            <p>Coming next: live upcoming consultation list will appear here once bookings are available.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Senior staff</th>
+                  <th>Date/time (UTC)</th>
+                  <th>Timezone</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingConsultations.map((consultation) => (
+                  <tr key={consultation.id}>
+                    <td>{consultation.clientName}</td>
+                    <td>{consultation.assignedSeniorStaffName ?? 'Unassigned'}</td>
+                    <td>{consultation.bookingDateTime ? displayDate(consultation.bookingDateTime) : 'Not set'}</td>
+                    <td>{consultation.bookingTimezone ?? 'Not set'}</td>
+                    <td>{consultation.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="section">
