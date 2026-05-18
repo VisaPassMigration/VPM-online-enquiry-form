@@ -35,6 +35,7 @@ export function prepareAuditEvent(input: {
   metadata?: Record<string, unknown>;
   timestamp?: Date;
 }): AuditEventRecord {
+  if (!input.eventType?.trim()) throw new Error('eventType is required.');
   if (!input.actorId.trim()) throw new Error('actorId is required.');
   if (!input.submissionId.trim()) throw new Error('submissionId is required.');
 
