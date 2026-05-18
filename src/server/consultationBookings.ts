@@ -57,6 +57,8 @@ export async function createConsultationBooking(
     clientEmail: string;
     assignedSeniorStaffId?: string;
     assignedSeniorStaffName?: string;
+    bookingDateTime?: Date;
+    bookingTimezone?: string;
     bookingSource?: 'manual_staff_entry' | 'internal_booking_link' | 'calendly' | 'google_calendar' | 'other';
     notesInternal?: string;
   } & ReasonContext,
@@ -72,6 +74,8 @@ export async function createConsultationBooking(
         clientEmail: input.clientEmail,
         assignedSeniorStaffId: input.assignedSeniorStaffId,
         assignedSeniorStaffName: input.assignedSeniorStaffName,
+        bookingDateTime: input.bookingDateTime,
+        bookingTimezone: input.bookingTimezone,
         bookingSource: input.bookingSource ?? 'manual_staff_entry',
         notesInternal: input.notesInternal,
         status: 'invited',
