@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma, RiskResolutionStatus, RiskSeverity, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
 
 import { db } from '@/server/db';
-import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, releaseRequestMoreInformationCommunication, requestClientCommunicationRelease } from '@/server/clientCommunications';
+import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, releaseConsultationInvitationCommunication, releaseRequestMoreInformationCommunication } from '@/server/clientCommunications';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -198,7 +198,7 @@ async function runClientCommunicationAction(formData: FormData) {
   const template = CLIENT_COMMUNICATION_TEMPLATES[communicationType];
   if (!template) return;
 
-  const created = await createClientCommunicationDraft({
+  await createClientCommunicationDraft({
     submissionId,
     communicationType,
     subject: template.subject,
@@ -207,23 +207,6 @@ async function runClientCommunicationAction(formData: FormData) {
     actorId,
     actorRole: 'staff',
   });
-
-  if (communicationType === 'consultation_invitation') {
-    try {
-      await requestClientCommunicationRelease({
-        submissionId,
-        communicationId: created.id,
-        communicationType,
-        subject: created.subject,
-        bodyText: created.bodyText,
-        internalReason,
-        actorId,
-        actorRole: 'staff',
-      });
-    } catch {
-      // blocked state and audit event are handled in the communication service.
-    }
-  }
 
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
@@ -246,6 +229,34 @@ async function runReleaseRequestMoreInformationAction(formData: FormData) {
       communicationType: 'request_more_information',
       subject: CLIENT_COMMUNICATION_TEMPLATES.request_more_information.subject,
       bodyText: CLIENT_COMMUNICATION_TEMPLATES.request_more_information.bodyText,
+      internalReason,
+      actorId,
+      actorRole: 'staff',
+    });
+  } catch {
+    // Do not fail the full page on release/send failures.
+  }
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
+async function runReleaseConsultationInvitationAction(formData: FormData) {
+  'use server';
+
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const communicationId = String(formData.get('communicationId') ?? '').trim();
+  const actorId = String(formData.get('staffActor') ?? '').trim();
+  const internalReason = String(formData.get('internalReason') ?? '').trim();
+
+  if (!submissionId || !communicationId || !actorId || !internalReason) return;
+
+  try {
+    await releaseConsultationInvitationCommunication({
+      submissionId,
+      communicationId,
+      communicationType: 'consultation_invitation',
+      subject: CLIENT_COMMUNICATION_TEMPLATES.consultation_invitation.subject,
+      bodyText: CLIENT_COMMUNICATION_TEMPLATES.consultation_invitation.bodyText,
       internalReason,
       actorId,
       actorRole: 'staff',
@@ -365,7 +376,9 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
                   {isFailed && <div><dt>Failure reason</dt><dd className="communication-card__failure">{comm.failureReason || 'Not available'}</dd></div>}
                 </dl>
                 <div className="communication-card__actions">
-                  {comm.type === 'request_more_information' && comm.status !== 'released' ? <form action={runReleaseRequestMoreInformationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason/checklist" /><button type="submit">Release Request Email</button></form> : <span>—</span>}
+                  {comm.type === 'request_more_information' && comm.status !== 'released' ? <form action={runReleaseRequestMoreInformationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason/checklist" /><button type="submit">Release Request Email</button></form> : null}
+                  {comm.type === 'consultation_invitation' && comm.status !== 'released' ? <form action={runReleaseConsultationInvitationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason" /><button type="submit">Release Consultation Invite</button></form> : null}
+                  {comm.type !== 'request_more_information' && comm.type !== 'consultation_invitation' ? <span>—</span> : null}
                 </div>
               </article>;
             })}

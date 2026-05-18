@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { buildClientIntakeReceivedEmailBody, buildRequestMoreInformationEmailBody, sendClientIntakeReceivedEmail } from '@/server/email';
+import { buildClientIntakeReceivedEmailBody, buildConsultationInvitationEmailBody, buildRequestMoreInformationEmailBody, sendClientIntakeReceivedEmail } from '@/server/email';
 
 const envBackup = { ...process.env };
 
@@ -24,6 +24,15 @@ describe('email service', () => {
     expect(body).toContain('Please provide the following information:\nPassport copy and CV');
     expect(body).toContain('does not confirm eligibility for any visa or migration pathway.');
     expect(body).toContain('Kind regards,\nVisa Pass Migration');
+  });
+
+  it('builds consultation invitation body with safe wording', () => {
+    process.env.CONSULTATION_BOOKING_URL = 'https://example.com/book';
+    const body = buildConsultationInvitationEmailBody();
+    expect(body).toContain('Thank you for the information provided so far.');
+    expect(body).toContain('https://example.com/book');
+    expect(body).toContain('A consultation is an information and planning session.');
+    expect(body).not.toMatch(/\beligible\b|\bapproved\b|\bguaranteed\b|\bqualified\b|\bsuitable\b|\bstrong candidate\b/i);
   });
 
   it('throws for missing resend config', async () => {
