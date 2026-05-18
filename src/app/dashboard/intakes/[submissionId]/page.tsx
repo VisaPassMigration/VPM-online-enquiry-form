@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Prisma, RiskResolutionStatus } from '@prisma/client';
+import { revalidatePath } from 'next/cache';
+import { Prisma, RiskResolutionStatus, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
 
 import { db } from '@/server/db';
 
@@ -27,6 +28,94 @@ const renderRows = (pairs: Array<[string, string | number | undefined | null]>) 
     ))}
   </dl>
 );
+
+async function runInternalReviewAction(formData: FormData) {
+  'use server';
+
+  const submissionId = String(formData.get('submissionId') ?? '');
+  const action = String(formData.get('action') ?? '');
+  const note = String(formData.get('internalNote') ?? '').trim();
+  const actorId = 'staff-placeholder';
+  const actorRole = 'staff';
+
+  if (!submissionId || !action || !note) return;
+
+  await db.$transaction(async (tx) => {
+    const submission = await tx.intakeSubmission.findUnique({
+      where: { id: submissionId },
+      include: { currentReviewState: true, riskFlags: { where: { resolutionStatus: RiskResolutionStatus.open } } },
+    });
+
+    if (!submission) return;
+
+    let nextStatus = submission.status;
+    let nextStage = submission.currentReviewState?.currentStage ?? ReviewStage.intake_triage;
+    let decision: ReviewDecision = ReviewDecision.manual_hold;
+    let auditType: AuditEventType = AuditEventType.submission_updated;
+
+    if (action === 'mark_under_review') {
+      nextStatus = SubmissionStatus.intake_triage_in_progress;
+      nextStage = ReviewStage.intake_triage;
+      auditType = AuditEventType.status_transition_executed;
+    } else if (action === 'request_more_information') {
+      nextStatus = SubmissionStatus.awaiting_client_documents;
+      decision = ReviewDecision.needs_more_documents;
+      nextStage = ReviewStage.document_completeness_check;
+      auditType = AuditEventType.status_transition_executed;
+    } else if (action === 'escalate_risk_review') {
+      nextStatus = SubmissionStatus.risk_review_in_progress;
+      decision = ReviewDecision.needs_risk_clarification;
+      nextStage = ReviewStage.risk_assessment;
+      auditType = AuditEventType.status_transition_executed;
+      await tx.riskFlag.updateMany({
+        where: { submissionId, resolutionStatus: RiskResolutionStatus.open },
+        data: { resolutionStatus: RiskResolutionStatus.under_review },
+      });
+    } else if (action === 'add_internal_note') {
+      decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
+      nextStage = submission.currentReviewState?.currentStage ?? ReviewStage.intake_triage;
+    } else {
+      return;
+    }
+
+    await tx.intakeSubmission.update({
+      where: { id: submissionId },
+      data: { status: nextStatus },
+    });
+
+    await tx.submissionReviewState.upsert({
+      where: { submissionId },
+      update: { currentStage: nextStage, lastDecision: decision },
+      create: { submissionId, currentStage: nextStage, lastDecision: decision },
+    });
+
+    await tx.staffReview.create({
+      data: {
+        submissionId,
+        stage: nextStage,
+        decision,
+        internalNotes: note,
+        missingEvidence: [],
+        reviewedBy: actorId,
+      },
+    });
+
+    await tx.auditEvent.create({
+      data: {
+        submissionId,
+        eventType: auditType,
+        actorId,
+        actorRole,
+        fromStatus: submission.status,
+        toStatus: nextStatus,
+        reason: note,
+        metadata: { action, internalOnly: true, requiresHumanReviewBeforeClientCommunication: true },
+      },
+    });
+  });
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
 
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
   const { submissionId } = await params;
@@ -57,6 +146,21 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       </section>
       <section className="section dashboard-note" role="note" aria-label="Internal intake review note">
         <strong>Important:</strong> Internal review page only. No client outcome should be released without authorised human review.
+        <p>These actions update internal workflow only. No client outcome is released from this page.</p>
+      </section>
+      <section className="section review-section">
+        <h3>Internal review actions</h3>
+        <form action={runInternalReviewAction} className="intake-form">
+          <input type="hidden" name="submissionId" value={submission.id} />
+          <label htmlFor="internal-note"><strong>Internal note (required)</strong></label>
+          <textarea id="internal-note" name="internalNote" required rows={4} />
+          <div className="button-row">
+            <button type="submit" name="action" value="mark_under_review">Mark Under Review</button>
+            <button type="submit" name="action" value="request_more_information">Request More Information</button>
+            <button type="submit" name="action" value="escalate_risk_review">Escalate for Risk Review</button>
+            <button type="submit" name="action" value="add_internal_note">Add Internal Note</button>
+          </div>
+        </form>
       </section>
 
       <section className="section review-section"><h3>Client details</h3>{renderRows([
