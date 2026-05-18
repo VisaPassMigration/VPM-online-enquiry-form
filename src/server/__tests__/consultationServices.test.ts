@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createMock, updateMock, auditCreateMock, countMock, groupByMock } = vi.hoisted(() => ({
+const { createMock, findUniqueMock, updateMock, auditCreateMock, countMock, groupByMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
+  findUniqueMock: vi.fn(),
   updateMock: vi.fn(),
   auditCreateMock: vi.fn(),
   countMock: vi.fn(),
@@ -10,7 +11,7 @@ const { createMock, updateMock, auditCreateMock, countMock, groupByMock } = vi.h
 
 vi.mock('../db', () => {
   const tx = {
-    consultationBooking: { create: createMock, update: updateMock },
+    consultationBooking: { create: createMock, findUnique: findUniqueMock, update: updateMock },
     auditEvent: { create: auditCreateMock },
   };
 
@@ -39,6 +40,7 @@ import { getCompletedToCsaIssuedConversion, getCsaIssuedToDepositPaidConversion,
 
 beforeEach(() => {
   vi.clearAllMocks();
+  findUniqueMock.mockResolvedValue({ status: 'booked' });
 });
 
 describe('consultation booking service', () => {
@@ -67,35 +69,101 @@ describe('consultation booking service', () => {
     expect(auditCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ eventType: 'consultation_invited' }) }));
   });
 
-  it('updates statuses with timestamps and creates status audit events', async () => {
+  it('allows invited -> booked transition', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'invited' });
     updateMock.mockResolvedValue({ id: 'booking-1' });
-    const base = {
-      bookingId: 'booking-1',
-      submissionId: 'sub-1',
-      actorId: 'staff-1',
-      actorRole: 'staff',
-      reason: 'staff update',
-    };
 
-    await markConsultationBooked(base);
+    await markConsultationBooked({ bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' });
+
     expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'booked', bookedAt: expect.any(Date) }) }));
+  });
 
-    await markConsultationCompleted(base);
+  it('allows booked -> completed transition', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'booked' });
+    updateMock.mockResolvedValue({ id: 'booking-1' });
+
+    await markConsultationCompleted({ bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' });
+
     expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'completed', completedAt: expect.any(Date) }) }));
+  });
 
+  it('allows booked transitions to no_show, cancelled, and rescheduled', async () => {
+    updateMock.mockResolvedValue({ id: 'booking-1' });
+    const base = { bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' };
+
+    findUniqueMock.mockResolvedValueOnce({ status: 'booked' });
     await markConsultationNoShow(base);
     expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'no_show', noShowAt: expect.any(Date) }) }));
 
+    findUniqueMock.mockResolvedValueOnce({ status: 'booked' });
     await markConsultationCancelled(base);
     expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'cancelled', cancelledAt: expect.any(Date) }) }));
 
+    findUniqueMock.mockResolvedValueOnce({ status: 'booked' });
     await markConsultationRescheduled(base);
     expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'rescheduled', rescheduledAt: expect.any(Date) }) }));
+  });
+
+  it('allows rescheduled -> booked transition', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'rescheduled' });
+    updateMock.mockResolvedValue({ id: 'booking-1' });
+
+    await markConsultationBooked({ bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' });
+
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'booked', bookedAt: expect.any(Date) }) }));
+  });
+
+  it('blocks invited -> completed transition', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'invited' });
+
+    await expect(
+      markConsultationCompleted({ bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' }),
+    ).rejects.toThrow('Blocked consultation status transition from invited to completed.');
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks cancelled -> booked transition', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'cancelled' });
+
+    await expect(markConsultationBooked({ bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' })).rejects.toThrow(
+      'Blocked consultation status transition from cancelled to booked.',
+    );
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks no_show -> completed transition', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'no_show' });
+
+    await expect(markConsultationCompleted({ bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' })).rejects.toThrow(
+      'Blocked consultation status transition from no_show to completed.',
+    );
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks completed -> booked transition', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'completed' });
+
+    await expect(markConsultationBooked({ bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' })).rejects.toThrow(
+      'Blocked consultation status transition from completed to booked.',
+    );
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('creates status audit events for allowed transitions', async () => {
+    updateMock.mockResolvedValue({ id: 'booking-1' });
+    findUniqueMock.mockResolvedValue({ status: 'booked' });
+    const base = { bookingId: 'booking-1', submissionId: 'sub-1', actorId: 'staff-1', actorRole: 'staff', reason: 'staff update' };
+
+    await markConsultationCompleted(base);
+    findUniqueMock.mockResolvedValue({ status: 'booked' });
+    await markConsultationNoShow(base);
+    findUniqueMock.mockResolvedValue({ status: 'booked' });
+    await markConsultationCancelled(base);
+    findUniqueMock.mockResolvedValue({ status: 'booked' });
+    await markConsultationRescheduled(base);
 
     const auditEventTypes = auditCreateMock.mock.calls.map((call) => call[0].data.eventType);
-    expect(auditEventTypes).toEqual(
-      expect.arrayContaining(['consultation_booked', 'consultation_completed', 'consultation_no_show', 'consultation_cancelled', 'consultation_rescheduled']),
-    );
+    expect(auditEventTypes).toEqual(expect.arrayContaining(['consultation_completed', 'consultation_no_show', 'consultation_cancelled', 'consultation_rescheduled']));
   });
 
   it('sets CSA issued and deposit paid timestamps', async () => {

@@ -17,6 +17,16 @@ type ReasonContext = ActorContext & {
 };
 
 type DbClient = Prisma.TransactionClient;
+type ConsultationStatus = 'invited' | 'booked' | 'completed' | 'no_show' | 'cancelled' | 'rescheduled';
+
+const ALLOWED_TRANSITIONS: Record<ConsultationStatus, ConsultationStatus[]> = {
+  invited: ['booked', 'cancelled'],
+  booked: ['completed', 'no_show', 'cancelled', 'rescheduled'],
+  rescheduled: ['booked', 'completed', 'no_show', 'cancelled'],
+  cancelled: [],
+  no_show: [],
+  completed: [],
+};
 
 function assertActor(context: ActorContext) {
   if (!context.actorId.trim()) throw new Error('actorId is required.');
@@ -99,7 +109,7 @@ export async function createConsultationBooking(
 async function transitionConsultationStatus(
   bookingId: string,
   submissionId: string,
-  toStatus: 'booked' | 'completed' | 'no_show' | 'cancelled' | 'rescheduled',
+  toStatus: ConsultationStatus,
   eventType: AuditEventType,
   context: ReasonContext,
 ) {
@@ -107,6 +117,40 @@ async function transitionConsultationStatus(
   assertReason(context.reason, 'internal note/reason');
 
   return db.$transaction(async (tx) => {
+    const bookingBeforeUpdate = await tx.consultationBooking.findUnique({
+      where: { id: bookingId },
+      select: { status: true },
+    });
+
+    if (!bookingBeforeUpdate) {
+      throw new Error(`Consultation booking ${bookingId} was not found.`);
+    }
+
+    const fromStatus = bookingBeforeUpdate.status as ConsultationStatus;
+    const allowedNextStatuses = ALLOWED_TRANSITIONS[fromStatus] ?? [];
+
+    if (!allowedNextStatuses.includes(toStatus)) {
+      const allowedLabels = allowedNextStatuses.length > 0 ? allowedNextStatuses.join(', ') : 'none';
+      const blockedReason = `Blocked consultation status transition from ${fromStatus} to ${toStatus}. Allowed next statuses from ${fromStatus}: ${allowedLabels}.`;
+
+      await writeAuditEvent(tx, {
+        submissionId,
+        eventType: 'consultation_rescheduled',
+        actorId: context.actorId,
+        actorRole: context.actorRole,
+        reason: `REJECTED_STATUS_TRANSITION: ${context.reason}`,
+        metadata: {
+          consultationBookingId: bookingId,
+          fromStatus,
+          toStatus,
+          blocked: true,
+          blockedReason,
+        },
+      });
+
+      throw new Error(blockedReason);
+    }
+
     const now = new Date();
     const timestampUpdate: Partial<Prisma.ConsultationBookingUpdateInput> = {
       notesInternal: context.reason,
