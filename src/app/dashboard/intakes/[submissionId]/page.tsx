@@ -117,14 +117,19 @@ const renderRows = (pairs: Array<[string, string | number | undefined | null]>) 
   </dl>
 );
 
-async function runInternalReviewAction(formData: FormData) {
+export async function runInternalReviewAction(formData: FormData) {
   'use server';
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  await requirePermission(PERMISSIONS.PERFORM_INTERNAL_REVIEW_ACTIONS);
 
   const submissionId = String(formData.get('submissionId') ?? '');
   const action = String(formData.get('action') ?? '');
   const note = String(formData.get('internalNote') ?? '').trim();
-  const actorId = String(formData.get('staffActor') ?? '').trim() || String(session.user.staffUserId);
-  const actorRole = 'staff';
+  const actorId = String(session.user.staffUserId);
+  const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
+  const actorRole = session.user.roles?.[0]?.trim() || 'staff';
+  const actorStaffUserId = session.user.staffUserId;
 
   if (!submissionId || !action || !note || !actorId) return;
 
@@ -169,13 +174,14 @@ async function runInternalReviewAction(formData: FormData) {
           submissionId,
           eventType: AuditEventType.consultation_invite_release_blocked_risk,
           actorId,
+          actorName,
           actorRole,
           relatedEntityType: 'staff_review',
           fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
           toValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
           reason: 'Risk must be cleared before marking consultation-ready internally.',
           internalNote: note,
-          metadata: { action, internalOnly: true, blockedByUnresolvedSevereRisk: true },
+          metadata: { action, internalOnly: true, blockedByUnresolvedSevereRisk: true, actorStaffUserId },
           eventSource: 'staff_review_action',
         });
         return;
@@ -218,6 +224,7 @@ async function runInternalReviewAction(formData: FormData) {
       submissionId,
       eventType: auditType,
       actorId,
+      actorName,
       actorRole,
       relatedEntityType: 'staff_review',
       relatedEntityId: staffReview.id,
@@ -225,7 +232,7 @@ async function runInternalReviewAction(formData: FormData) {
       toValue: { status: nextStatus, stage: nextStage },
       reason: note,
       internalNote: note,
-      metadata: { action, internalOnly: true, requiresHumanReviewBeforeClientCommunication: true },
+      metadata: { action, internalOnly: true, requiresHumanReviewBeforeClientCommunication: true, actorStaffUserId },
       eventSource: 'staff_review_action',
     });
   });
@@ -447,8 +454,6 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
           <input type="hidden" name="submissionId" value={submission.id} />
           <label htmlFor="internal-note"><strong>Internal note (required)</strong></label>
           <textarea id="internal-note" name="internalNote" required rows={4} />
-          <label htmlFor="review-staff-actor"><strong>Staff actor placeholder (required)</strong></label>
-          <input id="review-staff-actor" name="staffActor" required placeholder="staff-placeholder" />
           <div className="button-row">
             <button type="submit" name="action" value="mark_under_review">Mark Under Review</button>
             <button type="submit" name="action" value="request_more_information">Request More Information</button>
