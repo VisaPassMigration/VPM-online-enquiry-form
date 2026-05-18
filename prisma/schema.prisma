@@ -100,7 +100,26 @@ enum AuditEventType {
   risk_flag_resolved
   points_snapshot_generated
   points_snapshot_regenerated
+  client_comm_drafted
+  client_comm_release_requested
+  client_comm_released
+  client_comm_release_blocked
+  consultation_invite_release_blocked_risk
   client_summary_released
+}
+
+enum ClientCommunicationType {
+  request_more_information
+  consultation_invitation
+  not_progressing_hold
+}
+
+enum ClientCommunicationStatus {
+  drafted_internal
+  pending_staff_release
+  released
+  blocked
+  failed
 }
 
 model IntakeSubmission {
@@ -113,6 +132,7 @@ model IntakeSubmission {
   pointsSnapshots         PointsSnapshot[]
   riskFlags               RiskFlag[]
   auditEvents             AuditEvent[]
+  clientCommunications    ClientCommunication[]
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
   submittedAt             DateTime?
@@ -238,4 +258,28 @@ model AuditEvent {
   @@index([submissionId])
   @@index([eventType])
   @@index([submissionId, eventAt])
+}
+
+model ClientCommunication {
+  id                String                    @id @default(cuid())
+  submissionId      String
+  submission        IntakeSubmission          @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  type              ClientCommunicationType
+  status            ClientCommunicationStatus
+  subject           String
+  bodyText          String
+  templateVersion   String
+  internalReason    String
+  requiresRiskClearance Boolean               @default(false)
+  releasedBy        String?
+  releasedAt        DateTime?
+  provider          String?
+  providerMessageId String?
+  failureReason     String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([submissionId, createdAt])
+  @@index([submissionId, type, status])
+  @@index([status, updatedAt])
 }
