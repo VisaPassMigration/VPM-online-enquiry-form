@@ -30,22 +30,22 @@ export function parseIntakePayload(raw: unknown): { payload?: IntakeSubmissionIn
 
 export function toPointsInput(payload: IntakeSubmissionInput): PointsCalculatorInput {
   return {
-    ageBracket: '25-32',
-    englishLevel: payload.englishOverallBand && payload.englishOverallBand >= 8 ? 'Superior' : payload.englishOverallBand && payload.englishOverallBand >= 7 ? 'Proficient' : 'Competent',
-    overseasSkilledEmploymentYears: '0-2',
-    australianSkilledEmploymentYears: '0',
-    highestQualificationLevel: 'Bachelor/Masters',
-    australianStudyRequirementCompleted: 'No',
-    regionalStudyCompleted: 'No',
-    specialistEducationalQualification: 'No',
-    professionalYearCompleted: 'No',
-    naatiCredential: 'No',
-    partnerPointsCategory: payload.hasPartner ? 'Partner has competent English only' : 'Single or partner is AU citizen/PR',
-    nominationType: 'None',
+    ageBracket: payload.ageBracket ?? '25-32',
+    englishLevel: payload.englishLevel ?? (payload.englishOverallBand && payload.englishOverallBand >= 8 ? 'Superior' : payload.englishOverallBand && payload.englishOverallBand >= 7 ? 'Proficient' : 'Competent'),
+    overseasSkilledEmploymentYears: payload.overseasSkilledEmploymentYears ?? '0-2',
+    australianSkilledEmploymentYears: payload.australianSkilledEmploymentYears ?? '0',
+    highestQualificationLevel: payload.highestQualificationLevel ?? 'Bachelor/Masters',
+    australianStudyRequirementCompleted: payload.australianStudyRequirementCompleted ?? 'No',
+    regionalStudyCompleted: payload.regionalStudyCompleted ?? 'No',
+    specialistEducationalQualification: payload.specialistEducationalQualification ?? 'No',
+    professionalYearCompleted: payload.professionalYearCompleted ?? 'No',
+    naatiCredential: payload.naatiCredential ?? 'No',
+    partnerPointsCategory: payload.partnerPointsCategory ?? (payload.hasPartner ? 'Partner has competent English only' : 'Single or partner is AU citizen/PR'),
+    nominationType: payload.nominationType ?? 'None',
     englishTestCompleted: payload.englishTestTaken ? 'Yes' : 'No',
-    migrationOccupation: '',
-    workExperienceYears: '',
-    completionYear: '',
+    migrationOccupation: payload.migrationOccupation ?? '',
+    workExperienceYears: payload.workExperienceYears ?? '',
+    completionYear: payload.completionYear ?? '',
   };
 }
 
