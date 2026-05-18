@@ -1,3 +1,5 @@
+import { requirePermission } from '@/server/auth/requirePermission';
+import { PERMISSIONS } from '@/server/auth/permissions';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -121,7 +123,7 @@ async function runInternalReviewAction(formData: FormData) {
   const submissionId = String(formData.get('submissionId') ?? '');
   const action = String(formData.get('action') ?? '');
   const note = String(formData.get('internalNote') ?? '').trim();
-  const actorId = String(formData.get('staffActor') ?? '').trim();
+  const actorId = String(formData.get('staffActor') ?? '').trim() || String(session.user.staffUserId);
   const actorRole = 'staff';
 
   if (!submissionId || !action || !note || !actorId) return;

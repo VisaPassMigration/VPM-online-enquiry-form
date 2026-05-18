@@ -363,3 +363,43 @@ model ClientCommunication {
   @@index([submissionId, type, status])
   @@index([status, updatedAt])
 }
+
+model StaffUser {
+  id                       String          @id @default(uuid())
+  authUserId               String          @unique
+  email                    String          @unique
+  displayName              String?
+  team                     String?
+  location                 String?
+  isActive                 Boolean         @default(true)
+  lastLoginAt              DateTime?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  staffRoles               StaffUserRole[] @relation("StaffRoleAssignments")
+  assignedRoles            StaffUserRole[] @relation("RoleAssignedByStaff")
+}
+
+model StaffRole {
+  id         String          @id @default(uuid())
+  key        String          @unique
+  name       String
+  description String?
+  isSystem   Boolean         @default(false)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  staffUsers StaffUserRole[] @relation("StaffRoleAssignments")
+}
+
+model StaffUserRole {
+  staffUserId           String
+  staffRoleId           String
+  assignedByStaffUserId String?
+  assignedAt            DateTime  @default(now())
+  revokedAt             DateTime?
+  staffUser             StaffUser @relation("StaffRoleAssignments", fields: [staffUserId], references: [id], onDelete: Cascade)
+  staffRole             StaffRole @relation("StaffRoleAssignments", fields: [staffRoleId], references: [id], onDelete: Cascade)
+  assignedByStaffUser   StaffUser? @relation("RoleAssignedByStaff", fields: [assignedByStaffUserId], references: [id])
+
+  @@id([staffUserId, staffRoleId])
+  @@index([staffRoleId, revokedAt])
+}
