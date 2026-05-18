@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { Prisma, RiskResolutionStatus, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
+import { Prisma, RiskResolutionStatus, RiskSeverity, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
 
 import { db } from '@/server/db';
 import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, releaseRequestMoreInformationCommunication, requestClientCommunicationRelease } from '@/server/clientCommunications';
@@ -17,6 +17,13 @@ const safeText = (value: string | number | undefined | null) => {
   if (value === undefined || value === null) return 'Not provided';
   if (typeof value === 'string' && !value.trim()) return 'Not provided';
   return String(value);
+};
+
+
+const hasBlockingConsultationRisk = (severity: RiskSeverity, status: RiskResolutionStatus) => {
+  const severe = severity === RiskSeverity.high || severity === RiskSeverity.critical;
+  const unresolved = status === RiskResolutionStatus.open || status === RiskResolutionStatus.under_review;
+  return severe && unresolved;
 };
 
 const COMM_STATUS_META: Record<string, { label: string; helper: string; pillClass: string }> = {
@@ -74,7 +81,7 @@ async function runInternalReviewAction(formData: FormData) {
   await db.$transaction(async (tx) => {
     const submission = await tx.intakeSubmission.findUnique({
       where: { id: submissionId },
-      include: { currentReviewState: true, riskFlags: { where: { resolutionStatus: RiskResolutionStatus.open } } },
+      include: { currentReviewState: true, riskFlags: true },
     });
 
     if (!submission) return;
@@ -102,6 +109,31 @@ async function runInternalReviewAction(formData: FormData) {
         where: { submissionId, resolutionStatus: RiskResolutionStatus.open },
         data: { resolutionStatus: RiskResolutionStatus.under_review },
       });
+    } else if (action === 'mark_consultation_ready_internal') {
+      const hasUnresolvedHighOrCriticalRisk = submission.riskFlags.some((flag) =>
+        hasBlockingConsultationRisk(flag.severity, flag.resolutionStatus),
+      );
+
+      if (hasUnresolvedHighOrCriticalRisk) {
+        await tx.auditEvent.create({
+          data: {
+            submissionId,
+            eventType: AuditEventType.consultation_invite_release_blocked_risk,
+            actorId,
+            actorRole,
+            fromStatus: submission.status,
+            toStatus: submission.status,
+            reason: 'Risk must be cleared before marking consultation-ready internally.',
+            metadata: { action, internalOnly: true, blockedByUnresolvedSevereRisk: true },
+          },
+        });
+        return;
+      }
+
+      nextStatus = SubmissionStatus.ready_for_client_summary;
+      decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
+      nextStage = ReviewStage.client_summary_ready;
+      auditType = AuditEventType.status_transition_executed;
     } else if (action === 'add_internal_note') {
       decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
       nextStage = submission.currentReviewState?.currentStage ?? ReviewStage.intake_triage;
@@ -259,6 +291,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       </section>
       <section className="section review-section">
         <h3>Internal review actions</h3>
+        <p>This action only marks the matter internally as ready for consultation invitation review. It does not send a consultation invitation or confirm any outcome.</p>
         <form action={runInternalReviewAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
           <label htmlFor="internal-note"><strong>Internal note (required)</strong></label>
@@ -270,6 +303,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
             <button type="submit" name="action" value="request_more_information">Request More Information</button>
             <button type="submit" name="action" value="escalate_risk_review">Escalate for Risk Review</button>
             <button type="submit" name="action" value="add_internal_note">Add Internal Note</button>
+            <button type="submit" name="action" value="mark_consultation_ready_internal">Mark Consultation-Ready Internally</button>
           </div>
         </form>
       </section>

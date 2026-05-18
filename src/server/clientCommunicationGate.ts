@@ -98,6 +98,7 @@ function isConsultationReady(reviewState?: CommunicationReviewState): boolean {
   return (
     state === 'consultation_ready' ||
     state === 'ready_for_consultation' ||
+    state === 'client_summary_ready' ||
     decision === 'consultation_ready' ||
     decision === 'consultation_invite'
   );
