@@ -16,6 +16,7 @@ import {
   markDepositPaid,
   recordConsultationOutcome,
 } from '@/server/consultationBookings';
+import type { RecordAuditEventInput } from '@/server/audit';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -29,6 +30,42 @@ const safeText = (value: string | number | undefined | null) => {
   if (typeof value === 'string' && !value.trim()) return 'Not provided';
   return String(value);
 };
+
+function normalizeAuditString(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+async function recordAuditEventInTx(
+  tx: Prisma.TransactionClient,
+  input: RecordAuditEventInput,
+) {
+  const submissionId = normalizeAuditString(input.submissionId);
+  if (!submissionId) throw new Error('submissionId is required.');
+
+  const eventType = normalizeAuditString(input.eventType);
+  if (!eventType) throw new Error('eventType is required.');
+
+  await tx.auditEvent.create({
+    data: {
+      submissionId,
+      eventType: eventType as AuditEventType,
+      actorId: normalizeAuditString(input.actorId),
+      actorRole: normalizeAuditString(input.actorRole),
+      actorName: normalizeAuditString(input.actorName),
+      relatedEntityType: normalizeAuditString(input.relatedEntityType),
+      relatedEntityId: normalizeAuditString(input.relatedEntityId),
+      fromValue: input.fromValue,
+      toValue: input.toValue,
+      reason: normalizeAuditString(input.reason),
+      internalNote: normalizeAuditString(input.internalNote),
+      metadata: input.metadata,
+      ipAddress: normalizeAuditString(input.ipAddress),
+      userAgent: normalizeAuditString(input.userAgent),
+      eventSource: normalizeAuditString(input.eventSource),
+    },
+  });
+}
 
 
 const hasBlockingConsultationRisk = (severity: RiskSeverity, status: RiskResolutionStatus) => {
@@ -126,17 +163,18 @@ async function runInternalReviewAction(formData: FormData) {
       );
 
       if (hasUnresolvedHighOrCriticalRisk) {
-        await tx.auditEvent.create({
-          data: {
-            submissionId,
-            eventType: AuditEventType.consultation_invite_release_blocked_risk,
-            actorId,
-            actorRole,
-            fromStatus: submission.status,
-            toStatus: submission.status,
-            reason: 'Risk must be cleared before marking consultation-ready internally.',
-            metadata: { action, internalOnly: true, blockedByUnresolvedSevereRisk: true },
-          },
+        await recordAuditEventInTx(tx, {
+          submissionId,
+          eventType: AuditEventType.consultation_invite_release_blocked_risk,
+          actorId,
+          actorRole,
+          relatedEntityType: 'staff_review',
+          fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
+          toValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
+          reason: 'Risk must be cleared before marking consultation-ready internally.',
+          internalNote: note,
+          metadata: { action, internalOnly: true, blockedByUnresolvedSevereRisk: true },
+          eventSource: 'staff_review_action',
         });
         return;
       }
@@ -163,7 +201,7 @@ async function runInternalReviewAction(formData: FormData) {
       create: { submissionId, currentStage: nextStage, lastDecision: decision },
     });
 
-    await tx.staffReview.create({
+    const staffReview = await tx.staffReview.create({
       data: {
         submissionId,
         stage: nextStage,
@@ -174,17 +212,19 @@ async function runInternalReviewAction(formData: FormData) {
       },
     });
 
-    await tx.auditEvent.create({
-      data: {
-        submissionId,
-        eventType: auditType,
-        actorId,
-        actorRole,
-        fromStatus: submission.status,
-        toStatus: nextStatus,
-        reason: note,
-        metadata: { action, internalOnly: true, requiresHumanReviewBeforeClientCommunication: true },
-      },
+    await recordAuditEventInTx(tx, {
+      submissionId,
+      eventType: auditType,
+      actorId,
+      actorRole,
+      relatedEntityType: 'staff_review',
+      relatedEntityId: staffReview.id,
+      fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
+      toValue: { status: nextStatus, stage: nextStage },
+      reason: note,
+      internalNote: note,
+      metadata: { action, internalOnly: true, requiresHumanReviewBeforeClientCommunication: true },
+      eventSource: 'staff_review_action',
     });
   });
 
