@@ -167,6 +167,35 @@ describe('consultation booking service', () => {
     expect(auditEventTypes).toEqual(expect.arrayContaining(['consultation_completed', 'consultation_no_show', 'consultation_cancelled', 'consultation_rescheduled']));
   });
 
+
+  it('audit event includes actorId and actorName for booking actions', async () => {
+    findUniqueMock.mockResolvedValue({ status: 'invited' });
+    updateMock.mockResolvedValue({ id: 'booking-1' });
+
+    await markConsultationBooked({
+      bookingId: 'booking-1',
+      submissionId: 'sub-1',
+      actorId: 'staff-1',
+      actorName: 'Jane Reviewer',
+      actorRole: 'senior_staff',
+      actorStaffUserId: 'staff-1',
+      reason: 'note',
+    });
+
+    expect(recordAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      actorId: 'staff-1',
+      actorName: 'Jane Reviewer',
+      actorRole: 'senior_staff',
+      relatedEntityType: 'consultation_booking',
+      relatedEntityId: 'booking-1',
+      internalNote: 'note',
+      fromValue: 'invited',
+      toValue: 'booked',
+      eventSource: 'consultation_booking_action',
+      metadata: expect.objectContaining({ actorStaffUserId: 'staff-1' }),
+    }));
+  });
+
   it('sets CSA issued and deposit paid timestamps', async () => {
     updateMock.mockResolvedValue({ id: 'booking-1' });
 

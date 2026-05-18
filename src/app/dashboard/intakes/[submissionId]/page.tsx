@@ -354,18 +354,41 @@ export async function runReleaseConsultationInvitationAction(formData: FormData)
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
-async function runConsultationBookingAction(formData: FormData) {
+export async function runConsultationBookingAction(formData: FormData) {
   'use server';
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const actorId = String(formData.get('staffActor') ?? '').trim();
   const reason = String(formData.get('internalReason') ?? '').trim();
   const bookingId = String(formData.get('bookingId') ?? '').trim();
 
-  if (!submissionId || !action || !actorId || !reason) return;
+  if (!submissionId || !action || !reason) return;
 
-  const actorRole = 'staff';
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
+  const actorRole = session.user.roles?.[0]?.trim() || 'staff';
+  const actorStaffUserId = session.user.staffUserId?.trim() || undefined;
+
+  if (!actorId) throw new Error('Missing authenticated staff actor id');
+
+  const permissionByAction: Record<string, string> = {
+    create_booking: PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS,
+    mark_booked: PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS,
+    mark_completed: PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS,
+    mark_no_show: PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS,
+    mark_cancelled: PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS,
+    mark_rescheduled: PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS,
+    record_outcome: PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS,
+    mark_csa_issued: PERMISSIONS.MARK_CSA_ISSUED,
+    mark_deposit_paid: PERMISSIONS.MARK_DEPOSIT_PAID,
+  };
+
+  const requiredPermission = permissionByAction[action];
+  if (!requiredPermission) return;
+  await requirePermission(requiredPermission as never);
 
   try {
     if (action === 'create_booking') {
@@ -400,20 +423,22 @@ async function runConsultationBookingAction(formData: FormData) {
         actorId,
         actorRole,
         reason,
+        actorName,
+        actorStaffUserId,
       });
     } else {
       if (!bookingId) return;
 
       if (action === 'mark_booked') {
-        await markConsultationBooked({ bookingId, submissionId, actorId, actorRole, reason });
+        await markConsultationBooked({ bookingId, submissionId, actorId, actorRole, reason, actorName, actorStaffUserId });
       } else if (action === 'mark_completed') {
-        await markConsultationCompleted({ bookingId, submissionId, actorId, actorRole, reason });
+        await markConsultationCompleted({ bookingId, submissionId, actorId, actorRole, reason, actorName, actorStaffUserId });
       } else if (action === 'mark_no_show') {
-        await markConsultationNoShow({ bookingId, submissionId, actorId, actorRole, reason });
+        await markConsultationNoShow({ bookingId, submissionId, actorId, actorRole, reason, actorName, actorStaffUserId });
       } else if (action === 'mark_cancelled') {
-        await markConsultationCancelled({ bookingId, submissionId, actorId, actorRole, reason });
+        await markConsultationCancelled({ bookingId, submissionId, actorId, actorRole, reason, actorName, actorStaffUserId });
       } else if (action === 'mark_rescheduled') {
-        await markConsultationRescheduled({ bookingId, submissionId, actorId, actorRole, reason });
+        await markConsultationRescheduled({ bookingId, submissionId, actorId, actorRole, reason, actorName, actorStaffUserId });
       } else if (action === 'record_outcome') {
         const outcome = String(formData.get('consultationOutcome') ?? '').trim();
         if (!outcome) return;
@@ -425,11 +450,13 @@ async function runConsultationBookingAction(formData: FormData) {
           actorId,
           actorRole,
           reason,
+          actorName,
+          actorStaffUserId,
         });
       } else if (action === 'mark_csa_issued') {
-        await markCsaIssued({ bookingId, submissionId, actorId, actorRole, reason });
+        await markCsaIssued({ bookingId, submissionId, actorId, actorRole, reason, actorName, actorStaffUserId });
       } else if (action === 'mark_deposit_paid') {
-        await markDepositPaid({ bookingId, submissionId, actorId, actorRole, reason });
+        await markDepositPaid({ bookingId, submissionId, actorId, actorRole, reason, actorName, actorStaffUserId });
       }
     }
   } catch {
@@ -581,9 +608,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
             <option value="google_calendar">Google Calendar reference</option>
             <option value="other">Other</option>
           </select>
-          <label><strong>Staff actor placeholder (required)</strong></label>
-          <input name="staffActor" required placeholder="staff-placeholder" />
-          <label><strong>Internal note/reason (required)</strong></label>
+                    <label><strong>Internal note/reason (required)</strong></label>
           <textarea name="internalReason" required rows={3} />
           <div className="button-row"><button type="submit">Create Booking Record</button></div>
         </form>
@@ -614,8 +639,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
                 <form action={runConsultationBookingAction} className="inline-release-form">
                   <input type="hidden" name="submissionId" value={submission.id} />
                   <input type="hidden" name="bookingId" value={booking.id} />
-                  <input name="staffActor" required placeholder="staff-placeholder" />
-                  <input name="internalReason" required placeholder="Internal note/reason" />
+                                    <input name="internalReason" required placeholder="Internal note/reason" />
                   <button type="submit" name="action" value="mark_booked">Mark Booked</button>
                   <button type="submit" name="action" value="mark_completed">Mark Completed</button>
                   <button type="submit" name="action" value="mark_no_show">Mark No-Show</button>
@@ -635,9 +659,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
                     <option value="false">No</option>
                     <option value="true">Yes</option>
                   </select>
-                  <label><strong>Staff actor placeholder (required)</strong></label>
-                  <input name="staffActor" required placeholder="staff-placeholder" />
-                  <label><strong>Internal note/reason (required)</strong></label>
+                                    <label><strong>Internal note/reason (required)</strong></label>
                   <textarea name="internalReason" required rows={2} />
                   <button type="submit">Record Consultation Outcome</button>
                 </form>

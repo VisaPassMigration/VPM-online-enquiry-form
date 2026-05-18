@@ -11,6 +11,8 @@ import { db } from './db';
 type ActorContext = {
   actorId: string;
   actorRole: string;
+  actorName?: string;
+  actorStaffUserId?: string;
 };
 
 type ReasonContext = ActorContext & {
@@ -45,6 +47,8 @@ async function writeAuditEvent(
     eventType: AuditEventType;
     actorId: string;
     actorRole: string;
+    actorName?: string;
+    actorStaffUserId?: string;
     reason: string;
     metadata?: Record<string, unknown>;
     relatedEntityId?: string;
@@ -57,14 +61,15 @@ async function writeAuditEvent(
     eventType: input.eventType,
     actorId: input.actorId,
     actorRole: input.actorRole,
+    actorName: input.actorName,
     reason: input.reason,
     internalNote: input.reason,
-    metadata: input.metadata,
+    metadata: { ...(input.metadata ?? {}), ...(input.actorStaffUserId ? { actorStaffUserId: input.actorStaffUserId } : {}) },
     relatedEntityType: 'consultation_booking',
     relatedEntityId: input.relatedEntityId,
     fromValue: input.fromStatus,
     toValue: input.toStatus,
-    eventSource: 'consultation_booking_service',
+    eventSource: 'consultation_booking_action',
   });
 }
 
@@ -106,6 +111,8 @@ export async function createConsultationBooking(
       eventType: 'consultation_invited',
       actorId: input.actorId,
       actorRole: input.actorRole,
+      actorName: input.actorName,
+      actorStaffUserId: input.actorStaffUserId,
       reason: input.reason,
       metadata: { consultationBookingId: booking.id },
       relatedEntityId: booking.id,
@@ -148,6 +155,8 @@ async function transitionConsultationStatus(
         eventType: 'consultation_rescheduled',
         actorId: context.actorId,
         actorRole: context.actorRole,
+        actorName: context.actorName,
+        actorStaffUserId: context.actorStaffUserId,
         reason: `REJECTED_STATUS_TRANSITION: ${context.reason}`,
         metadata: {
           consultationBookingId: bookingId,
@@ -194,6 +203,8 @@ async function transitionConsultationStatus(
       eventType,
       actorId: context.actorId,
       actorRole: context.actorRole,
+      actorName: context.actorName,
+      actorStaffUserId: context.actorStaffUserId,
       reason: context.reason,
       metadata: { consultationBookingId: bookingId, toStatus: toStatus },
       relatedEntityId: bookingId,
@@ -249,6 +260,8 @@ export async function recordConsultationOutcome(input: {
       eventType: 'consultation_outcome_recorded',
       actorId: input.actorId,
       actorRole: input.actorRole,
+      actorName: input.actorName,
+      actorStaffUserId: input.actorStaffUserId,
       reason: input.reason,
       metadata: { consultationBookingId: input.bookingId, csaRecommended: input.csaRecommended },
       relatedEntityId: input.bookingId,
@@ -277,6 +290,8 @@ export async function markCsaIssued(input: { bookingId: string; submissionId: st
       eventType: 'csa_issued',
       actorId: input.actorId,
       actorRole: input.actorRole,
+      actorName: input.actorName,
+      actorStaffUserId: input.actorStaffUserId,
       reason: input.reason,
       metadata: { consultationBookingId: input.bookingId },
       relatedEntityId: input.bookingId,
@@ -305,6 +320,8 @@ export async function markDepositPaid(input: { bookingId: string; submissionId: 
       eventType: 'deposit_recorded',
       actorId: input.actorId,
       actorRole: input.actorRole,
+      actorName: input.actorName,
+      actorStaffUserId: input.actorStaffUserId,
       reason: input.reason,
       metadata: { consultationBookingId: input.bookingId },
       relatedEntityId: input.bookingId,

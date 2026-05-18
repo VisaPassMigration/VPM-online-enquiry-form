@@ -15,12 +15,34 @@ const mocks = vi.hoisted(() => ({
   createClientCommunicationDraftMock: vi.fn(),
   releaseRequestMoreInformationCommunicationMock: vi.fn(),
   releaseConsultationInvitationCommunicationMock: vi.fn(),
+  createConsultationBookingMock: vi.fn(),
+  markConsultationBookedMock: vi.fn(),
+  markConsultationCompletedMock: vi.fn(),
+  markConsultationNoShowMock: vi.fn(),
+  markConsultationCancelledMock: vi.fn(),
+  markConsultationRescheduledMock: vi.fn(),
+  markCsaIssuedMock: vi.fn(),
+  markDepositPaidMock: vi.fn(),
+  recordConsultationOutcomeMock: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermissionMock }));
 vi.mock('@/server/db', () => ({ db: { $transaction: mocks.transactionMock } }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }));
+
+vi.mock('@/server/consultationBookings', () => ({
+  createConsultationBooking: mocks.createConsultationBookingMock,
+  markConsultationBooked: mocks.markConsultationBookedMock,
+  markConsultationCompleted: mocks.markConsultationCompletedMock,
+  markConsultationNoShow: mocks.markConsultationNoShowMock,
+  markConsultationCancelled: mocks.markConsultationCancelledMock,
+  markConsultationRescheduled: mocks.markConsultationRescheduledMock,
+  markCsaIssued: mocks.markCsaIssuedMock,
+  markDepositPaid: mocks.markDepositPaidMock,
+  recordConsultationOutcome: mocks.recordConsultationOutcomeMock,
+}));
+
 vi.mock('@/server/clientCommunications', () => ({
   CLIENT_COMMUNICATION_TEMPLATES: {
     request_more_information: { subject: 'Request', bodyText: 'Body A' },
@@ -37,6 +59,7 @@ import {
   runInternalReviewAction,
   runReleaseConsultationInvitationAction,
   runReleaseRequestMoreInformationAction,
+  runConsultationBookingAction,
 } from './page';
 
 describe('intake dashboard actions', () => {
@@ -135,6 +158,57 @@ describe('intake dashboard actions', () => {
     formData.set('internalReason', 'reason');
 
     await expect(runClientCommunicationAction(formData)).rejects.toThrow('redirect');
+  });
+
+
+
+  it('create booking uses session-derived actor', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('action', 'create_booking');
+    formData.set('internalReason', 'note');
+    formData.set('clientName', 'Jane');
+    formData.set('clientEmail', 'jane@example.com');
+    formData.set('staffActor', 'placeholder-should-not-be-used');
+
+    await runConsultationBookingAction(formData);
+
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS);
+    expect(mocks.createConsultationBookingMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer', actorRole: 'senior_staff' }));
+  });
+
+  it('mark booked and completed use session-derived actor', async () => {
+    const booked = new FormData();
+    booked.set('submissionId', 'sub-1'); booked.set('bookingId', 'booking-1'); booked.set('action', 'mark_booked'); booked.set('internalReason', 'note');
+    await runConsultationBookingAction(booked);
+    expect(mocks.markConsultationBookedMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer' }));
+
+    const completed = new FormData();
+    completed.set('submissionId', 'sub-1'); completed.set('bookingId', 'booking-1'); completed.set('action', 'mark_completed'); completed.set('internalReason', 'note');
+    await runConsultationBookingAction(completed);
+    expect(mocks.markConsultationCompletedMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer' }));
+  });
+
+  it('enforces consultation booking action permissions', async () => {
+    const csa = new FormData(); csa.set('submissionId','sub-1'); csa.set('bookingId','booking-1'); csa.set('action','mark_csa_issued'); csa.set('internalReason','note');
+    await runConsultationBookingAction(csa);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.MARK_CSA_ISSUED);
+
+    const dep = new FormData(); dep.set('submissionId','sub-1'); dep.set('bookingId','booking-1'); dep.set('action','mark_deposit_paid'); dep.set('internalReason','note');
+    await runConsultationBookingAction(dep);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.MARK_DEPOSIT_PAID);
+  });
+
+  it('read_only_reviewer cannot perform booking actions', async () => {
+    mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
+    const fd = new FormData(); fd.set('submissionId','sub-1'); fd.set('action','create_booking'); fd.set('internalReason','note'); fd.set('clientName','Jane'); fd.set('clientEmail','jane@example.com');
+    await expect(runConsultationBookingAction(fd)).rejects.toThrow('notFound');
+  });
+
+  it('missing session blocks booking action', async () => {
+    mocks.requireStaffSessionMock.mockRejectedValueOnce(new Error('redirect'));
+    const fd = new FormData(); fd.set('submissionId','sub-1'); fd.set('action','mark_booked'); fd.set('bookingId','booking-1'); fd.set('internalReason','note');
+    await expect(runConsultationBookingAction(fd)).rejects.toThrow('redirect');
   });
 
   it('uses actor identity from authenticated session and stamps audit actor fields', async () => {
