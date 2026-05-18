@@ -1,4 +1,5 @@
 import { ClientCommunicationType, Prisma } from '@prisma/client';
+import { recordAuditEvent } from './audit';
 import { validateClientCommunicationRelease } from './clientCommunicationGate';
 import { db } from './db';
 import { sendConsultationInvitationEmail, sendRequestMoreInformationEmail } from './email';
@@ -67,6 +68,7 @@ function assertRequired(input: RequiredFields): void {
 
 async function createAuditEvent(input: {
   submissionId: string;
+  communicationId: string;
   eventType:
     | 'client_comm_drafted'
     | 'client_comm_release_requested'
@@ -76,16 +78,22 @@ async function createAuditEvent(input: {
   actorRole: string;
   reason: string;
   metadata: Prisma.InputJsonObject;
+  fromStatus?: string;
+  toStatus?: string;
 }) {
-  return db.auditEvent.create({
-    data: {
-      submissionId: input.submissionId,
-      eventType: input.eventType,
-      actorId: input.actorId,
-      actorRole: input.actorRole,
-      reason: input.reason,
-      metadata: input.metadata,
-    },
+  return recordAuditEvent({
+    submissionId: input.submissionId,
+    eventType: input.eventType,
+    actorId: input.actorId,
+    actorRole: input.actorRole,
+    relatedEntityType: 'client_communication',
+    relatedEntityId: input.communicationId,
+    fromValue: input.fromStatus,
+    toValue: input.toStatus,
+    internalNote: input.reason,
+    reason: input.reason,
+    metadata: input.metadata,
+    eventSource: 'client_communications_service',
   });
 }
 
@@ -116,6 +124,8 @@ export async function createClientCommunicationDraft(input: CreateClientCommunic
       communicationType: input.communicationType,
       communicationStatus: created.status,
     },
+    communicationId: created.id,
+    toStatus: created.status,
   });
 
   return created;
@@ -178,6 +188,8 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
         communicationType: input.communicationType,
         requiredChecks: gate.requiredChecks as unknown as Prisma.InputJsonObject,
       },
+      communicationId: input.communicationId,
+      toStatus: 'blocked',
     });
 
     throw new Error(`Client communication release blocked: ${gate.blockedReason ?? 'unknown_reason'}.`);
@@ -204,6 +216,9 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
       communicationType: input.communicationType,
       communicationStatus: updated.status,
     },
+    communicationId: input.communicationId,
+    fromStatus: 'drafted_internal',
+    toStatus: updated.status,
   });
 
   return updated;
@@ -212,7 +227,7 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
 export async function markClientCommunicationBlocked(input: MarkClientCommunicationStateInput) {
   assertRequired(input);
   const updated = await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'blocked' } });
-  await createAuditEvent({ submissionId: input.submissionId, eventType: 'client_comm_release_blocked', actorId: input.actorId, actorRole: input.actorRole, reason: input.internalReason, metadata: { communicationId: input.communicationId, communicationType: input.communicationType } });
+  await createAuditEvent({ submissionId: input.submissionId, communicationId: input.communicationId, eventType: 'client_comm_release_blocked', actorId: input.actorId, actorRole: input.actorRole, reason: input.internalReason, fromStatus: 'pending_staff_release', toStatus: 'blocked', metadata: { communicationId: input.communicationId, communicationType: input.communicationType } });
   return updated;
 }
 
@@ -221,7 +236,7 @@ export async function markClientCommunicationReleased(input: MarkClientCommunica
   const gate = validateClientCommunicationRelease({ submission: { id: input.submissionId }, communicationType: input.communicationType, internalNote: input.internalReason, actorId: input.actorId, actorRole: input.actorRole });
   if (!gate.allowed) throw new Error(`Client communication release blocked: ${gate.blockedReason ?? 'unknown_reason'}.`);
   const updated = await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'released', releasedBy: input.actorId, releasedAt: new Date() } });
-  await createAuditEvent({ submissionId: input.submissionId, eventType: 'client_comm_released', actorId: input.actorId, actorRole: input.actorRole, reason: input.internalReason, metadata: { communicationId: input.communicationId, communicationType: input.communicationType } });
+  await createAuditEvent({ submissionId: input.submissionId, communicationId: input.communicationId, eventType: 'client_comm_released', actorId: input.actorId, actorRole: input.actorRole, reason: input.internalReason, fromStatus: 'pending_staff_release', toStatus: 'released', metadata: { communicationId: input.communicationId, communicationType: input.communicationType } });
   return updated;
 }
 

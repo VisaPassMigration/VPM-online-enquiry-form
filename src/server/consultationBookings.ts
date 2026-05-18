@@ -1,4 +1,5 @@
 import { Prisma, type AuditEventType } from '@prisma/client';
+import { recordAuditEvent } from './audit';
 import { db } from './db';
 
 /**
@@ -38,7 +39,7 @@ function assertReason(reason: string, fieldName = 'reason') {
 }
 
 async function writeAuditEvent(
-  tx: DbClient,
+  _tx: DbClient,
   input: {
     submissionId: string;
     eventType: AuditEventType;
@@ -46,17 +47,24 @@ async function writeAuditEvent(
     actorRole: string;
     reason: string;
     metadata?: Record<string, unknown>;
+    relatedEntityId?: string;
+    fromStatus?: ConsultationStatus;
+    toStatus?: ConsultationStatus;
   },
 ) {
-  await tx.auditEvent.create({
-    data: {
-      submissionId: input.submissionId,
-      eventType: input.eventType,
-      actorId: input.actorId,
-      actorRole: input.actorRole,
-      reason: input.reason,
-      metadata: input.metadata,
-    },
+  await recordAuditEvent({
+    submissionId: input.submissionId,
+    eventType: input.eventType,
+    actorId: input.actorId,
+    actorRole: input.actorRole,
+    reason: input.reason,
+    internalNote: input.reason,
+    metadata: input.metadata,
+    relatedEntityType: 'consultation_booking',
+    relatedEntityId: input.relatedEntityId,
+    fromValue: input.fromStatus,
+    toValue: input.toStatus,
+    eventSource: 'consultation_booking_service',
   });
 }
 
@@ -100,6 +108,8 @@ export async function createConsultationBooking(
       actorRole: input.actorRole,
       reason: input.reason,
       metadata: { consultationBookingId: booking.id },
+      relatedEntityId: booking.id,
+      toStatus: 'invited',
     });
 
     return booking;
@@ -146,6 +156,9 @@ async function transitionConsultationStatus(
           blocked: true,
           blockedReason,
         },
+        relatedEntityId: bookingId,
+        fromStatus,
+        toStatus,
       });
 
       throw new Error(blockedReason);
@@ -183,6 +196,9 @@ async function transitionConsultationStatus(
       actorRole: context.actorRole,
       reason: context.reason,
       metadata: { consultationBookingId: bookingId, toStatus: toStatus },
+      relatedEntityId: bookingId,
+      fromStatus,
+      toStatus,
     });
 
     return booking;
@@ -235,6 +251,7 @@ export async function recordConsultationOutcome(input: {
       actorRole: input.actorRole,
       reason: input.reason,
       metadata: { consultationBookingId: input.bookingId, csaRecommended: input.csaRecommended },
+      relatedEntityId: input.bookingId,
     });
 
     return booking;
@@ -262,6 +279,7 @@ export async function markCsaIssued(input: { bookingId: string; submissionId: st
       actorRole: input.actorRole,
       reason: input.reason,
       metadata: { consultationBookingId: input.bookingId },
+      relatedEntityId: input.bookingId,
     });
 
     return booking;
@@ -289,6 +307,7 @@ export async function markDepositPaid(input: { bookingId: string; submissionId: 
       actorRole: input.actorRole,
       reason: input.reason,
       metadata: { consultationBookingId: input.bookingId },
+      relatedEntityId: input.bookingId,
     });
 
     return booking;
