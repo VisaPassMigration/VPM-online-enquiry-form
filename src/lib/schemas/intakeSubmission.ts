@@ -42,6 +42,46 @@ const baseSchema = z.object({
   nationality: z.string().min(1),
   countryOfResidence: z.string().min(1),
 
+  dateOfBirth: z.string().optional(),
+  address: z.string().optional(),
+  contactMethod: z.string().optional(),
+  interestedCountry: z.string().optional(),
+  mainGoal: z.string().optional(),
+  timeframe: z.string().optional(),
+  maritalStatus: z.string().optional(),
+  dependants: z.string().optional(),
+  migrateWithFamily: z.string().optional(),
+  partnerNationality: z.string().optional(),
+  highestQualification: z.string().optional(),
+  fieldOfStudy: z.string().optional(),
+  institution: z.string().optional(),
+  studyCountry: z.string().optional(),
+  completionYear: z.string().optional(),
+  currentOccupation: z.string().optional(),
+  migrationOccupation: z.string().optional(),
+  workExperienceYears: z.string().optional(),
+  currentEmployer: z.string().optional(),
+  dutiesSummary: z.string().optional(),
+  englishScoreSummary: z.string().optional(),
+  previousCancellation: z.boolean().optional(),
+  overstayRemoval: z.boolean().optional(),
+  refusalDetails: z.string().optional(),
+  cancellationOverstayDetails: z.string().optional(),
+  criminalDetails: z.string().optional(),
+  healthDetails: z.string().optional(),
+  ageBracket: z.enum(['18-24', '25-32', '33-39', '40-44', '45+']).optional(),
+  englishLevel: z.enum(['Competent', 'Proficient', 'Superior']).optional(),
+  overseasSkilledEmploymentYears: z.enum(['0-2', '3-4', '5-7', '8+']).optional(),
+  australianSkilledEmploymentYears: z.enum(['0', '1-2', '3-4', '5-7', '8+']).optional(),
+  highestQualificationLevel: z.enum(['Doctorate', 'Bachelor/Masters', 'Diploma/Trade', 'No recognised qualification']).optional(),
+  australianStudyRequirementCompleted: z.enum(['Yes', 'No']).optional(),
+  regionalStudyCompleted: z.enum(['Yes', 'No']).optional(),
+  specialistEducationalQualification: z.enum(['Yes', 'No']).optional(),
+  professionalYearCompleted: z.enum(['Yes', 'No']).optional(),
+  naatiCredential: z.enum(['Yes', 'No']).optional(),
+  partnerPointsCategory: z.enum(['Not applicable', 'Single or partner is AU citizen/PR', 'Partner has competent English only', 'Partner has skills + competent English']).optional(),
+  nominationType: z.enum(['None', 'State nomination (190)', 'Regional nomination (491)']).optional(),
+
   englishTestTaken: z.boolean(),
   englishTestType: z.string().optional(),
   englishOverallBand: z.number().min(0).max(9).optional(),
@@ -101,6 +141,45 @@ export type IntakeSubmissionInput = {
   phone: string;
   nationality: string;
   countryOfResidence: string;
+  dateOfBirth?: string;
+  address?: string;
+  contactMethod?: string;
+  interestedCountry?: string;
+  mainGoal?: string;
+  timeframe?: string;
+  maritalStatus?: string;
+  dependants?: string;
+  migrateWithFamily?: string;
+  partnerNationality?: string;
+  highestQualification?: string;
+  fieldOfStudy?: string;
+  institution?: string;
+  studyCountry?: string;
+  completionYear?: string;
+  currentOccupation?: string;
+  migrationOccupation?: string;
+  workExperienceYears?: string;
+  currentEmployer?: string;
+  dutiesSummary?: string;
+  englishScoreSummary?: string;
+  previousCancellation?: boolean;
+  overstayRemoval?: boolean;
+  refusalDetails?: string;
+  cancellationOverstayDetails?: string;
+  criminalDetails?: string;
+  healthDetails?: string;
+  ageBracket?: "18-24" | "25-32" | "33-39" | "40-44" | "45+";
+  englishLevel?: "Competent" | "Proficient" | "Superior";
+  overseasSkilledEmploymentYears?: "0-2" | "3-4" | "5-7" | "8+";
+  australianSkilledEmploymentYears?: "0" | "1-2" | "3-4" | "5-7" | "8+";
+  highestQualificationLevel?: "Doctorate" | "Bachelor/Masters" | "Diploma/Trade" | "No recognised qualification";
+  australianStudyRequirementCompleted?: "Yes" | "No";
+  regionalStudyCompleted?: "Yes" | "No";
+  specialistEducationalQualification?: "Yes" | "No";
+  professionalYearCompleted?: "Yes" | "No";
+  naatiCredential?: "Yes" | "No";
+  partnerPointsCategory?: "Not applicable" | "Single or partner is AU citizen/PR" | "Partner has competent English only" | "Partner has skills + competent English";
+  nominationType?: "None" | "State nomination (190)" | "Regional nomination (491)";
   englishTestTaken: boolean;
   englishTestType?: string;
   englishOverallBand?: number;
