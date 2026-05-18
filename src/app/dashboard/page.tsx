@@ -1,4 +1,8 @@
-type IntakeStatus =
+import { Prisma, RiskSeverity, RiskResolutionStatus, SubmissionStatus } from '@prisma/client';
+
+import { db } from '@/server/db';
+
+type DashboardStatus =
   | 'Awaiting review'
   | 'Under staff review'
   | 'More information requested'
@@ -6,135 +10,130 @@ type IntakeStatus =
   | 'Progressing to consultation'
   | 'Not progressing';
 
-type RiskLevel = 'No risk disclosed' | 'Risk disclosed' | 'Escalation required';
-
-type SubmissionRecord = {
+type DashboardRow = {
+  id: string;
   clientName: string;
-  submittedDate: string;
+  submittedDate: Date;
   country: string;
   nationality: string;
   occupation: string;
-  estimatedPoints: number;
-  riskLevel: RiskLevel;
-  status: IntakeStatus;
-  lastUpdated: string;
+  estimatedPoints: number | null;
+  riskFlags: string[];
+  status: DashboardStatus;
+  lastUpdated: Date;
   nextAction: string;
-  assignedReviewer: string;
 };
 
-const sampleSubmissions: SubmissionRecord[] = [
-  {
-    clientName: 'Aisha Khan',
-    submittedDate: '2026-05-18T08:35:00Z',
-    country: 'United Arab Emirates',
-    nationality: 'Pakistani',
-    occupation: 'Civil Engineer',
-    estimatedPoints: 77,
-    riskLevel: 'No risk disclosed',
-    status: 'Awaiting review',
-    lastUpdated: '2026-05-18T08:35:00Z',
-    nextAction: 'Assign reviewer',
-    assignedReviewer: 'Unassigned'
-  },
-  {
-    clientName: 'Mateo Alvarez',
-    submittedDate: '2026-05-18T03:10:00Z',
-    country: 'Chile',
-    nationality: 'Chilean',
-    occupation: 'ICT Business Analyst',
-    estimatedPoints: 71,
-    riskLevel: 'Risk disclosed',
-    status: 'Under staff review',
-    lastUpdated: '2026-05-18T11:50:00Z',
-    nextAction: 'Complete risk notes',
-    assignedReviewer: 'Priya N.'
-  },
-  {
-    clientName: 'Zoe Martin',
-    submittedDate: '2026-05-17T14:22:00Z',
-    country: 'United Kingdom',
-    nationality: 'British',
-    occupation: 'Registered Nurse',
-    estimatedPoints: 83,
-    riskLevel: 'No risk disclosed',
-    status: 'Progressing to consultation',
-    lastUpdated: '2026-05-18T07:00:00Z',
-    nextAction: 'Book consult slot',
-    assignedReviewer: 'Noah S.'
-  },
-  {
-    clientName: 'Rahul Iyer',
-    submittedDate: '2026-05-16T20:05:00Z',
-    country: 'India',
-    nationality: 'Indian',
-    occupation: 'Chef',
-    estimatedPoints: 62,
-    riskLevel: 'Escalation required',
-    status: 'Risk escalated',
-    lastUpdated: '2026-05-17T09:40:00Z',
-    nextAction: 'Senior review',
-    assignedReviewer: 'Amelia T.'
-  },
-  {
-    clientName: 'Carla Moreno',
-    submittedDate: '2026-05-15T10:00:00Z',
-    country: 'Mexico',
-    nationality: 'Mexican',
-    occupation: 'Marketing Specialist',
-    estimatedPoints: 58,
-    riskLevel: 'Risk disclosed',
-    status: 'More information requested',
-    lastUpdated: '2026-05-17T13:15:00Z',
-    nextAction: 'Await applicant documents',
-    assignedReviewer: 'Priya N.'
-  },
-  {
-    clientName: 'Nadia Petrova',
-    submittedDate: '2026-05-14T05:45:00Z',
-    country: 'Turkey',
-    nationality: 'Russian',
-    occupation: 'Accountant',
-    estimatedPoints: 49,
-    riskLevel: 'No risk disclosed',
-    status: 'Not progressing',
-    lastUpdated: '2026-05-17T06:30:00Z',
-    nextAction: 'Finalise internal notes',
-    assignedReviewer: 'Noah S.'
-  }
-];
+type IntakePayload = Prisma.JsonObject & {
+  firstName?: string;
+  lastName?: string;
+  countryOfResidence?: string;
+  nationality?: string;
+  currentOccupation?: string;
+};
 
-const displayDate = (dateTime: string) =>
-  new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(
-    new Date(dateTime)
-  );
+const displayDate = (dateTime: Date) =>
+  new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(dateTime);
 
-const isTodayUtc = (dateTime: string) => {
+const isTodayUtc = (dateTime: Date) => {
   const today = new Date();
-  const d = new Date(dateTime);
   return (
-    d.getUTCFullYear() === today.getUTCFullYear() &&
-    d.getUTCMonth() === today.getUTCMonth() &&
-    d.getUTCDate() === today.getUTCDate()
+    dateTime.getUTCFullYear() === today.getUTCFullYear() &&
+    dateTime.getUTCMonth() === today.getUTCMonth() &&
+    dateTime.getUTCDate() === today.getUTCDate()
   );
 };
 
-const statusCount = (status: IntakeStatus) =>
-  sampleSubmissions.filter((submission) => submission.status === status).length;
+const formatRiskFlag = (code: string, severity: RiskSeverity) => `${code.replaceAll('_', ' ')} (${severity})`;
 
-const kpis = [
-  { label: 'Total submitted enquiries', value: sampleSubmissions.length },
-  { label: 'New enquiries today', value: sampleSubmissions.filter((submission) => isTodayUtc(submission.submittedDate)).length },
-  { label: 'Awaiting review', value: statusCount('Awaiting review') },
-  { label: 'Under staff review', value: statusCount('Under staff review') },
-  { label: 'More information requested', value: statusCount('More information requested') },
-  { label: 'Risk escalated', value: statusCount('Risk escalated') },
-  { label: 'Progressing to consultation', value: statusCount('Progressing to consultation') },
-  { label: 'Not progressing', value: statusCount('Not progressing') },
-  { label: 'Average time from submission to first review', value: 'Placeholder' },
-  { label: 'Consultation conversion', value: 'Placeholder' }
-];
+const hasEscalatedRisk = (severities: RiskSeverity[]) => severities.some((severity) => severity === 'high' || severity === 'critical');
 
-export default function DashboardPage() {
+const mapStatus = (submissionStatus: SubmissionStatus, escalatedRisk: boolean): DashboardStatus => {
+  if (escalatedRisk) return 'Risk escalated';
+
+  if (submissionStatus === 'submitted') return 'Awaiting review';
+  if (submissionStatus === 'awaiting_client_documents') return 'More information requested';
+  if (submissionStatus === 'ready_for_client_summary') return 'Progressing to consultation';
+  if (submissionStatus === 'on_hold' || submissionStatus === 'closed' || submissionStatus === 'client_summary_sent') {
+    return 'Not progressing';
+  }
+
+  return 'Under staff review';
+};
+
+const nextActionFor = (status: DashboardStatus) => {
+  switch (status) {
+    case 'Awaiting review':
+      return 'Assign reviewer';
+    case 'Under staff review':
+      return 'Continue staff assessment';
+    case 'More information requested':
+      return 'Await client documents';
+    case 'Risk escalated':
+      return 'Senior risk review required';
+    case 'Progressing to consultation':
+      return 'Prepare for consultation';
+    case 'Not progressing':
+      return 'Internal closure checks';
+  }
+};
+
+const getPayloadField = (payload: Prisma.JsonValue, key: keyof IntakePayload): string => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return 'Not provided';
+  const value = (payload as IntakePayload)[key];
+  return typeof value === 'string' && value.trim() ? value : 'Not provided';
+};
+
+export default async function DashboardPage() {
+  const submittedIntakes = await db.intakeSubmission.findMany({
+    where: { submittedAt: { not: null } },
+    include: {
+      pointsSnapshots: { orderBy: { generatedAt: 'desc' }, take: 1 },
+      riskFlags: { where: { resolutionStatus: { in: [RiskResolutionStatus.open, RiskResolutionStatus.under_review] } } },
+      currentReviewState: true,
+    },
+    orderBy: { submittedAt: 'desc' },
+  });
+
+  const rows: DashboardRow[] = submittedIntakes.map((submission) => {
+    const payload = submission.payload;
+    const firstName = getPayloadField(payload, 'firstName');
+    const lastName = getPayloadField(payload, 'lastName');
+    const clientName = `${firstName} ${lastName}`.replace('Not provided Not provided', 'Not provided').trim();
+    const activeRiskSeverities = submission.riskFlags.map((flag) => flag.severity);
+    const escalatedRisk = hasEscalatedRisk(activeRiskSeverities);
+    const status = mapStatus(submission.status, escalatedRisk);
+
+    return {
+      id: submission.id,
+      clientName,
+      submittedDate: submission.submittedAt ?? submission.createdAt,
+      country: getPayloadField(payload, 'countryOfResidence'),
+      nationality: getPayloadField(payload, 'nationality'),
+      occupation: getPayloadField(payload, 'currentOccupation'),
+      estimatedPoints: submission.pointsSnapshots[0]?.totalPoints ?? null,
+      riskFlags: submission.riskFlags.map((flag) => formatRiskFlag(flag.riskCode, flag.severity)),
+      status,
+      lastUpdated: submission.currentReviewState?.updatedAt ?? submission.updatedAt,
+      nextAction: nextActionFor(status),
+    };
+  });
+
+  const countByStatus = (status: DashboardStatus) => rows.filter((row) => row.status === status).length;
+
+  const kpis = [
+    { label: 'Total submitted enquiries', value: rows.length },
+    { label: 'New enquiries today', value: rows.filter((row) => isTodayUtc(row.submittedDate)).length },
+    { label: 'Awaiting review', value: countByStatus('Awaiting review') },
+    { label: 'Under staff review', value: countByStatus('Under staff review') },
+    { label: 'More information requested', value: countByStatus('More information requested') },
+    { label: 'Risk escalated', value: countByStatus('Risk escalated') },
+    { label: 'Progressing to consultation', value: countByStatus('Progressing to consultation') },
+    { label: 'Not progressing', value: countByStatus('Not progressing') },
+    { label: 'Average time from submission to first review', value: 'Placeholder' },
+    { label: 'Consultation conversion', value: 'Placeholder' },
+  ];
+
   return (
     <>
       <section className="hero">
@@ -150,7 +149,6 @@ export default function DashboardPage() {
       <section className="section">
         <div className="section-heading-row">
           <h3>Intake KPI snapshot</h3>
-          <span className="pill pill--placeholder">Sample data placeholder</span>
         </div>
         <div className="dashboard-kpi-grid">
           {kpis.map((kpi) => (
@@ -181,54 +179,58 @@ export default function DashboardPage() {
       <section className="section">
         <div className="section-heading-row">
           <h3>Submitted enquiries</h3>
-          <span className="pill pill--placeholder">Sample data placeholder</span>
         </div>
-        <div className="table-wrap">
-          <table className="dashboard-table">
-            <thead>
-              <tr>
-                <th>Client name</th>
-                <th>Submitted date</th>
-                <th>Country of residence</th>
-                <th>Nationality</th>
-                <th>Current occupation</th>
-                <th>Estimated points</th>
-                <th>Risk flags</th>
-                <th>Status</th>
-                <th>Last updated</th>
-                <th>Next action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sampleSubmissions.map((submission) => (
-                <tr key={`${submission.clientName}-${submission.submittedDate}`}>
-                  <td>{submission.clientName}</td>
-                  <td>{displayDate(submission.submittedDate)}</td>
-                  <td>{submission.country}</td>
-                  <td>{submission.nationality}</td>
-                  <td>{submission.occupation}</td>
-                  <td>{submission.estimatedPoints}</td>
-                  <td>
-                    <span
-                      className={`pill ${
-                        submission.riskLevel === 'No risk disclosed'
-                          ? 'pill--ok'
-                          : submission.riskLevel === 'Risk disclosed'
-                            ? 'pill--warning'
-                            : 'pill--danger'
-                      }`}
-                    >
-                      {submission.riskLevel}
-                    </span>
-                  </td>
-                  <td>{submission.status}</td>
-                  <td>{displayDate(submission.lastUpdated)}</td>
-                  <td>{submission.nextAction}</td>
+        {rows.length === 0 ? (
+          <div className="card">
+            <p>No submitted enquiries yet.</p>
+            <p>Once clients submit intake forms, they will appear here for mandatory staff review.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Client name</th>
+                  <th>Submitted date</th>
+                  <th>Country of residence</th>
+                  <th>Nationality</th>
+                  <th>Current occupation</th>
+                  <th>Estimated points</th>
+                  <th>Risk flags</th>
+                  <th>Status</th>
+                  <th>Last updated</th>
+                  <th>Next action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((submission) => (
+                  <tr key={submission.id}>
+                    <td>{submission.clientName}</td>
+                    <td>{displayDate(submission.submittedDate)}</td>
+                    <td>{submission.country}</td>
+                    <td>{submission.nationality}</td>
+                    <td>{submission.occupation}</td>
+                    <td>{submission.estimatedPoints ?? 'Not available yet'}</td>
+                    <td>
+                      {submission.riskFlags.length ? (
+                        <ul>
+                          {submission.riskFlags.map((flag) => (
+                            <li key={flag}>{flag}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="pill pill--ok">No active flags</span>
+                      )}
+                    </td>
+                    <td>{submission.status}</td>
+                    <td>{displayDate(submission.lastUpdated)}</td>
+                    <td>{submission.nextAction}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </>
   );
