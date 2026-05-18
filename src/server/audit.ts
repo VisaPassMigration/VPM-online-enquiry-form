@@ -70,6 +70,7 @@ export type RecordAuditEventInput = {
   ipAddress?: string;
   userAgent?: string;
   eventSource?: string;
+  tx?: Prisma.TransactionClient;
 };
 
 function normalize(value?: string | null): string | undefined {
@@ -90,7 +91,9 @@ export async function recordAuditEvent(input: RecordAuditEventInput): Promise<Au
     throw new Error(`actorId is required for actorRole ${actorRole}.`);
   }
 
-  return db.auditEvent.create({
+  const client = input.tx ?? db;
+
+  return client.auditEvent.create({
     data: {
       submissionId,
       eventType: eventType as PrismaAuditEventType,

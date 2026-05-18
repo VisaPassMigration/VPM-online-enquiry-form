@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
+import { recordAuditEvent } from '@/server/audit';
 import { db } from '@/server/db';
-import { buildAuditCreate, mapPrismaError, mapToIntakeSubmissionCreateInput, parseIntakePayload } from '@/server/intakeApi';
+import { mapPrismaError, mapToIntakeSubmissionCreateInput, parseIntakePayload } from '@/server/intakeApi';
 
 export async function POST(request: Request) {
   try {
@@ -18,8 +19,16 @@ export async function POST(request: Request) {
         },
       });
 
-      await tx.auditEvent.create({
-        data: buildAuditCreate(submission.id, 'submission_created', { status: submission.status }),
+      await recordAuditEvent({
+        tx,
+        submissionId: submission.id,
+        eventType: 'submission_created',
+        actorRole: 'system',
+        relatedEntityType: 'intake_submission',
+        relatedEntityId: submission.id,
+        toValue: { status: submission.status },
+        metadata: { status: submission.status },
+        eventSource: 'intake_api',
       });
 
       return submission;

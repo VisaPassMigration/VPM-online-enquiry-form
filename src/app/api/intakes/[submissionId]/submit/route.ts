@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 
+import { recordAuditEvent } from '@/server/audit';
 import { db } from '@/server/db';
 import { sendClientIntakeReceivedEmail } from '@/server/email';
-import { assertDraftStatus, buildAuditCreate, computeRiskFlags, mapPrismaError, mapToPointsSnapshotCreateInput, mapToRiskPayload, parseIntakePayload, preparePointsSnapshot, prepareStatusTransition, sendClientConfirmationEmailWithAudit, toPointsInput } from '@/server/intakeApi';
+import { assertDraftStatus, computeRiskFlags, mapPrismaError, mapToPointsSnapshotCreateInput, mapToRiskPayload, parseIntakePayload, preparePointsSnapshot, prepareStatusTransition, sendClientConfirmationEmailWithAudit, toPointsInput } from '@/server/intakeApi';
 
 type RouteContext = { params: Promise<{ submissionId: string }> };
 
@@ -43,11 +44,11 @@ export async function POST(_request: Request, context: RouteContext) {
         create: { submissionId: submission.id, currentStage: 'intake_triage' },
       });
 
-      await tx.auditEvent.create({ data: buildAuditCreate(submission.id, 'submission_submitted', { status: 'submitted' }) });
-      await tx.auditEvent.create({ data: buildAuditCreate(submission.id, 'status_transition_requested', transition) });
-      await tx.auditEvent.create({ data: buildAuditCreate(submission.id, 'status_transition_applied', transition) });
-      await tx.auditEvent.create({ data: buildAuditCreate(submission.id, 'points_snapshot_generated', { estimatedTotal: pointsSnapshot.estimatedTotal, potentialRange: pointsSnapshot.potentialRange }) });
-      await tx.auditEvent.create({ data: buildAuditCreate(submission.id, 'risk_flags_computed', { count: riskFlags.length, flags: riskFlags.map((f) => f.key) }) });
+      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'submission_submitted', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, fromValue: { status: existing.status }, toValue: { status: 'submitted' }, metadata: { status: 'submitted' }, eventSource: 'intake_api' });
+      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'status_transition_requested', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, fromValue: { status: transition.fromStatus }, toValue: { status: transition.toStatus }, internalNote: transition.internalNote, metadata: transition, eventSource: 'intake_api' });
+      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'status_transition_applied', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, fromValue: { status: transition.fromStatus }, toValue: { status: transition.toStatus }, internalNote: transition.internalNote, metadata: transition, eventSource: 'intake_api' });
+      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'points_snapshot_generated', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, metadata: { estimatedTotal: pointsSnapshot.estimatedTotal, potentialRange: pointsSnapshot.potentialRange }, eventSource: 'intake_api' });
+      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'risk_flags_computed', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, metadata: { count: riskFlags.length, flags: riskFlags.map((f) => f.key) }, eventSource: 'intake_api' });
 
       return { submission, payload };
     });
@@ -59,7 +60,15 @@ export async function POST(_request: Request, context: RouteContext) {
         clientName: [result.payload.firstName, result.payload.lastName].filter(Boolean).join(' '),
       }),
       recordAudit: async (eventType, metadata) => {
-        await db.auditEvent.create({ data: buildAuditCreate(result.submission.id, eventType, metadata) });
+        await recordAuditEvent({
+          submissionId: result.submission.id,
+          eventType,
+          actorRole: 'system',
+          relatedEntityType: 'intake_submission',
+          relatedEntityId: result.submission.id,
+          metadata,
+          eventSource: 'intake_api',
+        });
       },
     });
 
