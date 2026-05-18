@@ -1,3 +1,5 @@
+import { requirePermission } from '@/server/auth/requirePermission';
+import { PERMISSIONS } from '@/server/auth/permissions';
 import Link from 'next/link';
 import { Prisma, RiskSeverity, RiskResolutionStatus, SubmissionStatus } from '@prisma/client';
 
@@ -98,6 +100,7 @@ const getPayloadField = (payload: Prisma.JsonValue, key: keyof IntakePayload): s
 };
 
 export default async function DashboardPage() {
+  await requirePermission(PERMISSIONS.VIEW_DASHBOARD);
   const [
     consultsBookedToday,
     consultsBookedThisWeek,

@@ -89,3 +89,7 @@ Future iterations should include:
 - Encrypted document handling
 - Input validation and abuse protection
 - Operational logging and monitoring
+
+
+## Staff auth seed helper
+Run `npm run seed:staff-auth` after migrations to create system roles and optionally bootstrap a first boss admin using `SEED_BOSS_ADMIN_EMAIL`.

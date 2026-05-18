@@ -1,3 +1,5 @@
+import { requirePermission } from '@/server/auth/requirePermission';
+import { PERMISSIONS } from '@/server/auth/permissions';
 import { AuditEventType, Prisma } from '@prisma/client';
 import Link from 'next/link';
 
