@@ -83,6 +83,23 @@ enum RiskResolutionStatus {
   accepted_with_controls
 }
 
+enum ConsultationBookingStatus {
+  invited
+  booked
+  completed
+  no_show
+  cancelled
+  rescheduled
+}
+
+enum ConsultationBookingSource {
+  manual_staff_entry
+  internal_booking_link
+  calendly
+  google_calendar
+  other
+}
+
 enum PointsGeneratedBy {
   system
   staff
@@ -105,6 +122,15 @@ enum AuditEventType {
   client_comm_released
   client_comm_release_blocked
   consultation_invite_release_blocked_risk
+  consultation_invited
+  consultation_booked
+  consultation_rescheduled
+  consultation_completed
+  consultation_no_show
+  consultation_cancelled
+  consultation_outcome_recorded
+  csa_issued
+  deposit_recorded
   client_summary_released
 }
 
@@ -133,6 +159,7 @@ model IntakeSubmission {
   riskFlags               RiskFlag[]
   auditEvents             AuditEvent[]
   clientCommunications    ClientCommunication[]
+  consultationBookings    ConsultationBooking[]
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
   submittedAt             DateTime?
@@ -239,6 +266,40 @@ model RiskFlag {
   @@index([submissionId])
   @@index([severity])
   @@index([submissionId, resolutionStatus, severity])
+}
+
+model ConsultationBooking {
+  id                      String                    @id @default(uuid())
+  submissionId            String
+  submission              IntakeSubmission          @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  clientName              String
+  clientEmail             String
+  assignedSeniorStaffId   String?
+  assignedSeniorStaffName String?
+  bookingDateTime         DateTime?
+  bookingTimezone         String?
+  bookingSource           ConsultationBookingSource @default(manual_staff_entry)
+  status                  ConsultationBookingStatus @default(invited)
+  consultationOutcome     String?
+  csaRecommended          Boolean?
+  csaIssued               Boolean                   @default(false)
+  csaIssuedAt             DateTime?
+  depositPaid             Boolean                   @default(false)
+  depositPaidAt           DateTime?
+  notesInternal           String?
+  invitedAt               DateTime?
+  bookedAt                DateTime?
+  completedAt             DateTime?
+  cancelledAt             DateTime?
+  noShowAt                DateTime?
+  rescheduledAt           DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+
+  @@index([submissionId])
+  @@index([status, bookingDateTime])
+  @@index([assignedSeniorStaffId, status, bookingDateTime])
+  @@index([bookingSource, createdAt])
 }
 
 model AuditEvent {
