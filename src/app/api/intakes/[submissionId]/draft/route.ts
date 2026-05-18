@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
+import { recordAuditEvent } from '@/server/audit';
 import { db } from '@/server/db';
-import { assertDraftStatus, buildAuditCreate, mapPrismaError, parseIntakePayload } from '@/server/intakeApi';
+import { assertDraftStatus, mapPrismaError, parseIntakePayload } from '@/server/intakeApi';
 
 type RouteContext = { params: Promise<{ submissionId: string }> };
 
@@ -23,8 +24,16 @@ export async function PATCH(request: Request, context: RouteContext) {
         data: { payload },
       });
 
-      await tx.auditEvent.create({
-        data: buildAuditCreate(submission.id, 'submission_updated', { status: submission.status }),
+      await recordAuditEvent({
+        tx,
+        submissionId: submission.id,
+        eventType: 'submission_updated',
+        actorRole: 'system',
+        relatedEntityType: 'intake_submission',
+        relatedEntityId: submission.id,
+        toValue: { status: submission.status },
+        metadata: { status: submission.status },
+        eventSource: 'intake_api',
       });
 
       return submission;

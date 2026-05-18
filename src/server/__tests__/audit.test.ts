@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { auditCreateMock } = vi.hoisted(() => ({
+const { auditCreateMock, txAuditCreateMock } = vi.hoisted(() => ({
   auditCreateMock: vi.fn(),
+  txAuditCreateMock: vi.fn(),
 }));
 
 vi.mock('../db', () => ({
@@ -49,6 +50,23 @@ describe('recordAuditEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     auditCreateMock.mockImplementation(async ({ data }) => ({ id: 'audit-1', ...data }));
+    txAuditCreateMock.mockImplementation(async ({ data }) => ({ id: 'audit-tx-1', ...data }));
+  });
+
+  it('uses db client by default', async () => {
+    await recordAuditEvent({ submissionId: 'sub-1', eventType: 'submission_updated' });
+    expect(auditCreateMock).toHaveBeenCalledTimes(1);
+    expect(txAuditCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('uses tx client when provided', async () => {
+    await recordAuditEvent({
+      submissionId: 'sub-1',
+      eventType: 'submission_updated',
+      tx: { auditEvent: { create: txAuditCreateMock } } as never,
+    });
+    expect(txAuditCreateMock).toHaveBeenCalledTimes(1);
+    expect(auditCreateMock).not.toHaveBeenCalled();
   });
 
   it('recordAuditEvent creates valid audit payload', async () => {
