@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
 import { db } from '@/server/db';
-import { assertDraftStatus, buildAuditCreate, computeRiskFlags, mapPrismaError, mapToPointsSnapshotCreateInput, mapToRiskPayload, parseIntakePayload, preparePointsSnapshot, prepareStatusTransition, toPointsInput } from '@/server/intakeApi';
+import { sendClientIntakeReceivedEmail } from '@/server/email';
+import { assertDraftStatus, buildAuditCreate, computeRiskFlags, mapPrismaError, mapToPointsSnapshotCreateInput, mapToRiskPayload, parseIntakePayload, preparePointsSnapshot, prepareStatusTransition, sendClientConfirmationEmailWithAudit, toPointsInput } from '@/server/intakeApi';
 
 type RouteContext = { params: Promise<{ submissionId: string }> };
 
@@ -48,13 +49,24 @@ export async function POST(_request: Request, context: RouteContext) {
       await tx.auditEvent.create({ data: buildAuditCreate(submission.id, 'points_snapshot_generated', { estimatedTotal: pointsSnapshot.estimatedTotal, potentialRange: pointsSnapshot.potentialRange }) });
       await tx.auditEvent.create({ data: buildAuditCreate(submission.id, 'risk_flags_computed', { count: riskFlags.length, flags: riskFlags.map((f) => f.key) }) });
 
-      return submission;
+      return { submission, payload };
+    });
+
+    await sendClientConfirmationEmailWithAudit({
+      sendEmail: () => sendClientIntakeReceivedEmail({
+        to: result.payload.email,
+        submissionId: result.submission.id,
+        clientName: [result.payload.firstName, result.payload.lastName].filter(Boolean).join(' '),
+      }),
+      recordAudit: async (eventType, metadata) => {
+        await db.auditEvent.create({ data: buildAuditCreate(result.submission.id, eventType, metadata) });
+      },
     });
 
     // No client outcome is sent here.
     // Points are preliminary only and must be treated as internal estimates.
     // Staff review is required before any next-stage communication.
-    return NextResponse.json({ submissionId: result.id, status: result.status, submittedAt: result.submittedAt });
+    return NextResponse.json({ submissionId: result.submission.id, status: result.submission.status, submittedAt: result.submission.submittedAt });
   } catch (error) {
     const mapped = mapPrismaError(error);
     const details = typeof error === 'object' && error && 'details' in error ? (error as { details?: unknown }).details : undefined;

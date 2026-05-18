@@ -71,6 +71,30 @@ export function buildAuditCreate(submissionId: string, eventType: Parameters<typ
   );
 }
 
+export async function sendClientConfirmationEmailWithAudit(options: {
+  sendEmail: () => Promise<{ status: 'sent' | 'queued' | 'disabled'; provider: string; messageId?: string }>;
+  recordAudit: (eventType: Parameters<typeof prepareAuditEvent>[0]['eventType'], metadata: Record<string, unknown>) => Promise<unknown>;
+}) {
+  try {
+    const result = await options.sendEmail();
+    await options.recordAudit('submission_updated', {
+      emailEvent: 'client_confirmation_email_sent',
+      deliveryStatus: result.status,
+      provider: result.provider,
+      messageId: result.messageId ?? null,
+      note: result.status === 'queued' ? 'Email provider is not configured; confirmation email queued only.' : 'Confirmation email dispatched.',
+    });
+    return { ok: true as const, result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown email delivery error.';
+    await options.recordAudit('submission_updated', {
+      emailEvent: 'client_confirmation_email_failed',
+      error: message,
+    });
+    return { ok: false as const, error: message };
+  }
+}
+
 export function mapPrismaError(error: unknown): { code: number; message: string } {
   if (error instanceof Error && 'code' in error && (error as { code?: number }).code) {
     return { code: Number((error as { code?: number }).code), message: error.message };
