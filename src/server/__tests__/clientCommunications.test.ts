@@ -4,12 +4,12 @@ const mocks = vi.hoisted(() => ({
   gate: vi.fn(),
   db: {
     clientCommunication: { create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
-    auditEvent: { create: vi.fn() },
     intakeSubmission: { findUnique: vi.fn() },
     riskFlag: { findMany: vi.fn() },
     submissionReviewState: { findUnique: vi.fn() },
   },
   sendEmail: vi.fn(),
+  recordAuditEvent: vi.fn(),
 }));
 
 vi.mock('../clientCommunicationGate', () => ({
@@ -18,6 +18,7 @@ vi.mock('../clientCommunicationGate', () => ({
 
 vi.mock('../db', () => ({ db: mocks.db }));
 vi.mock('../email', () => ({ sendClientIntakeReceivedEmail: vi.fn(), sendRequestMoreInformationEmail: mocks.sendEmail, sendConsultationInvitationEmail: mocks.sendEmail }));
+vi.mock('../audit', () => ({ recordAuditEvent: mocks.recordAuditEvent }));
 
 import {
   createClientCommunicationDraft,
@@ -42,7 +43,7 @@ describe('clientCommunications service', () => {
     mocks.db.clientCommunication.create.mockResolvedValue({ id: 'comm_1', status: 'drafted_internal' });
     mocks.db.clientCommunication.update.mockResolvedValue({ id: 'comm_1', status: 'pending_staff_release' });
     mocks.db.clientCommunication.findMany.mockResolvedValue([]);
-    mocks.db.auditEvent.create.mockResolvedValue({ id: 'audit_1' });
+    mocks.recordAuditEvent.mockResolvedValue({ id: 'audit_1' });
     mocks.db.intakeSubmission.findUnique.mockResolvedValue({ id: 'sub_1' });
     mocks.db.riskFlag.findMany.mockResolvedValue([]);
     mocks.db.submissionReviewState.findUnique.mockResolvedValue({ currentStage: 'triage_complete', lastDecision: 'pending' });
@@ -62,13 +63,13 @@ describe('clientCommunications service', () => {
         }),
       }),
     );
-    expect(mocks.db.auditEvent.create).toHaveBeenCalled();
+    expect(mocks.recordAuditEvent).toHaveBeenCalled();
   });
 
   it('release request is allowed when gate passes', async () => {
     const result = await requestClientCommunicationRelease({ ...baseInput, communicationId: 'comm_1' });
     expect(result.status).toBe('pending_staff_release');
-    expect(mocks.db.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ eventType: 'client_comm_release_requested' }) }));
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'client_comm_release_requested' }));
   });
 
   it('release request is blocked when gate fails', async () => {
@@ -76,7 +77,7 @@ describe('clientCommunications service', () => {
 
     await expect(requestClientCommunicationRelease({ ...baseInput, communicationId: 'comm_1' })).rejects.toThrow(/blocked/);
     expect(mocks.db.clientCommunication.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'blocked' } }));
-    expect(mocks.db.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ eventType: 'client_comm_release_blocked' }) }));
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'client_comm_release_blocked' }));
   });
 
   it('consultation invitation is blocked by unresolved high/critical risk', async () => {

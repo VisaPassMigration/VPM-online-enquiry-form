@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createMock, findUniqueMock, updateMock, auditCreateMock, countMock, groupByMock } = vi.hoisted(() => ({
+const { createMock, findUniqueMock, updateMock, recordAuditEventMock, countMock, groupByMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
   findUniqueMock: vi.fn(),
   updateMock: vi.fn(),
-  auditCreateMock: vi.fn(),
+  recordAuditEventMock: vi.fn(),
   countMock: vi.fn(),
   groupByMock: vi.fn(),
 }));
 
+vi.mock('../audit', () => ({ recordAuditEvent: recordAuditEventMock }));
+
 vi.mock('../db', () => {
   const tx = {
     consultationBooking: { create: createMock, findUnique: findUniqueMock, update: updateMock },
-    auditEvent: { create: auditCreateMock },
   };
 
   return {
@@ -66,7 +67,7 @@ describe('consultation booking service', () => {
         }),
       }),
     );
-    expect(auditCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ eventType: 'consultation_invited' }) }));
+    expect(recordAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'consultation_invited' }));
   });
 
   it('allows invited -> booked transition', async () => {
@@ -162,7 +163,7 @@ describe('consultation booking service', () => {
     findUniqueMock.mockResolvedValue({ status: 'booked' });
     await markConsultationRescheduled(base);
 
-    const auditEventTypes = auditCreateMock.mock.calls.map((call) => call[0].data.eventType);
+    const auditEventTypes = recordAuditEventMock.mock.calls.map((call) => call[0].eventType);
     expect(auditEventTypes).toEqual(expect.arrayContaining(['consultation_completed', 'consultation_no_show', 'consultation_cancelled', 'consultation_rescheduled']));
   });
 
