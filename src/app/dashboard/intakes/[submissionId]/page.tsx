@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma, RiskResolutionStatus, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
 
 import { db } from '@/server/db';
+import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, requestClientCommunicationRelease } from '@/server/clientCommunications';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -35,10 +36,10 @@ async function runInternalReviewAction(formData: FormData) {
   const submissionId = String(formData.get('submissionId') ?? '');
   const action = String(formData.get('action') ?? '');
   const note = String(formData.get('internalNote') ?? '').trim();
-  const actorId = 'staff-placeholder';
+  const actorId = String(formData.get('staffActor') ?? '').trim();
   const actorRole = 'staff';
 
-  if (!submissionId || !action || !note) return;
+  if (!submissionId || !action || !note || !actorId) return;
 
   await db.$transaction(async (tx) => {
     const submission = await tx.intakeSubmission.findUnique({
@@ -117,6 +118,54 @@ async function runInternalReviewAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+
+
+async function runClientCommunicationAction(formData: FormData) {
+  'use server';
+
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const actorId = String(formData.get('staffActor') ?? '').trim();
+  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const communicationType = String(formData.get('communicationType') ?? '').trim() as
+    | 'request_more_information'
+    | 'consultation_invitation'
+    | 'not_progressing_hold';
+
+  if (!submissionId || !actorId || !internalReason) return;
+
+  const template = CLIENT_COMMUNICATION_TEMPLATES[communicationType];
+  if (!template) return;
+
+  const created = await createClientCommunicationDraft({
+    submissionId,
+    communicationType,
+    subject: template.subject,
+    bodyText: template.bodyText,
+    internalReason,
+    actorId,
+    actorRole: 'staff',
+  });
+
+  if (communicationType === 'consultation_invitation') {
+    try {
+      await requestClientCommunicationRelease({
+        submissionId,
+        communicationId: created.id,
+        communicationType,
+        subject: created.subject,
+        bodyText: created.bodyText,
+        internalReason,
+        actorId,
+        actorRole: 'staff',
+      });
+    } catch {
+      // blocked state and audit event are handled in the communication service.
+    }
+  }
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
@@ -127,6 +176,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       documents: { orderBy: { uploadedAt: 'desc' } },
       currentReviewState: true,
       auditEvents: { orderBy: { eventAt: 'desc' }, take: 30 },
+      clientCommunications: { orderBy: { createdAt: 'desc' } },
     },
   });
 
@@ -154,6 +204,8 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
           <input type="hidden" name="submissionId" value={submission.id} />
           <label htmlFor="internal-note"><strong>Internal note (required)</strong></label>
           <textarea id="internal-note" name="internalNote" required rows={4} />
+          <label htmlFor="review-staff-actor"><strong>Staff actor placeholder (required)</strong></label>
+          <input id="review-staff-actor" name="staffActor" required placeholder="staff-placeholder" />
           <div className="button-row">
             <button type="submit" name="action" value="mark_under_review">Mark Under Review</button>
             <button type="submit" name="action" value="request_more_information">Request More Information</button>
@@ -162,6 +214,28 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
           </div>
         </form>
       </section>
+
+
+      <section className="section review-section">
+        <h3>Staff-Controlled Client Communications</h3>
+        <p><strong>Warning:</strong> Client communication records are internal until released through an authorised staff action. No email is sent from this section yet.</p>
+        <form action={runClientCommunicationAction} className="intake-form">
+          <input type="hidden" name="submissionId" value={submission.id} />
+          <label htmlFor="staff-actor"><strong>Staff actor placeholder (required)</strong></label>
+          <input id="staff-actor" name="staffActor" required placeholder="staff-placeholder" />
+          <label htmlFor="communication-reason"><strong>Internal reason/note (required)</strong></label>
+          <textarea id="communication-reason" name="internalReason" required rows={4} />
+          <div className="button-row">
+            <button type="submit" name="communicationType" value="request_more_information">Prepare Request More Information</button>
+            <button type="submit" name="communicationType" value="consultation_invitation">Prepare Consultation Invitation</button>
+            <button type="submit" name="communicationType" value="not_progressing_hold">Prepare Not Progressing / Hold</button>
+          </div>
+        </form>
+      </section>
+
+      <section className="section review-section"><h3>Communication records</h3>{submission.clientCommunications.length === 0 ? <p>No communication records available.</p> : (
+        <div className="table-wrap"><table className="dashboard-table"><thead><tr><th>Type</th><th>Status</th><th>Subject</th><th>Created</th><th>Released</th><th>Internal reason</th></tr></thead><tbody>{submission.clientCommunications.map((comm) => <tr key={comm.id}><td>{comm.type}</td><td>{comm.status}</td><td>{comm.subject}</td><td>{displayDate(comm.createdAt)}</td><td>{comm.releasedAt ? displayDate(comm.releasedAt) : 'Not released'}</td><td>{comm.internalReason}</td></tr>)}</tbody></table></div>
+      )}</section>
 
       <section className="section review-section"><h3>Client details</h3>{renderRows([
         ['First name', payload.firstName as string], ['Last name', payload.lastName as string], ['Date of birth', payload.dateOfBirth as string],
