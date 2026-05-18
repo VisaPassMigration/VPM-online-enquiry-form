@@ -1,7 +1,10 @@
+import { Prisma, type AuditEvent, type AuditEventType as PrismaAuditEventType } from '@prisma/client';
+
+import { db } from './db';
+
 /**
  * Internal backend-only audit event service.
- * API routes and storage wiring will be added later.
- * Human review remains mandatory before any client communication state changes.
+ * Keeps audit rows append-only by exposing create-only helpers.
  */
 
 export const AUDIT_EVENT_TYPES = [
@@ -16,7 +19,7 @@ export const AUDIT_EVENT_TYPES = [
 ] as const;
 
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
-export type ActorRole = 'client' | 'staff' | 'reviewer' | 'admin' | 'system';
+export type ActorRole = 'client' | 'staff' | 'reviewer' | 'admin' | 'system' | 'user';
 
 export type AuditEventRecord = {
   eventType: AuditEventType;
@@ -49,7 +52,65 @@ export function prepareAuditEvent(input: {
   };
 }
 
+const STAFF_USER_ROLES = new Set(['staff', 'admin', 'reviewer', 'user', 'client']);
+
+export type RecordAuditEventInput = {
+  submissionId: string;
+  eventType: PrismaAuditEventType;
+  actorId?: string;
+  actorRole?: string;
+  actorName?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  fromValue?: Prisma.InputJsonValue;
+  toValue?: Prisma.InputJsonValue;
+  reason?: string;
+  internalNote?: string;
+  metadata?: Prisma.InputJsonValue;
+  ipAddress?: string;
+  userAgent?: string;
+  eventSource?: string;
+};
+
+function normalize(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+export async function recordAuditEvent(input: RecordAuditEventInput): Promise<AuditEvent> {
+  const submissionId = normalize(input.submissionId);
+  if (!submissionId) throw new Error('submissionId is required.');
+
+  const eventType = normalize(input.eventType);
+  if (!eventType) throw new Error('eventType is required.');
+
+  const actorRole = normalize(input.actorRole);
+  const actorId = normalize(input.actorId);
+  if (actorRole && STAFF_USER_ROLES.has(actorRole) && !actorId) {
+    throw new Error(`actorId is required for actorRole ${actorRole}.`);
+  }
+
+  return db.auditEvent.create({
+    data: {
+      submissionId,
+      eventType: eventType as PrismaAuditEventType,
+      actorId,
+      actorRole,
+      actorName: normalize(input.actorName),
+      relatedEntityType: normalize(input.relatedEntityType),
+      relatedEntityId: normalize(input.relatedEntityId),
+      fromValue: input.fromValue,
+      toValue: input.toValue,
+      reason: normalize(input.reason),
+      internalNote: normalize(input.internalNote),
+      metadata: input.metadata,
+      ipAddress: normalize(input.ipAddress),
+      userAgent: normalize(input.userAgent),
+      eventSource: normalize(input.eventSource),
+    },
+  });
+}
+
 export async function writeAuditEvent(event: AuditEventRecord): Promise<AuditEventRecord> {
-  // Placeholder writer for now. DB persistence integration comes later.
   return event;
 }

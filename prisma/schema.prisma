@@ -121,6 +121,16 @@ enum AuditEventType {
   client_comm_release_requested
   client_comm_released
   client_comm_release_blocked
+  review_note_added
+  risk_escalated
+  client_comm_failed
+  document_waived
+  document_accepted
+  auth_login_succeeded
+  auth_login_failed
+  auth_logout
+  auth_role_changed
+  consultation_transition_blocked
   consultation_invite_release_blocked_risk
   consultation_invited
   consultation_booked
@@ -310,11 +320,20 @@ model AuditEvent {
   // Actor identity fields remain plain strings in V1 and may later be normalized into StaffUser relations.
   actorId       String?
   actorRole     String?
+  actorName     String?
+  relatedEntityType String?
+  relatedEntityId String?
   eventAt       DateTime         @default(now())
   fromStatus    SubmissionStatus?
   toStatus      SubmissionStatus?
+  fromValue     Json?
+  toValue       Json?
   reason        String?
+  internalNote  String?
   metadata      Json?
+  ipAddress     String?
+  userAgent     String?
+  eventSource   String?
 
   @@index([submissionId])
   @@index([eventType])
