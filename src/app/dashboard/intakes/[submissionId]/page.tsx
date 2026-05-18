@@ -117,6 +117,29 @@ const renderRows = (pairs: Array<[string, string | number | undefined | null]>) 
   </dl>
 );
 
+
+type StaffActorContext = {
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  actorStaffUserId?: string;
+};
+
+async function requireStaffActorContextForClientCommunication(permission: string): Promise<StaffActorContext> {
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  await requirePermission(permission as never);
+
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
+  const actorRole = session.user.roles?.[0]?.trim() || 'staff';
+  const actorStaffUserId = session.user.staffUserId?.trim() || undefined;
+
+  if (!actorId) throw new Error('Missing authenticated staff actor id');
+
+  return { actorId, actorName, actorRole, actorStaffUserId };
+}
+
 export async function runInternalReviewAction(formData: FormData) {
   'use server';
   const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
@@ -242,18 +265,19 @@ export async function runInternalReviewAction(formData: FormData) {
 
 
 
-async function runClientCommunicationAction(formData: FormData) {
+export async function runClientCommunicationAction(formData: FormData) {
   'use server';
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
-  const actorId = String(formData.get('staffActor') ?? '').trim();
   const internalReason = String(formData.get('internalReason') ?? '').trim();
   const communicationType = String(formData.get('communicationType') ?? '').trim() as
     | 'request_more_information'
     | 'consultation_invitation'
     | 'not_progressing_hold';
 
-  if (!submissionId || !actorId || !internalReason) return;
+  if (!submissionId || !internalReason) return;
+
+  const { actorId, actorRole } = await requireStaffActorContextForClientCommunication(PERMISSIONS.PREPARE_CLIENT_COMMUNICATION);
 
   const template = CLIENT_COMMUNICATION_TEMPLATES[communicationType];
   if (!template) return;
@@ -265,22 +289,23 @@ async function runClientCommunicationAction(formData: FormData) {
     bodyText: template.bodyText,
     internalReason,
     actorId,
-    actorRole: 'staff',
+    actorRole,
   });
 
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
 
-async function runReleaseRequestMoreInformationAction(formData: FormData) {
+export async function runReleaseRequestMoreInformationAction(formData: FormData) {
   "use server";
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const communicationId = String(formData.get('communicationId') ?? '').trim();
-  const actorId = String(formData.get('staffActor') ?? '').trim();
   const internalReason = String(formData.get('internalReason') ?? '').trim();
 
-  if (!submissionId || !communicationId || !actorId || !internalReason) return;
+  if (!submissionId || !communicationId || !internalReason) return;
+
+  const { actorId, actorRole } = await requireStaffActorContextForClientCommunication(PERMISSIONS.RELEASE_REQUEST_MORE_INFO);
 
   try {
     await releaseRequestMoreInformationCommunication({
@@ -291,7 +316,7 @@ async function runReleaseRequestMoreInformationAction(formData: FormData) {
       bodyText: CLIENT_COMMUNICATION_TEMPLATES.request_more_information.bodyText,
       internalReason,
       actorId,
-      actorRole: 'staff',
+      actorRole,
     });
   } catch {
     // Do not fail the full page on release/send failures.
@@ -300,15 +325,16 @@ async function runReleaseRequestMoreInformationAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
-async function runReleaseConsultationInvitationAction(formData: FormData) {
+export async function runReleaseConsultationInvitationAction(formData: FormData) {
   'use server';
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const communicationId = String(formData.get('communicationId') ?? '').trim();
-  const actorId = String(formData.get('staffActor') ?? '').trim();
   const internalReason = String(formData.get('internalReason') ?? '').trim();
 
-  if (!submissionId || !communicationId || !actorId || !internalReason) return;
+  if (!submissionId || !communicationId || !internalReason) return;
+
+  const { actorId, actorRole } = await requireStaffActorContextForClientCommunication(PERMISSIONS.RELEASE_CONSULTATION_INVITE);
 
   try {
     await releaseConsultationInvitationCommunication({
@@ -319,7 +345,7 @@ async function runReleaseConsultationInvitationAction(formData: FormData) {
       bodyText: CLIENT_COMMUNICATION_TEMPLATES.consultation_invitation.bodyText,
       internalReason,
       actorId,
-      actorRole: 'staff',
+      actorRole,
     });
   } catch {
     // Do not fail the full page on release/send failures.
@@ -470,9 +496,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
         <p><strong>Warning:</strong> Client communication records are internal until released through an authorised staff action.</p>
         <form action={runClientCommunicationAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
-          <label htmlFor="staff-actor"><strong>Staff actor placeholder (required)</strong></label>
-          <input id="staff-actor" name="staffActor" required placeholder="staff-placeholder" />
-          <label htmlFor="communication-reason"><strong>Internal reason/note (required)</strong></label>
+                    <label htmlFor="communication-reason"><strong>Internal reason/note (required)</strong></label>
           <textarea id="communication-reason" name="internalReason" required rows={4} />
           <div className="button-row">
             <button type="submit" name="communicationType" value="request_more_information">Prepare Request More Information</button>
@@ -521,8 +545,8 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
                   {isFailed && <div><dt>Failure reason</dt><dd className="communication-card__failure">{comm.failureReason || 'Not available'}</dd></div>}
                 </dl>
                 <div className="communication-card__actions">
-                  {comm.type === 'request_more_information' && comm.status !== 'released' ? <form action={runReleaseRequestMoreInformationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason/checklist" /><button type="submit">Release Request Email</button></form> : null}
-                  {comm.type === 'consultation_invitation' && comm.status !== 'released' ? <form action={runReleaseConsultationInvitationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason" /><button type="submit">Release Consultation Invite</button></form> : null}
+                  {comm.type === 'request_more_information' && comm.status !== 'released' ? <form action={runReleaseRequestMoreInformationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="internalReason" required placeholder="Internal reason/checklist" /><button type="submit">Release Request Email</button></form> : null}
+                  {comm.type === 'consultation_invitation' && comm.status !== 'released' ? <form action={runReleaseConsultationInvitationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="internalReason" required placeholder="Internal reason" /><button type="submit">Release Consultation Invite</button></form> : null}
                   {comm.type !== 'request_more_information' && comm.type !== 'consultation_invitation' ? <span>—</span> : null}
                 </div>
               </article>;
