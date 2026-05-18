@@ -17,12 +17,13 @@ vi.mock('../clientCommunicationGate', () => ({
 }));
 
 vi.mock('../db', () => ({ db: mocks.db }));
-vi.mock('../email', () => ({ sendClientIntakeReceivedEmail: vi.fn(), sendRequestMoreInformationEmail: mocks.sendEmail }));
+vi.mock('../email', () => ({ sendClientIntakeReceivedEmail: vi.fn(), sendRequestMoreInformationEmail: mocks.sendEmail, sendConsultationInvitationEmail: mocks.sendEmail }));
 
 import {
   createClientCommunicationDraft,
   requestClientCommunicationRelease,
   releaseRequestMoreInformationCommunication,
+  releaseConsultationInvitationCommunication,
 } from '../clientCommunications';
 
 const baseInput = {
@@ -122,5 +123,43 @@ describe('clientCommunications service', () => {
     const result = await releaseRequestMoreInformationCommunication({ ...baseInput, communicationId: 'comm_1' });
     expect(result.status).toBe('failed');
     expect(mocks.db.clientCommunication.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) }));
+  });
+
+  it('release blocks consultation invite if review state is not consultation-ready', async () => {
+    mocks.db.intakeSubmission.findUnique.mockResolvedValue({ id: 'sub_1', payload: { email: 'client@example.com' } });
+    mocks.db.submissionReviewState.findUnique.mockResolvedValue({ currentStage: 'intake_triage', lastDecision: 'pending' });
+    mocks.gate.mockReturnValue({ allowed: false, blockedReason: 'consultationReady', requiredChecks: { consultationReady: false }, auditEventType: 'client_communication_release_blocked' });
+
+    await expect(releaseConsultationInvitationCommunication({ ...baseInput, communicationId: 'comm_1', communicationType: 'consultation_invitation' })).rejects.toThrow(/consultationReady/);
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('release succeeds for consultation invite when gate passes', async () => {
+    mocks.db.intakeSubmission.findUnique.mockResolvedValue({ id: 'sub_1', payload: { email: 'client@example.com' } });
+    mocks.db.clientCommunication.update.mockResolvedValue({ id: 'comm_1', status: 'released' });
+    mocks.sendEmail.mockResolvedValue({ status: 'sent', provider: 'resend', messageId: 'msg_1' });
+
+    const result = await releaseConsultationInvitationCommunication({ ...baseInput, communicationId: 'comm_1', communicationType: 'consultation_invitation' });
+    expect(result.status).toBe('released');
+    expect(mocks.sendEmail).toHaveBeenCalled();
+  });
+
+  it('send failure marks consultation invite communication as failed', async () => {
+    mocks.db.intakeSubmission.findUnique.mockResolvedValue({ id: 'sub_1', payload: { email: 'client@example.com' } });
+    mocks.sendEmail.mockRejectedValue(new Error('provider down'));
+    mocks.db.clientCommunication.update.mockResolvedValue({ id: 'comm_1', status: 'failed' });
+
+    const result = await releaseConsultationInvitationCommunication({ ...baseInput, communicationId: 'comm_1', communicationType: 'consultation_invitation' });
+    expect(result.status).toBe('failed');
+    expect(mocks.db.clientCommunication.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) }));
+  });
+
+  it('does not create calendar events during consultation invite release', async () => {
+    mocks.db.intakeSubmission.findUnique.mockResolvedValue({ id: 'sub_1', payload: { email: 'client@example.com' } });
+    mocks.db.clientCommunication.update.mockResolvedValue({ id: 'comm_1', status: 'released' });
+    mocks.sendEmail.mockResolvedValue({ status: 'sent', provider: 'resend', messageId: 'msg_1' });
+
+    await releaseConsultationInvitationCommunication({ ...baseInput, communicationId: 'comm_1', communicationType: 'consultation_invitation' });
+    expect(Object.keys(mocks.db)).not.toContain('calendarEvent');
   });
 });

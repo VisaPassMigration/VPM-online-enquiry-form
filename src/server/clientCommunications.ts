@@ -1,7 +1,7 @@
 import { ClientCommunicationType, Prisma } from '@prisma/client';
 import { validateClientCommunicationRelease } from './clientCommunicationGate';
 import { db } from './db';
-import { sendRequestMoreInformationEmail } from './email';
+import { sendConsultationInvitationEmail, sendRequestMoreInformationEmail } from './email';
 
 type ActorRole = 'staff' | 'admin' | 'case_manager' | 'consultant' | 'reviewer' | 'system' | 'client';
 
@@ -42,10 +42,10 @@ export const CLIENT_COMMUNICATION_TEMPLATES: Record<
     internalReason: 'Staff needs additional details to continue internal review.',
   },
   consultation_invitation: {
-    subject: 'Invitation to schedule a consultation',
+    subject: 'Invitation to book a consultation',
     bodyText:
-      'Hello,\n\nThank you for your submission. Our team is ready to offer a consultation to discuss next steps and answer your questions. We will follow up with scheduling details.\n\nKind regards,\nVisa Pass Migration',
-    internalReason: 'Staff is ready to invite the client to a consultation discussion.',
+      'Thank you for the information provided so far.\n\nBased on our internal review, we invite you to book a consultation to discuss your circumstances and possible next steps.\n\nYou can book a consultation using the link below:\n[booking link placeholder]\n\nA consultation is an information and planning session. Any pathway options depend on full assessment, supporting evidence, and applicable migration requirements.\n\nKind regards,\nVisa Pass Migration',
+    internalReason: 'Staff prepared a consultation invitation after internal checks.',
   },
   not_progressing_hold: {
     subject: 'Update on your submission status',
@@ -266,6 +266,94 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
 
   try {
     await sendRequestMoreInformationEmail({ to, checklistOrReason: input.internalReason.trim() });
+    const updated = await db.clientCommunication.update({
+      where: { id: input.communicationId },
+      data: { status: 'released', releasedBy: input.actorId, releasedAt: new Date(), internalReason: input.internalReason.trim() },
+    });
+    await createAuditEvent({
+      submissionId: input.submissionId,
+      eventType: 'client_comm_released',
+      actorId: input.actorId,
+      actorRole: input.actorRole,
+      reason: input.internalReason.trim(),
+      metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
+    });
+    return updated;
+  } catch (error) {
+    const failureReason = error instanceof Error ? error.message : 'unknown_failure';
+    const failed = await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'failed', failureReason } });
+    await createAuditEvent({
+      submissionId: input.submissionId,
+      eventType: 'client_comm_release_blocked',
+      actorId: input.actorId,
+      actorRole: input.actorRole,
+      reason: 'email_send_failed',
+      metadata: { communicationId: input.communicationId, communicationType: input.communicationType, failureReason } as Prisma.InputJsonObject,
+    });
+    return failed;
+  }
+}
+
+export async function releaseConsultationInvitationCommunication(input: RequestClientCommunicationReleaseInput) {
+  assertRequired(input);
+  if (input.communicationType !== 'consultation_invitation') {
+    throw new Error('Only consultation_invitation communications can be released by this action.');
+  }
+
+  const [submission, riskFlags, reviewState, existingCommunications] = await Promise.all([
+    db.intakeSubmission.findUnique({ where: { id: input.submissionId } }),
+    db.riskFlag.findMany({ where: { submissionId: input.submissionId } }),
+    db.submissionReviewState.findUnique({ where: { submissionId: input.submissionId } }),
+    db.clientCommunication.findMany({ where: { submissionId: input.submissionId } }),
+  ]);
+
+  const gate = validateClientCommunicationRelease({
+    submission,
+    communicationType: input.communicationType,
+    internalNote: input.internalReason,
+    actorId: input.actorId,
+    actorRole: input.actorRole,
+    riskFlags: riskFlags.map((flag) => ({
+      key: flag.riskCode,
+      severity: flag.severity,
+      status: flag.resolutionStatus,
+    })),
+    reviewState: {
+      state: reviewState?.currentStage,
+      decision: reviewState?.lastDecision ?? undefined,
+    },
+    existingCommunications: existingCommunications.map((comm) => ({
+      type: comm.type as ClientCommunicationType,
+      status: comm.status as
+        | 'drafted_internal'
+        | 'pending_staff_release'
+        | 'released'
+        | 'blocked'
+        | 'failed',
+    })),
+  });
+
+  if (!gate.allowed) {
+    await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'blocked' } });
+    await createAuditEvent({
+      submissionId: input.submissionId,
+      eventType: 'client_comm_release_blocked',
+      actorId: input.actorId,
+      actorRole: input.actorRole,
+      reason: gate.blockedReason ?? 'release_blocked',
+      metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
+    });
+    throw new Error(`Client communication release blocked: ${gate.blockedReason ?? 'unknown_reason'}.`);
+  }
+
+  const email = typeof submission?.payload === 'object' && submission.payload && !Array.isArray(submission.payload)
+    ? (submission.payload as Record<string, unknown>).email
+    : undefined;
+  const to = typeof email === 'string' ? email.trim() : '';
+  if (!to) throw new Error('Client email is required before releasing consultation_invitation communication.');
+
+  try {
+    await sendConsultationInvitationEmail({ to });
     const updated = await db.clientCommunication.update({
       where: { id: input.communicationId },
       data: { status: 'released', releasedBy: input.actorId, releasedAt: new Date(), internalReason: input.internalReason.trim() },
