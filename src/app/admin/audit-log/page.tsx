@@ -43,6 +43,7 @@ export default async function AdminAuditLogPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
+  await requirePermission(PERMISSIONS.VIEW_ADMIN_AUDIT_LOG);
   const resolvedSearchParams = (await searchParams) ?? {};
 
   const filters = {

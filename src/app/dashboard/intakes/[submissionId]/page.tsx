@@ -407,6 +407,7 @@ async function runConsultationBookingAction(formData: FormData) {
 }
 
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
+  await requirePermission(PERMISSIONS.VIEW_INTAKE_DETAILS);
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
     where: { id: submissionId },
