@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Prisma, RiskSeverity, RiskResolutionStatus, SubmissionStatus } from '@prisma/client';
 
 import { db } from '@/server/db';
@@ -200,6 +201,7 @@ export default async function DashboardPage() {
                   <th>Status</th>
                   <th>Last updated</th>
                   <th>Next action</th>
+                  <th>Review</th>
                 </tr>
               </thead>
               <tbody>
@@ -225,6 +227,7 @@ export default async function DashboardPage() {
                     <td>{submission.status}</td>
                     <td>{displayDate(submission.lastUpdated)}</td>
                     <td>{submission.nextAction}</td>
+                    <td><Link href={`/dashboard/intakes/${submission.id}`} className="secondary-btn">View</Link></td>
                   </tr>
                 ))}
               </tbody>
