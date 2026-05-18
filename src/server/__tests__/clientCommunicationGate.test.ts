@@ -102,4 +102,17 @@ describe('validateClientCommunicationRelease', () => {
     expect(result.allowed).toBe(false);
     expect(result.requiredChecks.noAutomaticOrSystemRelease).toBe(false);
   });
+
+  it('consultation invitation is allowed when review state is client_summary_ready and risk is clear', () => {
+    const result = validateClientCommunicationRelease({
+      ...baseInput(),
+      communicationType: 'consultation_invitation',
+      reviewState: { state: 'client_summary_ready', decision: 'pending' },
+      riskFlags: [{ key: 'health_declared', severity: 'medium', status: 'open' }],
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(result.requiredChecks.consultationReady).toBe(true);
+  });
+
 });
