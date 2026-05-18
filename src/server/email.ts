@@ -12,7 +12,13 @@ export type EmailSendResult = {
   messageId?: string;
 };
 
+export type RequestMoreInformationEmailInput = {
+  to: string;
+  checklistOrReason: string;
+};
+
 const SUBJECT = 'Thank you — your Initial Assessment Questionnaire has been received';
+const REQUEST_MORE_INFORMATION_SUBJECT = 'Additional information requested for your enquiry';
 
 export function buildClientIntakeReceivedEmailBody(_params: { submissionId: string; clientName?: string | null }) {
   return [
@@ -21,6 +27,24 @@ export function buildClientIntakeReceivedEmailBody(_params: { submissionId: stri
     'We have received your submission and it is now pending preliminary review by our team.',
     '',
     'Please note that submission of this questionnaire does not confirm eligibility for any visa or migration pathway. Our team will review the information provided and contact you if further information is required or if there are suitable next steps to discuss.',
+    '',
+    'Kind regards,',
+    'Visa Pass Migration',
+  ].join('\n');
+}
+
+export function buildRequestMoreInformationEmailBody(input: RequestMoreInformationEmailInput) {
+  return [
+    'Thank you for your submission.',
+    '',
+    'Our team has reviewed the information provided and requires additional documents or details before we can continue the preliminary review.',
+    '',
+    'Please provide the following information:',
+    input.checklistOrReason,
+    '',
+    'This request forms part of our preliminary review process and does not confirm eligibility for any visa or migration pathway.',
+    '',
+    'Once received, our team will continue reviewing your enquiry and contact you regarding any suitable next steps.',
     '',
     'Kind regards,',
     'Visa Pass Migration',
@@ -81,4 +105,40 @@ export async function sendClientIntakeReceivedEmail(input: IntakeReceivedEmailIn
   throw new Error('SMTP provider is configured but no SMTP transport is installed in this runtime. Use EMAIL_PROVIDER=resend for active delivery.');
 }
 
+export async function sendRequestMoreInformationEmail(input: RequestMoreInformationEmailInput): Promise<EmailSendResult> {
+  const config = getEmailConfig();
+  if (config.provider === 'none') {
+    return { status: 'queued', provider: 'none' };
+  }
+
+  const text = buildRequestMoreInformationEmailBody(input);
+
+  if (config.provider === 'resend') {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: config.from,
+        to: input.to,
+        subject: REQUEST_MORE_INFORMATION_SUBJECT,
+        text,
+      }),
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      throw new Error(`Resend send failed (${response.status}): ${details}`);
+    }
+
+    const payload = (await response.json()) as { id?: string };
+    return { status: 'sent', provider: 'resend', messageId: payload.id };
+  }
+
+  throw new Error('SMTP provider is configured but no SMTP transport is installed in this runtime. Use EMAIL_PROVIDER=resend for active delivery.');
+}
+
 export { SUBJECT as CLIENT_INTAKE_RECEIVED_SUBJECT };
+export { REQUEST_MORE_INFORMATION_SUBJECT };

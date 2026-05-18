@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma, RiskResolutionStatus, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
 
 import { db } from '@/server/db';
-import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, requestClientCommunicationRelease } from '@/server/clientCommunications';
+import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, releaseRequestMoreInformationCommunication, requestClientCommunicationRelease } from '@/server/clientCommunications';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -166,6 +166,35 @@ async function runClientCommunicationAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+
+async function runReleaseRequestMoreInformationAction(formData: FormData) {
+  "use server";
+
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const communicationId = String(formData.get('communicationId') ?? '').trim();
+  const actorId = String(formData.get('staffActor') ?? '').trim();
+  const internalReason = String(formData.get('internalReason') ?? '').trim();
+
+  if (!submissionId || !communicationId || !actorId || !internalReason) return;
+
+  try {
+    await releaseRequestMoreInformationCommunication({
+      submissionId,
+      communicationId,
+      communicationType: 'request_more_information',
+      subject: CLIENT_COMMUNICATION_TEMPLATES.request_more_information.subject,
+      bodyText: CLIENT_COMMUNICATION_TEMPLATES.request_more_information.bodyText,
+      internalReason,
+      actorId,
+      actorRole: 'staff',
+    });
+  } catch {
+    // Do not fail the full page on release/send failures.
+  }
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
@@ -218,7 +247,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
 
       <section className="section review-section">
         <h3>Staff-Controlled Client Communications</h3>
-        <p><strong>Warning:</strong> Client communication records are internal until released through an authorised staff action. No email is sent from this section yet.</p>
+        <p><strong>Warning:</strong> Client communication records are internal until released through an authorised staff action.</p>
         <form action={runClientCommunicationAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
           <label htmlFor="staff-actor"><strong>Staff actor placeholder (required)</strong></label>
@@ -234,7 +263,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       </section>
 
       <section className="section review-section"><h3>Communication records</h3>{submission.clientCommunications.length === 0 ? <p>No communication records available.</p> : (
-        <div className="table-wrap"><table className="dashboard-table"><thead><tr><th>Type</th><th>Status</th><th>Subject</th><th>Created</th><th>Released</th><th>Internal reason</th></tr></thead><tbody>{submission.clientCommunications.map((comm) => <tr key={comm.id}><td>{comm.type}</td><td>{comm.status}</td><td>{comm.subject}</td><td>{displayDate(comm.createdAt)}</td><td>{comm.releasedAt ? displayDate(comm.releasedAt) : 'Not released'}</td><td>{comm.internalReason}</td></tr>)}</tbody></table></div>
+        <div className="table-wrap"><table className="dashboard-table"><thead><tr><th>Type</th><th>Status</th><th>Subject</th><th>Created</th><th>Released</th><th>Internal reason</th><th>Actions</th></tr></thead><tbody>{submission.clientCommunications.map((comm) => <tr key={comm.id}><td>{comm.type}</td><td>{comm.status}</td><td>{comm.subject}</td><td>{displayDate(comm.createdAt)}</td><td>{comm.releasedAt ? displayDate(comm.releasedAt) : 'Not released'}</td><td>{comm.internalReason}</td><td>{comm.type === 'request_more_information' && comm.status !== 'released' ? <form action={runReleaseRequestMoreInformationAction} className="inline-release-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="communicationId" value={comm.id} /><input name="staffActor" required placeholder="staff-placeholder" /><input name="internalReason" required placeholder="Internal reason/checklist" /><button type="submit">Release Request Email</button></form> : '—'}</td></tr>)}</tbody></table></div>
       )}</section>
 
       <section className="section review-section"><h3>Client details</h3>{renderRows([
