@@ -17,11 +17,12 @@ vi.mock('../clientCommunicationGate', () => ({
 }));
 
 vi.mock('../db', () => ({ db: mocks.db }));
-vi.mock('../email', () => ({ sendClientIntakeReceivedEmail: mocks.sendEmail }));
+vi.mock('../email', () => ({ sendClientIntakeReceivedEmail: vi.fn(), sendRequestMoreInformationEmail: mocks.sendEmail }));
 
 import {
   createClientCommunicationDraft,
   requestClientCommunicationRelease,
+  releaseRequestMoreInformationCommunication,
 } from '../clientCommunications';
 
 const baseInput = {
@@ -101,5 +102,25 @@ describe('clientCommunications service', () => {
     await createClientCommunicationDraft(baseInput);
     await requestClientCommunicationRelease({ ...baseInput, communicationId: 'comm_1' });
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('releases and sends request more information email when gate allows', async () => {
+    mocks.db.intakeSubmission.findUnique.mockResolvedValue({ id: 'sub_1', payload: { email: 'client@example.com' } });
+    mocks.db.clientCommunication.update.mockResolvedValue({ id: 'comm_1', status: 'released' });
+    mocks.sendEmail.mockResolvedValue({ status: 'sent', provider: 'resend', messageId: 'msg_1' });
+
+    const result = await releaseRequestMoreInformationCommunication({ ...baseInput, communicationId: 'comm_1' });
+    expect(result.status).toBe('released');
+    expect(mocks.sendEmail).toHaveBeenCalled();
+  });
+
+  it('marks failed if request-more-information email send fails', async () => {
+    mocks.db.intakeSubmission.findUnique.mockResolvedValue({ id: 'sub_1', payload: { email: 'client@example.com' } });
+    mocks.sendEmail.mockRejectedValue(new Error('smtp down'));
+    mocks.db.clientCommunication.update.mockResolvedValue({ id: 'comm_1', status: 'failed' });
+
+    const result = await releaseRequestMoreInformationCommunication({ ...baseInput, communicationId: 'comm_1' });
+    expect(result.status).toBe('failed');
+    expect(mocks.db.clientCommunication.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) }));
   });
 });
