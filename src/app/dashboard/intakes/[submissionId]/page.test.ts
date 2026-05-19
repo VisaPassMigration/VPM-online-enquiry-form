@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { PERMISSIONS } from '@/server/auth/permissions';
 
 const mocks = vi.hoisted(() => ({
@@ -33,8 +34,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermissionMock }));
-vi.mock('@/server/db', () => ({ db: { $transaction: mocks.transactionMock } }));
+vi.mock('@/server/db', () => ({ db: { $transaction: mocks.transactionMock, intakeSubmission: { findUnique: mocks.findUniqueMock } } }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }));
+vi.mock('next/link', () => ({ default: ({ children }: { children: string }) => children }));
 
 vi.mock('@/server/consultationBookings', () => ({
   createConsultationBooking: mocks.createConsultationBookingMock,
@@ -72,6 +74,7 @@ import {
   runConsultationBookingAction,
   runDocumentReviewAction,
   runLeadRatingAction,
+  default as IntakeReviewPage,
 } from './page';
 
 describe('intake dashboard actions', () => {
@@ -397,5 +400,66 @@ describe('intake dashboard actions', () => {
     const fd = new FormData();
     fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'accept'); fd.set('internalReason', 'ok'); fd.set('isRequired', 'true');
     await expect(runDocumentReviewAction(fd)).rejects.toThrow('notFound');
+  });
+
+  it('lead rating history renders suggested/confirmed/changed events as internal read-only timeline', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1',
+      payload: {},
+      status: 'submitted',
+      leadRatingSuggested: 'warm',
+      leadRatingSuggestedAt: new Date('2026-01-01T00:00:00.000Z'),
+      leadRating: 'hot',
+      leadRatingConfirmedAt: new Date('2026-01-02T00:00:00.000Z'),
+      leadRatingConfirmedBy: 'Jane Reviewer',
+      leadRatingReason: 'Strong urgency',
+      pointsSnapshots: [],
+      riskFlags: [],
+      documents: [],
+      currentReviewState: null,
+      clientCommunications: [],
+      consultationBookings: [],
+      auditEvents: [
+        { id: 'a1', eventType: 'lead_rating_suggested', eventAt: new Date('2026-01-01T01:00:00.000Z'), actorName: 'System', actorRole: 'service', fromValue: null, toValue: { rating: 'warm' }, internalNote: null, reason: 'Auto score', metadata: { source: 'rules' } },
+        { id: 'a2', eventType: 'lead_rating_confirmed', eventAt: new Date('2026-01-01T02:00:00.000Z'), actorName: 'Jane Reviewer', actorRole: 'senior_staff', fromValue: { rating: 'warm' }, toValue: { rating: 'hot' }, internalNote: 'Escalating priority', reason: null, metadata: null },
+        { id: 'a3', eventType: 'lead_rating_changed', eventAt: new Date('2026-01-01T03:00:00.000Z'), actorName: 'Alex', actorRole: 'admin', fromValue: { rating: 'hot' }, toValue: { rating: 'warm' }, internalNote: null, reason: 'Evidence updated', metadata: { source: 'manual' } },
+      ],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('lead_rating_suggested');
+    expect(html).toContain('lead_rating_confirmed');
+    expect(html).toContain('lead_rating_changed');
+    expect(html).toContain('Actor name');
+    expect(html).toContain('From rating');
+    expect(html).toContain('To rating');
+    expect(html).toContain('Lead rating history is shown for internal accountability and triage review.');
+    expect(html).not.toContain('Edit');
+    expect(html).not.toContain('Delete');
+    expect(html).not.toContain('assessment outcome for client');
+  });
+
+  it('lead rating history empty state renders when no rating history exists', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1',
+      payload: {},
+      status: 'submitted',
+      leadRatingSuggested: null,
+      leadRatingSuggestedAt: null,
+      leadRating: null,
+      leadRatingConfirmedAt: null,
+      leadRatingConfirmedBy: null,
+      leadRatingReason: null,
+      pointsSnapshots: [],
+      riskFlags: [],
+      documents: [],
+      currentReviewState: null,
+      clientCommunications: [],
+      consultationBookings: [],
+      auditEvents: [{ id: 'ax', eventType: 'submission_updated', eventAt: new Date(), actorName: null, actorRole: null, fromValue: null, toValue: null, internalNote: null, reason: null, metadata: null }],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('No lead rating history recorded yet.');
   });
 });

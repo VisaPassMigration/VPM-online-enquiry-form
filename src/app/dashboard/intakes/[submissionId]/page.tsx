@@ -115,6 +115,11 @@ const leadRatingPillClass = (rating: LeadRating | null) =>
       : rating === 'cold' ? 'pill--placeholder'
         : rating === 'escalate' ? 'pill--danger'
           : 'pill--placeholder';
+const LEAD_RATING_HISTORY_EVENT_TYPES = new Set([
+  'lead_rating_suggested',
+  'lead_rating_confirmed',
+  'lead_rating_changed',
+]);
 
 const renderRows = (pairs: Array<[string, string | number | undefined | null]>) => (
   <dl className="review-grid">
@@ -652,6 +657,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
     ? submission.payload
     : {}) as IntakePayload;
   const latestPoints = submission.pointsSnapshots[0];
+  const leadRatingHistory = submission.auditEvents.filter((event) => LEAD_RATING_HISTORY_EVENT_TYPES.has(String(event.eventType)));
 
   return (
     <>
@@ -663,6 +669,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       {canViewLeadRating ? <section className="section review-section">
         <h3>Lead Quality Rating</h3>
         <p><strong>Internal only:</strong> Lead Quality Rating is an internal triage tool only. It is not a client outcome and must not be communicated as an assessment result.</p>
+        <p>Lead rating history is shown for internal accountability and triage review. It must not be shared with clients as an assessment outcome.</p>
         {renderRows([
           ['System-suggested rating', leadRatingLabel(submission.leadRatingSuggested)],
           ['Suggested timestamp', submission.leadRatingSuggestedAt ? displayDate(submission.leadRatingSuggestedAt) : 'Not provided'],
@@ -672,6 +679,25 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
           ['Lead rating reason', submission.leadRatingReason],
         ])}
         <p><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></p>
+        <h4>Lead rating history</h4>
+        {leadRatingHistory.length === 0 ? <p>No lead rating history recorded yet.</p> : <div className="communication-timeline" aria-label="Lead rating history">
+          {leadRatingHistory.map((event) => (
+            <article key={event.id} className="communication-card">
+              <header className="communication-card__header">
+                <h5>{event.eventType}</h5>
+                <span className="pill pill--placeholder">{displayDate(event.eventAt)}</span>
+              </header>
+              <dl className="communication-card__meta">
+                <div><dt>Actor name</dt><dd>{event.actorName || 'Unknown'}</dd></div>
+                <div><dt>Actor role</dt><dd>{event.actorRole || 'Unknown'}</dd></div>
+                <div><dt>From rating</dt><dd>{leadRatingLabel((event.fromValue as { rating?: LeadRating } | null)?.rating ?? null)}</dd></div>
+                <div><dt>To rating</dt><dd>{leadRatingLabel((event.toValue as { rating?: LeadRating } | null)?.rating ?? null)}</dd></div>
+                <div><dt>Internal note/reason</dt><dd>{event.internalNote || event.reason || 'Not provided'}</dd></div>
+                <div><dt>Metadata</dt><dd>{event.metadata ? JSON.stringify(event.metadata) : 'Not provided'}</dd></div>
+              </dl>
+            </article>
+          ))}
+        </div>}
         <form action={runLeadRatingAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
           <label><strong>Internal reason/note (required for confirm/change)</strong></label>
