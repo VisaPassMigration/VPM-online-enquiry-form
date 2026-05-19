@@ -13,6 +13,11 @@ vi.mock('@/server/auth/requirePermission', () => ({
   requirePermission: requirePermissionMock,
 }));
 
+
+vi.mock('@/auth', () => ({
+  auth: vi.fn(async () => null),
+}));
+
 vi.mock('@/server/db', () => ({
   db: {
     intakeSubmission: {
