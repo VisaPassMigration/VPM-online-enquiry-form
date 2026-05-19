@@ -481,9 +481,11 @@ export async function runDocumentReviewAction(formData: FormData) {
   const action = String(formData.get('action') ?? '').trim();
   const reason = String(formData.get('internalReason') ?? '').trim();
   const waiverReason = String(formData.get('waiverReason') ?? '').trim();
-  const isRequired = String(formData.get('isRequired') ?? '').trim() === 'true';
 
-  if (!submissionId || !documentId || !action || !reason) return;
+  if (!submissionId) throw new Error('Document review action validation failed: missing submissionId.');
+  if (!documentId) throw new Error('Document review action validation failed: missing documentId.');
+  if (!action) throw new Error('Document review action validation failed: missing action.');
+  if (!reason) throw new Error('Document review action validation failed: missing internal reason.');
 
   const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
   const session = await requireStaffSession();
@@ -495,12 +497,23 @@ export async function runDocumentReviewAction(formData: FormData) {
   const actorStaffUserId = session.user.staffUserId?.trim() || undefined;
   if (!actorId) throw new Error('Missing authenticated staff actor id');
 
+  const knownActions = new Set(['accept', 'reject', 'needs_reupload', 'waive']);
+  if (!knownActions.has(action)) {
+    throw new Error(`Document review action validation failed: unknown action "${action}".`);
+  }
+
   await db.$transaction(async (tx) => {
     const existing = await tx.submissionDocument.findUnique({ where: { id: documentId } });
-    if (!existing || existing.submissionId !== submissionId) return;
+    if (!existing) return;
 
-    if (action === 'waive' && isRequired && !waiverReason) {
-      throw new Error('Waiver reason is required for required documents.');
+    if (existing.submissionId !== submissionId) {
+      throw new Error(
+        `Document review action blocked: document ${documentId} does not belong to submission ${submissionId}.`,
+      );
+    }
+
+    if (action === 'waive' && !waiverReason) {
+      throw new Error('Waiver reason is required for all waiver actions.');
     }
 
     let nextStatus = existing.verificationStatus;
@@ -536,12 +549,13 @@ export async function runDocumentReviewAction(formData: FormData) {
     } else if (action === 'waive') {
       nextStatus = existing.verificationStatus;
       updateData.waived = true;
-      updateData.waivedReason = waiverReason || reason;
+      updateData.waivedReason = waiverReason;
       updateData.waivedBy = actorId;
       updateData.waivedAt = new Date();
       eventType = AuditEventType.document_waived;
-    } else {
-      return;
+      if (waiverReason !== reason) {
+        metadata = { ...(metadata ?? {}), waiverReasonProvided: true };
+      }
     }
 
     await tx.submissionDocument.update({ where: { id: documentId }, data: updateData });
