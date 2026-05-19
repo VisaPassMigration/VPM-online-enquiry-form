@@ -3,7 +3,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
 
 import { db } from '@/server/db';
-import { getRoleKeysForStaffUser } from '@/server/auth/permissions';
+import { getRoleKeysForStaffUser, normalizeRoleKeys } from '@/server/auth/permissions';
 
 const credentialsSchema = z.object({ email: z.string().email() });
 
@@ -39,7 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       session.user.id = String(token.authUserId ?? token.sub ?? '');
       session.user.staffUserId = String(token.staffUserId ?? '');
-      session.user.roles = Array.isArray(token.roles) ? (token.roles as string[]) : [];
+      session.user.roles = normalizeRoleKeys(Array.isArray(token.roles) ? (token.roles as string[]) : []);
       session.user.isActive = Boolean(token.isActive);
       return session;
     },

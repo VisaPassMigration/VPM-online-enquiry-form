@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { canAccessPath } from '@/server/auth/routeAccess';
-import { hasPermission, PERMISSIONS } from '@/server/auth/permissions';
+import { hasPermission, normalizeRoleKeys, PERMISSIONS, resolveActorRole } from '@/server/auth/permissions';
 
 describe('permission matrix', () => {
   it('boss_admin can view audit log', () => {
@@ -16,5 +16,16 @@ describe('permission matrix', () => {
   it('/intake remains public', () => {
     expect(canAccessPath('/intake', false, [])).toBe(true);
     expect(canAccessPath('/intake', true, ['read_only_reviewer'])).toBe(true);
+  });
+
+  it('invalid role keys are ignored and grant no permissions', () => {
+    const roles = normalizeRoleKeys(['senior_staff', 'staff', 'bad_role']);
+    expect(roles).toEqual(['senior_staff']);
+    expect(hasPermission(roles, PERMISSIONS.PERFORM_INTERNAL_REVIEW_ACTIONS)).toBe(true);
+    expect(hasPermission(normalizeRoleKeys(['staff']), PERMISSIONS.VIEW_DASHBOARD)).toBe(false);
+  });
+
+  it('actor role resolves to safe unknown value when no canonical role exists', () => {
+    expect(resolveActorRole(['staff'])).toBe('unknown_staff_role');
   });
 });
