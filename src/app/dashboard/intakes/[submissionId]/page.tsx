@@ -473,6 +473,99 @@ export async function runConsultationBookingAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+export async function runDocumentReviewAction(formData: FormData) {
+  'use server';
+
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const documentId = String(formData.get('documentId') ?? '').trim();
+  const action = String(formData.get('action') ?? '').trim();
+  const reason = String(formData.get('internalReason') ?? '').trim();
+  const waiverReason = String(formData.get('waiverReason') ?? '').trim();
+  const isRequired = String(formData.get('isRequired') ?? '').trim() === 'true';
+
+  if (!submissionId || !documentId || !action || !reason) return;
+
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  await requirePermission(PERMISSIONS.REVIEW_SUBMISSION_DOCUMENTS);
+
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
+  const actorRole = resolveActorRole(session.user.roles ?? []);
+  const actorStaffUserId = session.user.staffUserId?.trim() || undefined;
+  if (!actorId) throw new Error('Missing authenticated staff actor id');
+
+  await db.$transaction(async (tx) => {
+    const existing = await tx.submissionDocument.findUnique({ where: { id: documentId } });
+    if (!existing || existing.submissionId !== submissionId) return;
+
+    if (action === 'waive' && isRequired && !waiverReason) {
+      throw new Error('Waiver reason is required for required documents.');
+    }
+
+    let nextStatus = existing.verificationStatus;
+    let eventType: AuditEventType;
+    let metadata: Prisma.JsonObject | undefined;
+    const updateData: Prisma.SubmissionDocumentUpdateInput = {
+      verificationNotesInternal: reason,
+    };
+
+    if (action === 'accept') {
+      nextStatus = 'verified';
+      updateData.verificationStatus = nextStatus;
+      updateData.verifiedBy = actorId;
+      updateData.verifiedAt = new Date();
+      updateData.waived = false;
+      updateData.waivedReason = null;
+      updateData.waivedBy = null;
+      updateData.waivedAt = null;
+      eventType = AuditEventType.document_accepted;
+    } else if (action === 'reject') {
+      nextStatus = 'rejected';
+      updateData.verificationStatus = nextStatus;
+      updateData.verifiedBy = actorId;
+      updateData.verifiedAt = new Date();
+      eventType = AuditEventType.document_rejected;
+    } else if (action === 'needs_reupload') {
+      nextStatus = 'needs_reupload';
+      updateData.verificationStatus = nextStatus;
+      updateData.verifiedBy = actorId;
+      updateData.verifiedAt = new Date();
+      eventType = AuditEventType.document_rejected;
+      metadata = { requiresReupload: true };
+    } else if (action === 'waive') {
+      nextStatus = existing.verificationStatus;
+      updateData.waived = true;
+      updateData.waivedReason = waiverReason || reason;
+      updateData.waivedBy = actorId;
+      updateData.waivedAt = new Date();
+      eventType = AuditEventType.document_waived;
+    } else {
+      return;
+    }
+
+    await tx.submissionDocument.update({ where: { id: documentId }, data: updateData });
+    await recordAuditEventInTx(tx, {
+      submissionId,
+      eventType,
+      actorId,
+      actorName,
+      actorRole,
+      actorStaffUserId,
+      relatedEntityType: 'submission_document',
+      relatedEntityId: documentId,
+      fromValue: { verificationStatus: existing.verificationStatus, waived: existing.waived },
+      toValue: { verificationStatus: nextStatus, waived: updateData.waived ?? existing.waived },
+      reason,
+      internalNote: reason,
+      metadata: metadata ? { ...metadata, actorStaffUserId } : { actorStaffUserId },
+      eventSource: 'staff_document_review_action',
+    });
+  });
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
   await requirePermission(PERMISSIONS.VIEW_INTAKE_DETAILS);
   const { submissionId } = await params;
@@ -714,8 +807,11 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
         <ul className="review-list">{submission.riskFlags.map((flag) => <li key={flag.id}><strong>{flag.riskCode}</strong> ({flag.severity}) — {flag.resolutionStatus}</li>)}</ul>
       )}</section>
 
-      <section className="section review-section"><h3>Document metadata</h3>{submission.documents.length === 0 ? <p>No document metadata available.</p> : (
-        <div className="table-wrap"><table className="dashboard-table"><thead><tr><th>Type</th><th>Filename</th><th>MIME</th><th>Size (bytes)</th><th>Uploaded by</th><th>Status</th><th>Uploaded at</th></tr></thead><tbody>{submission.documents.map((doc) => <tr key={doc.id}><td>{doc.documentType}</td><td>{doc.originalFilename}</td><td>{doc.mimeType}</td><td>{doc.fileSizeBytes}</td><td>{doc.uploadedBy}</td><td>{doc.verificationStatus}</td><td>{displayDate(doc.uploadedAt)}</td></tr>)}</tbody></table></div>
+      <section className="section review-section"><h3>Document review (staff-controlled)</h3>{submission.documents.length === 0 ? <p>No document metadata available.</p> : (
+        <div className="table-wrap"><table className="dashboard-table"><thead><tr><th>Type</th><th>Filename</th><th>Size (bytes)</th><th>Verification status</th><th>Required/optional</th><th>Waived</th><th>Waiver reason</th><th>Verification notes</th><th>Uploaded date</th><th>Reviewed by</th><th>Actions</th></tr></thead><tbody>{submission.documents.map((doc) => {
+          const required = doc.documentType !== 'otherSupportingDocs';
+          return <tr key={doc.id}><td>{doc.documentType}</td><td>{doc.originalFilename}</td><td>{doc.fileSizeBytes}</td><td>{doc.verificationStatus}</td><td>{required ? 'Required' : 'Optional'}</td><td>{doc.waived ? 'Yes' : 'No'}</td><td>{doc.waivedReason || 'Not waived'}</td><td>{doc.verificationNotesInternal || 'Not provided'}</td><td>{displayDate(doc.uploadedAt)}</td><td>{doc.verifiedBy || doc.waivedBy || 'Not provided'}</td><td><form action={runDocumentReviewAction} className="intake-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="documentId" value={doc.id} /><input type="hidden" name="isRequired" value={required ? 'true' : 'false'} /><input name="internalReason" required placeholder="Internal note/reason" /><input name="waiverReason" placeholder="Waiver reason (required for required docs)" /><div className="button-row"><button type="submit" name="action" value="accept">Mark accepted</button><button type="submit" name="action" value="reject">Mark rejected</button><button type="submit" name="action" value="needs_reupload">Mark needs re-upload</button><button type="submit" name="action" value="waive">Waive requirement</button></div></form></td></tr>;
+        })}</tbody></table></div>
       )}</section>
 
       <section className="section review-section"><h3>Current review state</h3>{submission.currentReviewState ? renderRows([

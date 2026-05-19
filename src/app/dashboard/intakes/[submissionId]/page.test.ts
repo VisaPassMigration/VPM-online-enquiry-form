@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   createStaffReviewMock: vi.fn(),
   createAuditEventMock: vi.fn(),
   updateManyRiskMock: vi.fn(),
+  findDocumentMock: vi.fn(),
+  updateDocumentMock: vi.fn(),
   createClientCommunicationDraftMock: vi.fn(),
   releaseRequestMoreInformationCommunicationMock: vi.fn(),
   releaseConsultationInvitationCommunicationMock: vi.fn(),
@@ -60,6 +62,7 @@ import {
   runReleaseConsultationInvitationAction,
   runReleaseRequestMoreInformationAction,
   runConsultationBookingAction,
+  runDocumentReviewAction,
 } from './page';
 
 describe('intake dashboard actions', () => {
@@ -83,8 +86,17 @@ describe('intake dashboard actions', () => {
     mocks.createStaffReviewMock.mockResolvedValue({ id: 'review-1' });
     mocks.createAuditEventMock.mockResolvedValue({});
     mocks.updateManyRiskMock.mockResolvedValue({ count: 0 });
+    mocks.findDocumentMock.mockResolvedValue({
+      id: 'doc-1',
+      submissionId: 'sub-1',
+      verificationStatus: 'uploaded_unchecked',
+      waived: false,
+      documentType: 'passportBioPage',
+    });
+    mocks.updateDocumentMock.mockResolvedValue({});
     mocks.transactionMock.mockImplementation(async (cb) => cb({
       intakeSubmission: { findUnique: mocks.findUniqueMock, update: mocks.updateSubmissionMock },
+      submissionDocument: { findUnique: mocks.findDocumentMock, update: mocks.updateDocumentMock },
       submissionReviewState: { upsert: mocks.upsertReviewStateMock },
       staffReview: { create: mocks.createStaffReviewMock },
       auditEvent: { create: mocks.createAuditEventMock },
@@ -224,5 +236,56 @@ describe('intake dashboard actions', () => {
     expect(auditData.actorName).toBe('Jane Reviewer');
     expect(auditData.actorRole).toBe('senior_staff');
     expect(auditData.actorStaffUserId).toBe('staff-1');
+  });
+
+  it('accepted document writes document_accepted audit event', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'accept'); fd.set('internalReason', 'all good'); fd.set('isRequired', 'true');
+    await runDocumentReviewAction(fd);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.REVIEW_SUBMISSION_DOCUMENTS);
+    const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
+    expect(auditData.eventType).toBe('document_accepted');
+    expect(auditData.actorStaffUserId).toBe('staff-1');
+  });
+
+  it('rejected document writes document_rejected audit event', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'reject'); fd.set('internalReason', 'illegible'); fd.set('isRequired', 'true');
+    await runDocumentReviewAction(fd);
+    const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
+    expect(auditData.eventType).toBe('document_rejected');
+  });
+
+  it('needs re-upload writes rejected audit event with requiresReupload metadata', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'needs_reupload'); fd.set('internalReason', 'new scan required'); fd.set('isRequired', 'true');
+    await runDocumentReviewAction(fd);
+    const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
+    expect(auditData.eventType).toBe('document_rejected');
+    expect(auditData.metadata).toEqual(expect.objectContaining({ requiresReupload: true, actorStaffUserId: 'staff-1' }));
+  });
+
+  it('waived document stores waiver fields', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'waive'); fd.set('internalReason', 'manual exception'); fd.set('waiverReason', 'unobtainable'); fd.set('isRequired', 'false');
+    await runDocumentReviewAction(fd);
+    expect(mocks.updateDocumentMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ waived: true, waivedReason: 'unobtainable', waivedBy: 'staff-1' }),
+    }));
+    const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
+    expect(auditData.eventType).toBe('document_waived');
+  });
+
+  it('waiving required document requires reason', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'waive'); fd.set('internalReason', 'manual exception'); fd.set('isRequired', 'true');
+    await expect(runDocumentReviewAction(fd)).rejects.toThrow('Waiver reason is required for required documents.');
+  });
+
+  it('read_only_reviewer cannot perform document actions', async () => {
+    mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'accept'); fd.set('internalReason', 'ok'); fd.set('isRequired', 'true');
+    await expect(runDocumentReviewAction(fd)).rejects.toThrow('notFound');
   });
 });
