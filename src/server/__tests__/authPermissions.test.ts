@@ -25,6 +25,17 @@ describe('permission matrix', () => {
     expect(hasPermission(normalizeRoleKeys(['staff']), PERMISSIONS.VIEW_DASHBOARD)).toBe(false);
   });
 
+
+  it('lead rating permissions are mapped by role', () => {
+    expect(hasPermission(['boss_admin'], PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING)).toBe(true);
+    expect(hasPermission(['senior_staff'], PERMISSIONS.CONFIRM_LEAD_RATING)).toBe(true);
+    expect(hasPermission(['kenya_intake_staff'], PERMISSIONS.SUGGEST_LEAD_RATING)).toBe(true);
+    expect(hasPermission(['kenya_intake_staff'], PERMISSIONS.CONFIRM_LEAD_RATING)).toBe(false);
+    expect(hasPermission(['australia_migration_team'], PERMISSIONS.CONFIRM_LEAD_RATING)).toBe(true);
+    expect(hasPermission(['australia_migration_team'], PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.VIEW_LEAD_RATING)).toBe(true);
+  });
+
   it('actor role resolves to safe unknown value when no canonical role exists', () => {
     expect(resolveActorRole(['staff'])).toBe('unknown_staff_role');
   });
