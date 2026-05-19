@@ -279,7 +279,69 @@ describe('intake dashboard actions', () => {
   it('waiving required document requires reason', async () => {
     const fd = new FormData();
     fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'waive'); fd.set('internalReason', 'manual exception'); fd.set('isRequired', 'true');
-    await expect(runDocumentReviewAction(fd)).rejects.toThrow('Waiver reason is required for required documents.');
+    await expect(runDocumentReviewAction(fd)).rejects.toThrow('Waiver reason is required for all waiver actions.');
+  });
+
+  it('waiving optional document still requires waiverReason', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'waive'); fd.set('internalReason', 'manual exception'); fd.set('isRequired', 'false');
+    await expect(runDocumentReviewAction(fd)).rejects.toThrow('Waiver reason is required for all waiver actions.');
+  });
+
+  it('missing internal reason throws clear error', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'accept');
+    await expect(runDocumentReviewAction(fd)).rejects.toThrow('Document review action validation failed: missing internal reason.');
+  });
+
+  it('unknown action throws clear error', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'archive'); fd.set('internalReason', 'not valid');
+    await expect(runDocumentReviewAction(fd)).rejects.toThrow('Document review action validation failed: unknown action "archive".');
+  });
+
+  it('blocks document action if document belongs to another submission', async () => {
+    mocks.findDocumentMock.mockResolvedValueOnce({
+      id: 'doc-1',
+      submissionId: 'sub-2',
+      verificationStatus: 'uploaded_unchecked',
+      waived: false,
+      documentType: 'passportBioPage',
+    });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'accept'); fd.set('internalReason', 'all good');
+    await expect(runDocumentReviewAction(fd)).rejects.toThrow('Document review action blocked: document doc-1 does not belong to submission sub-1.');
+    expect(mocks.updateDocumentMock).not.toHaveBeenCalled();
+    expect(mocks.createAuditEventMock).not.toHaveBeenCalled();
+  });
+
+  it('does not call client communication services during document review actions', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'accept'); fd.set('internalReason', 'all good');
+    await runDocumentReviewAction(fd);
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
+  it('document review audit payload includes required actor/source/entity/note/metadata fields', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'waive'); fd.set('internalReason', 'manual exception'); fd.set('waiverReason', 'client unavailable');
+    await runDocumentReviewAction(fd);
+    const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
+    expect(auditData).toEqual(expect.objectContaining({
+      actorId: 'staff-1',
+      actorRole: 'senior_staff',
+      actorStaffUserId: 'staff-1',
+      eventSource: 'staff_document_review_action',
+      relatedEntityType: 'submission_document',
+      relatedEntityId: 'doc-1',
+      internalNote: 'manual exception',
+    }));
+    expect(auditData.metadata).toEqual(expect.objectContaining({
+      actorStaffUserId: 'staff-1',
+      waiverReasonProvided: true,
+    }));
   });
 
   it('read_only_reviewer cannot perform document actions', async () => {
