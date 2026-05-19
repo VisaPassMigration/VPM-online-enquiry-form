@@ -41,6 +41,21 @@ type DashboardRow = {
   leadRatingReason: string | null;
 };
 type LeadRatingFilter = 'all' | LeadRating | 'not_rated';
+type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
+type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+type StaffTaskRow = {
+  id: string;
+  title: string;
+  taskType: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  dueDate: Date | null;
+  assignedStaff: string;
+  submissionId: string | null;
+  clientName: string;
+  leadRating: LeadRating | null;
+  createdAt: Date;
+};
 
 const leadRatingFilters: ReadonlyArray<LeadRatingFilter> = ['all', 'hot', 'warm', 'cold', 'escalate', 'not_rated'];
 
@@ -79,6 +94,28 @@ const nextActionHintFor = (rating: LeadRating | null) => {
 };
 const leadRatingReasonPreview = (reason: string | null) =>
   reason && reason.trim() ? reason.trim().slice(0, 80) : '—';
+const utcDayBounds = (source: Date) => {
+  const start = new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), source.getUTCDate()));
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+};
+const isOverdue = (dueDate: Date | null, now: Date) => Boolean(dueDate && dueDate.getTime() < utcDayBounds(now).start.getTime());
+const isDueToday = (dueDate: Date | null, now: Date) => {
+  if (!dueDate) return false;
+  const { start, end } = utcDayBounds(now);
+  return dueDate >= start && dueDate < end;
+};
+const isDueThisWeek = (dueDate: Date | null, now: Date) => {
+  if (!dueDate) return false;
+  const day = now.getUTCDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+  return dueDate >= weekStart && dueDate < weekEnd;
+};
+const priorityRank: Record<TaskPriority, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
 type IntakePayload = Prisma.JsonObject & {
   firstName?: string;
@@ -164,6 +201,11 @@ export default async function DashboardPage({
     },
     orderBy: { submittedAt: 'desc' },
   });
+  const rawStaffTasks = await (db as unknown as {
+    staffTask: { findMany: (args: object) => Promise<Array<Record<string, unknown>>> };
+  }).staffTask.findMany({
+    include: { submission: { select: { id: true, payload: true, leadRating: true } } },
+  });
 
   const rows: DashboardRow[] = submittedIntakes.map((submission) => {
     const payload = submission.payload;
@@ -221,6 +263,34 @@ export default async function DashboardPage({
     { label: 'Average time from submission to first review', value: 'Placeholder' },
     { label: 'Consultation conversion', value: 'Placeholder' },
   ];
+  const staffTasks = rawStaffTasks.map((task) => {
+    const submission = (task.submission ?? null) as ({ id: string; payload: Prisma.JsonValue; leadRating: LeadRating | null } | null);
+    return {
+      id: String(task.id),
+      title: String(task.title),
+      taskType: String(task.taskType),
+      priority: task.priority as TaskPriority,
+      status: task.status as TaskStatus,
+      dueDate: (task.dueDate as Date | null) ?? null,
+      assignedStaff: String(task.assignedStaffName ?? 'Unassigned'),
+      submissionId: submission?.id ?? null,
+      clientName: submission ? `${getPayloadField(submission.payload, 'firstName')} ${getPayloadField(submission.payload, 'lastName')}`.trim() : 'Not linked',
+      leadRating: submission?.leadRating ?? null,
+      createdAt: task.createdAt as Date,
+    } satisfies StaffTaskRow;
+  });
+  const now = new Date();
+  const openTasks = staffTasks.filter((task) => task.status === 'open' || task.status === 'in_progress' || task.status === 'blocked');
+  const sortedOpenTasks = [...openTasks].sort((a, b) => {
+    const overdueDelta = Number(isOverdue(b.dueDate, now)) - Number(isOverdue(a.dueDate, now));
+    if (overdueDelta !== 0) return overdueDelta;
+    const priorityDelta = priorityRank[a.priority] - priorityRank[b.priority];
+    if (priorityDelta !== 0) return priorityDelta;
+    const aDue = a.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const bDue = b.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    if (aDue !== bDue) return aDue - bDue;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
 
   return (
     <>
@@ -237,6 +307,38 @@ export default async function DashboardPage({
       <section className="section dashboard-note" role="note" aria-label="Consultation KPI tracking note">
         <strong>Note:</strong> Consultation KPIs are for internal operations tracking only. Status and outcome updates remain
         staff-controlled.
+      </section>
+
+      <section className="section">
+        <div className="section-heading-row">
+          <h3>Staff Task Operations</h3>
+        </div>
+        <p>Staff tasks are internal operational reminders. They do not send client communications or create calendar events.</p>
+        <div className="dashboard-kpi-grid">
+          {[
+            { label: 'My open tasks', value: openTasks.length },
+            { label: 'Overdue tasks', value: openTasks.filter((task) => isOverdue(task.dueDate, now)).length },
+            { label: 'Due today', value: openTasks.filter((task) => isDueToday(task.dueDate, now)).length },
+            { label: 'Due this week', value: openTasks.filter((task) => isDueThisWeek(task.dueDate, now)).length },
+            { label: 'Urgent tasks', value: openTasks.filter((task) => task.priority === 'urgent').length },
+            { label: 'Tasks linked to Hot leads', value: openTasks.filter((task) => task.leadRating === 'hot').length },
+            { label: 'Tasks linked to Escalate leads', value: openTasks.filter((task) => task.leadRating === 'escalate').length },
+          ].map((kpi) => <article className="card kpi-card" key={kpi.label}><p>{kpi.label}</p><h4>{kpi.value}</h4></article>)}
+        </div>
+        <div className="table-wrap">
+          <table className="dashboard-table">
+            <thead><tr><th>Task title</th><th>Task type</th><th>Priority</th><th>Status</th><th>Due date</th><th>Assigned staff</th><th>Linked client/submission</th><th>Lead rating</th></tr></thead>
+            <tbody>
+              {sortedOpenTasks.map((task) => (
+                <tr key={task.id}>
+                  <td>{task.title}{isOverdue(task.dueDate, now) && ' • OVERDUE'}{isDueToday(task.dueDate, now) && ' • DUE TODAY'}{task.priority === 'urgent' && ' • URGENT'}{task.leadRating === 'hot' && ' • HOT LEAD'}{task.leadRating === 'escalate' && ' • ESCALATE LEAD'}</td>
+                  <td>{task.taskType}</td><td>{task.priority}</td><td>{task.status}</td><td>{task.dueDate ? displayDate(task.dueDate) : 'Not set'}</td><td>{task.assignedStaff}</td>
+                  <td>{task.submissionId ? `${task.clientName} (${task.submissionId})` : 'Not linked'}</td><td>{leadRatingLabel(task.leadRating)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="section">

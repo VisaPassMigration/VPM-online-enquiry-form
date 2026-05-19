@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const mocks = vi.hoisted(() => ({
   requirePermission: vi.fn(),
   findMany: vi.fn(),
+  staffTaskFindMany: vi.fn(),
   getConsultsBookedToday: vi.fn(),
   getConsultsBookedThisWeek: vi.fn(),
   getConsultsCompletedThisWeek: vi.fn(),
@@ -17,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermission }));
-vi.mock('@/server/db', () => ({ db: { intakeSubmission: { findMany: mocks.findMany } } }));
+vi.mock('@/server/db', () => ({ db: { intakeSubmission: { findMany: mocks.findMany }, staffTask: { findMany: mocks.staffTaskFindMany } } }));
 vi.mock('@/server/consultationKpis', () => ({
   getConsultsBookedToday: mocks.getConsultsBookedToday,
   getConsultsBookedThisWeek: mocks.getConsultsBookedThisWeek,
@@ -32,6 +33,7 @@ vi.mock('@/server/consultationKpis', () => ({
 }));
 
 describe('dashboard lead rating UI', () => {
+  const submittedSectionOnly = (markup: string) => markup.slice(markup.indexOf('<h3>Submitted enquiries</h3>'));
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getConsultsBookedToday.mockResolvedValue(0);
@@ -51,6 +53,11 @@ describe('dashboard lead rating UI', () => {
       { id: 'sub-warm', submittedAt: new Date('2026-05-19T03:00:00.000Z'), createdAt: now, payload: { firstName: 'Warm', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'warm', leadRatingReason: 'Some supporting docs missing' },
       { id: 'sub-hot', submittedAt: new Date('2026-05-19T04:00:00.000Z'), createdAt: now, payload: { firstName: 'Hot', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'hot', leadRatingReason: 'High points and complete profile' },
       { id: 'sub-escalate', submittedAt: new Date('2026-05-19T05:00:00.000Z'), createdAt: now, payload: { firstName: 'Escalate', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'escalate', leadRatingReason: 'Risk flag requires senior decision' },
+    ]);
+    mocks.staffTaskFindMany.mockResolvedValue([
+      { id: 'task-1', title: 'Urgent overdue escalate', taskType: 'risk_review', priority: 'urgent', status: 'open', dueDate: new Date('2026-05-18T00:00:00.000Z'), assignedStaffName: 'A', createdAt: new Date('2026-05-19T10:00:00.000Z'), submission: { id: 'sub-escalate', payload: { firstName: 'Escalate', lastName: 'Lead' }, leadRating: 'escalate' } },
+      { id: 'task-2', title: 'High due today hot', taskType: 'follow_up', priority: 'high', status: 'in_progress', dueDate: new Date('2026-05-19T20:00:00.000Z'), assignedStaffName: 'B', createdAt: new Date('2026-05-19T09:00:00.000Z'), submission: { id: 'sub-hot', payload: { firstName: 'Hot', lastName: 'Lead' }, leadRating: 'hot' } },
+      { id: 'task-3', title: 'Medium due week', taskType: 'doc_check', priority: 'medium', status: 'blocked', dueDate: new Date('2026-05-21T20:00:00.000Z'), assignedStaffName: 'C', createdAt: new Date('2026-05-18T09:00:00.000Z'), submission: null },
     ]);
   });
 
@@ -103,7 +110,7 @@ describe('dashboard lead rating UI', () => {
     ['not_rated', 'Not Rated', 'Hot Lead'],
   ])('filters rows for %s', async (filter, expectedName, unexpectedName) => {
     const page = (await import('./page')).default;
-    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ leadRating: filter }) }));
+    const markup = submittedSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ leadRating: filter }) })));
     expect(markup).toContain(expectedName);
     expect(markup).not.toContain(unexpectedName);
   });
@@ -119,5 +126,32 @@ describe('dashboard lead rating UI', () => {
     expect(resetMarkup).toContain('Cold Lead');
     expect(resetMarkup).toContain('Escalate Lead');
     expect(resetMarkup).toContain('Not Rated');
+  });
+
+  it('renders staff task KPI cards and indicators', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+    expect(markup).toContain('Staff Task Operations');
+    expect(markup).toContain('My open tasks');
+    expect(markup).toContain('Overdue tasks');
+    expect(markup).toContain('Due today');
+    expect(markup).toContain('Due this week');
+    expect(markup).toContain('Urgent tasks');
+    expect(markup).toContain('Tasks linked to Hot leads');
+    expect(markup).toContain('Tasks linked to Escalate leads');
+    expect(markup).toContain('OVERDUE');
+    expect(markup).toContain('DUE TODAY');
+    expect(markup).toContain('URGENT');
+    expect(markup).toContain('HOT LEAD');
+    expect(markup).toContain('ESCALATE LEAD');
+    expect(markup).toContain('They do not send client communications or create calendar events.');
+  });
+
+  it('sorts tasks overdue first, then priority, then due soonest', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+    const order = ['Urgent overdue escalate', 'High due today hot', 'Medium due week'];
+    const indices = order.map((label) => markup.indexOf(label));
+    expect(indices).toEqual([...indices].sort((a, b) => a - b));
   });
 });
