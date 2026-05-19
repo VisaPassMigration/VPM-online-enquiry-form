@@ -44,12 +44,18 @@ describe('dashboard lead rating UI', () => {
     mocks.getCsaIssuedToDepositPaidConversion.mockResolvedValue({ conversionRate: 0, depositPaid: 0, csaIssued: 0 });
     mocks.getSeniorStaffCapacityRows.mockResolvedValue([]);
     mocks.getUpcomingConsultations.mockResolvedValue([]);
-    mocks.findMany.mockResolvedValue([{ id: 'sub-1', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'A', lastName: 'B' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'hot' }]);
+    mocks.findMany.mockResolvedValue([
+      { id: 'sub-hot', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Hot', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'hot' },
+      { id: 'sub-warm', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Warm', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'warm' },
+      { id: 'sub-cold', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Cold', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'cold' },
+      { id: 'sub-escalate', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Escalate', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'escalate' },
+      { id: 'sub-none', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Not', lastName: 'Rated' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: null },
+    ]);
   });
 
   it('shows rating counts, filter placeholder, and table column', async () => {
     const page = (await import('./page')).default;
-    const markup = renderToStaticMarkup(await page());
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
 
     expect(markup).toContain('Hot leads');
     expect(markup).toContain('Warm leads');
@@ -57,5 +63,34 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('Escalate leads');
     expect(markup).toContain('Lead Rating');
     expect(markup).toContain('Hot');
+    expect(markup).toContain('Clear filters');
+    expect(markup).toContain('Active filter: All lead ratings');
+    expect(markup).toContain('Lead ratings are internal triage classifications and are not client outcomes.');
+  });
+
+  it.each([
+    ['hot', 'Hot Lead', 'Warm Lead'],
+    ['warm', 'Warm Lead', 'Cold Lead'],
+    ['cold', 'Cold Lead', 'Escalate Lead'],
+    ['escalate', 'Escalate Lead', 'Not Rated'],
+    ['not_rated', 'Not Rated', 'Hot Lead'],
+  ])('filters rows for %s', async (filter, expectedName, unexpectedName) => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ leadRating: filter }) }));
+    expect(markup).toContain(expectedName);
+    expect(markup).not.toContain(unexpectedName);
+  });
+
+  it('clear filters resets view to all rows', async () => {
+    const page = (await import('./page')).default;
+    const filteredMarkup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ leadRating: 'hot' }) }));
+    expect(filteredMarkup).not.toContain('Warm Lead');
+
+    const resetMarkup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+    expect(resetMarkup).toContain('Hot Lead');
+    expect(resetMarkup).toContain('Warm Lead');
+    expect(resetMarkup).toContain('Cold Lead');
+    expect(resetMarkup).toContain('Escalate Lead');
+    expect(resetMarkup).toContain('Not Rated');
   });
 });

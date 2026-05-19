@@ -40,6 +40,21 @@ type DashboardRow = {
   nextAction: string;
   leadRating: LeadRating | null;
 };
+type LeadRatingFilter = 'all' | LeadRating | 'not_rated';
+
+const leadRatingFilters: ReadonlyArray<LeadRatingFilter> = ['all', 'hot', 'warm', 'cold', 'escalate', 'not_rated'];
+
+const isLeadRatingFilter = (value: string): value is LeadRatingFilter =>
+  leadRatingFilters.includes(value as LeadRatingFilter);
+
+const parseLeadRatingFilter = (value: string | string[] | undefined): LeadRatingFilter => {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  if (!normalized) return 'all';
+  return isLeadRatingFilter(normalized) ? normalized : 'all';
+};
+
+const leadRatingFilterSummary = (filter: LeadRatingFilter) =>
+  filter === 'all' ? 'All lead ratings' : filter === 'not_rated' ? 'Not rated only' : `${leadRatingLabel(filter)} only`;
 const leadRatingLabel = (rating: LeadRating | null) => rating ? rating[0].toUpperCase() + rating.slice(1) : 'Not rated';
 const leadRatingPillClass = (rating: LeadRating | null) =>
   rating === 'hot' ? 'pill--danger'
@@ -108,8 +123,14 @@ const getPayloadField = (payload: Prisma.JsonValue, key: keyof IntakePayload): s
   return typeof value === 'string' && value.trim() ? value : 'Not provided';
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
   await requirePermission(PERMISSIONS.VIEW_DASHBOARD);
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const leadRatingFilter = parseLeadRatingFilter(resolvedSearchParams.leadRating);
   const [
     consultsBookedToday,
     consultsBookedThisWeek,
@@ -170,6 +191,11 @@ export default async function DashboardPage() {
   });
 
   const countByStatus = (status: DashboardStatus) => rows.filter((row) => row.status === status).length;
+  const filteredRows = rows.filter((row) => {
+    if (leadRatingFilter === 'all') return true;
+    if (leadRatingFilter === 'not_rated') return row.leadRating === null;
+    return row.leadRating === leadRatingFilter;
+  });
 
   const kpis = [
     { label: 'Total submitted enquiries', value: rows.length },
@@ -322,17 +348,32 @@ export default async function DashboardPage() {
 
       <section className="section">
         <div className="section-heading-row">
-          <h3>Filters (placeholder)</h3>
+          <h3>Filters</h3>
         </div>
         <div className="dashboard-filters">
-          {['Status', 'Risk flag', 'Lead Rating', 'Country', 'Date submitted', 'Assigned reviewer'].map((filterName) => (
-            <label className="field" key={filterName}>
-              <span>{filterName}</span>
-              <select defaultValue="">
-                <option value="">All {filterName.toLowerCase()}</option>
-              </select>
-            </label>
-          ))}
+          <label className="field" htmlFor="lead-rating-filter">
+            <span>Lead Rating</span>
+            <select id="lead-rating-filter" value={leadRatingFilter} disabled aria-readonly="true">
+              <option value="all">All lead ratings</option>
+              <option value="hot">Hot</option>
+              <option value="warm">Warm</option>
+              <option value="cold">Cold</option>
+              <option value="escalate">Escalate</option>
+              <option value="not_rated">Not rated</option>
+            </select>
+          </label>
+          <Link href="/dashboard" className="secondary-btn">Clear filters</Link>
+        </div>
+        <div className="dashboard-filters">
+          {leadRatingFilters.map((filterValue) => {
+            const href = filterValue === 'all' ? '/dashboard' : `/dashboard?leadRating=${filterValue}`;
+            const isActive = leadRatingFilter === filterValue;
+            return (
+              <Link key={filterValue} href={href} className={isActive ? 'secondary-btn' : 'primary-btn'}>
+                {filterValue === 'all' ? 'All' : filterValue === 'not_rated' ? 'Not rated' : leadRatingLabel(filterValue)}
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -340,10 +381,12 @@ export default async function DashboardPage() {
         <div className="section-heading-row">
           <h3>Submitted enquiries</h3>
         </div>
-        {rows.length === 0 ? (
+        <p>Active filter: {leadRatingFilterSummary(leadRatingFilter)}</p>
+        <p>Lead ratings are internal triage classifications and are not client outcomes.</p>
+        {filteredRows.length === 0 ? (
           <div className="card">
-            <p>No submitted enquiries yet.</p>
-            <p>Once clients submit intake forms, they will appear here for mandatory staff review.</p>
+            <p>No submitted enquiries match the current filter.</p>
+            <p>Adjust or clear filters to view more submitted enquiries for internal review.</p>
           </div>
         ) : (
           <div className="table-wrap">
@@ -365,7 +408,7 @@ export default async function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((submission) => (
+                {filteredRows.map((submission) => (
                   <tr key={submission.id}>
                     <td>{submission.clientName}</td>
                     <td>{displayDate(submission.submittedDate)}</td>
