@@ -192,6 +192,7 @@ describe('consultation booking service', () => {
       fromValue: 'invited',
       toValue: 'booked',
       eventSource: 'consultation_booking_action',
+      actorStaffUserId: 'staff-1',
       metadata: expect.objectContaining({ actorStaffUserId: 'staff-1' }),
     }));
   });

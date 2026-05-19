@@ -1,3 +1,4 @@
+import React from 'react';
 import { requirePermission } from '@/server/auth/requirePermission';
 import { PERMISSIONS } from '@/server/auth/permissions';
 import { AuditEventType, Prisma } from '@prisma/client';
@@ -49,6 +50,7 @@ export default async function AdminAuditLogPage({
   const filters = {
     actorId: getParam(resolvedSearchParams, 'actorId'),
     actorRole: getParam(resolvedSearchParams, 'actorRole'),
+    actorStaffUserId: getParam(resolvedSearchParams, 'actorStaffUserId'),
     eventType: getParam(resolvedSearchParams, 'eventType'),
     submissionId: getParam(resolvedSearchParams, 'submissionId'),
     relatedEntityType: getParam(resolvedSearchParams, 'relatedEntityType'),
@@ -64,6 +66,7 @@ export default async function AdminAuditLogPage({
   const where: Prisma.AuditEventWhereInput = {
     ...(filters.actorId ? { actorId: { equals: filters.actorId, mode: 'insensitive' } } : {}),
     ...(filters.actorRole ? { actorRole: { equals: filters.actorRole, mode: 'insensitive' } } : {}),
+    ...(filters.actorStaffUserId ? { actorStaffUserId: { equals: filters.actorStaffUserId, mode: 'insensitive' } } : {}),
     ...(filters.eventType && eventTypes.includes(filters.eventType as AuditEventType)
       ? { eventType: filters.eventType as AuditEventType }
       : {}),
@@ -94,6 +97,7 @@ export default async function AdminAuditLogPage({
   const activeFilters = [
     ['Actor ID', filters.actorId],
     ['Actor role', filters.actorRole],
+    ['Actor staff user ID', filters.actorStaffUserId],
     ['Event type', filters.eventType],
     ['Submission ID', filters.submissionId],
     ['Related entity type', filters.relatedEntityType],
@@ -126,6 +130,10 @@ export default async function AdminAuditLogPage({
           <label className="card audit-filter-card">
             Actor role
             <input name="actorRole" defaultValue={filters.actorRole} />
+          </label>
+          <label className="card audit-filter-card">
+            Actor staff user ID
+            <input name="actorStaffUserId" defaultValue={filters.actorStaffUserId} />
           </label>
           <label className="card audit-filter-card">
             Event type
@@ -191,6 +199,7 @@ export default async function AdminAuditLogPage({
                 <th>Actor ID</th>
                 <th>Actor name</th>
                 <th>Actor role</th>
+                <th>Actor staff user ID</th>
                 <th>Submission ID</th>
                 <th>Related entity type</th>
                 <th>Related entity ID</th>
@@ -203,7 +212,7 @@ export default async function AdminAuditLogPage({
             <tbody>
               {auditEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={12}>No audit events match the selected filters.</td>
+                  <td colSpan={13}>No audit events match the selected filters.</td>
                 </tr>
               ) : (
                 auditEvents.map((event) => (
@@ -213,6 +222,7 @@ export default async function AdminAuditLogPage({
                     <td>{event.actorId ?? '—'}</td>
                     <td>{event.actorName ?? '—'}</td>
                     <td>{event.actorRole ?? '—'}</td>
+                    <td>{event.actorStaffUserId ?? '—'}</td>
                     <td>{event.submissionId}</td>
                     <td>{event.relatedEntityType ?? '—'}</td>
                     <td>{event.relatedEntityId ?? '—'}</td>

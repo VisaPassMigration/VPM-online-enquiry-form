@@ -60,6 +60,7 @@ export type RecordAuditEventInput = {
   actorId?: string;
   actorRole?: string;
   actorName?: string;
+  actorStaffUserId?: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
   fromValue?: Prisma.InputJsonValue;
@@ -100,6 +101,7 @@ export async function recordAuditEvent(input: RecordAuditEventInput): Promise<Au
       actorId,
       actorRole,
       actorName: normalize(input.actorName),
+      actorStaffUserId: normalize(input.actorStaffUserId),
       relatedEntityType: normalize(input.relatedEntityType),
       relatedEntityId: normalize(input.relatedEntityId),
       fromValue: input.fromValue,

@@ -1,3 +1,4 @@
+import React from 'react';
 import { requirePermission } from '@/server/auth/requirePermission';
 import { PERMISSIONS } from '@/server/auth/permissions';
 import Link from 'next/link';
@@ -55,6 +56,7 @@ async function recordAuditEventInTx(
       actorId: normalizeAuditString(input.actorId),
       actorRole: normalizeAuditString(input.actorRole),
       actorName: normalizeAuditString(input.actorName),
+      actorStaffUserId: normalizeAuditString(input.actorStaffUserId),
       relatedEntityType: normalizeAuditString(input.relatedEntityType),
       relatedEntityId: normalizeAuditString(input.relatedEntityId),
       fromValue: input.fromValue,
@@ -199,6 +201,7 @@ export async function runInternalReviewAction(formData: FormData) {
           actorId,
           actorName,
           actorRole,
+          actorStaffUserId,
           relatedEntityType: 'staff_review',
           fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
           toValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
@@ -249,6 +252,7 @@ export async function runInternalReviewAction(formData: FormData) {
       actorId,
       actorName,
       actorRole,
+      actorStaffUserId,
       relatedEntityType: 'staff_review',
       relatedEntityId: staffReview.id,
       fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
@@ -277,7 +281,7 @@ export async function runClientCommunicationAction(formData: FormData) {
 
   if (!submissionId || !internalReason) return;
 
-  const { actorId, actorRole } = await requireStaffActorContextForClientCommunication(PERMISSIONS.PREPARE_CLIENT_COMMUNICATION);
+  const { actorId, actorRole, actorStaffUserId } = await requireStaffActorContextForClientCommunication(PERMISSIONS.PREPARE_CLIENT_COMMUNICATION);
 
   const template = CLIENT_COMMUNICATION_TEMPLATES[communicationType];
   if (!template) return;
@@ -290,6 +294,7 @@ export async function runClientCommunicationAction(formData: FormData) {
     internalReason,
     actorId,
     actorRole,
+    actorStaffUserId,
   });
 
   revalidatePath(`/dashboard/intakes/${submissionId}`);
@@ -305,7 +310,7 @@ export async function runReleaseRequestMoreInformationAction(formData: FormData)
 
   if (!submissionId || !communicationId || !internalReason) return;
 
-  const { actorId, actorRole } = await requireStaffActorContextForClientCommunication(PERMISSIONS.RELEASE_REQUEST_MORE_INFO);
+  const { actorId, actorRole, actorStaffUserId } = await requireStaffActorContextForClientCommunication(PERMISSIONS.RELEASE_REQUEST_MORE_INFO);
 
   try {
     await releaseRequestMoreInformationCommunication({
@@ -317,6 +322,7 @@ export async function runReleaseRequestMoreInformationAction(formData: FormData)
       internalReason,
       actorId,
       actorRole,
+      actorStaffUserId,
     });
   } catch {
     // Do not fail the full page on release/send failures.
@@ -334,7 +340,7 @@ export async function runReleaseConsultationInvitationAction(formData: FormData)
 
   if (!submissionId || !communicationId || !internalReason) return;
 
-  const { actorId, actorRole } = await requireStaffActorContextForClientCommunication(PERMISSIONS.RELEASE_CONSULTATION_INVITE);
+  const { actorId, actorRole, actorStaffUserId } = await requireStaffActorContextForClientCommunication(PERMISSIONS.RELEASE_CONSULTATION_INVITE);
 
   try {
     await releaseConsultationInvitationCommunication({
@@ -346,6 +352,7 @@ export async function runReleaseConsultationInvitationAction(formData: FormData)
       internalReason,
       actorId,
       actorRole,
+      actorStaffUserId,
     });
   } catch {
     // Do not fail the full page on release/send failures.
