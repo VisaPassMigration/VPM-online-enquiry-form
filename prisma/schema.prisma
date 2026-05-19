@@ -105,6 +105,13 @@ enum PointsGeneratedBy {
   staff
 }
 
+enum LeadRating {
+  hot
+  warm
+  cold
+  escalate
+}
+
 enum AuditEventType {
   submission_created
   submission_updated
@@ -142,6 +149,9 @@ enum AuditEventType {
   csa_issued
   deposit_recorded
   client_summary_released
+  lead_rating_suggested
+  lead_rating_confirmed
+  lead_rating_changed
 }
 
 enum ClientCommunicationType {
@@ -174,8 +184,16 @@ model IntakeSubmission {
   updatedAt               DateTime         @updatedAt
   submittedAt             DateTime?
   clientSummaryReleasedAt DateTime?
+  leadRating              LeadRating?
+  leadRatingReason        String?
+  leadRatingSuggested     LeadRating?
+  leadRatingSuggestedAt   DateTime?
+  leadRatingConfirmedBy   String?
+  leadRatingConfirmedAt   DateTime?
 
   @@index([status, updatedAt])
+  @@index([leadRating, updatedAt])
+  @@index([leadRatingSuggested, leadRatingSuggestedAt])
 }
 
 model SubmissionDocument {
