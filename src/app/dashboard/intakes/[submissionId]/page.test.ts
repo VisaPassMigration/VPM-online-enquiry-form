@@ -26,6 +26,9 @@ const mocks = vi.hoisted(() => ({
   markCsaIssuedMock: vi.fn(),
   markDepositPaidMock: vi.fn(),
   recordConsultationOutcomeMock: vi.fn(),
+  suggestLeadRatingMock: vi.fn(),
+  confirmLeadRatingMock: vi.fn(),
+  changeLeadRatingMock: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
@@ -55,6 +58,11 @@ vi.mock('@/server/clientCommunications', () => ({
   releaseRequestMoreInformationCommunication: mocks.releaseRequestMoreInformationCommunicationMock,
   releaseConsultationInvitationCommunication: mocks.releaseConsultationInvitationCommunicationMock,
 }));
+vi.mock('@/server/leadRatings', () => ({
+  suggestLeadRating: mocks.suggestLeadRatingMock,
+  confirmLeadRating: mocks.confirmLeadRatingMock,
+  changeLeadRating: mocks.changeLeadRatingMock,
+}));
 
 import {
   runClientCommunicationAction,
@@ -63,6 +71,7 @@ import {
   runReleaseRequestMoreInformationAction,
   runConsultationBookingAction,
   runDocumentReviewAction,
+  runLeadRatingAction,
 } from './page';
 
 describe('intake dashboard actions', () => {
@@ -263,6 +272,45 @@ describe('intake dashboard actions', () => {
     const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
     expect(auditData.eventType).toBe('document_rejected');
     expect(auditData.metadata).toEqual(expect.objectContaining({ requiresReupload: true, actorStaffUserId: 'staff-1' }));
+  });
+
+  it('lead rating actions call service functions and enforce permissions', async () => {
+    const suggest = new FormData();
+    suggest.set('submissionId', 'sub-1');
+    suggest.set('action', 'suggest');
+    suggest.set('reason', 'triage');
+    await runLeadRatingAction(suggest);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.SUGGEST_LEAD_RATING);
+    expect(mocks.suggestLeadRatingMock).toHaveBeenCalled();
+
+    const confirm = new FormData();
+    confirm.set('submissionId', 'sub-1');
+    confirm.set('action', 'confirm');
+    confirm.set('reason', 'confirmed');
+    confirm.set('rating', 'hot');
+    await runLeadRatingAction(confirm);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.CONFIRM_LEAD_RATING);
+    expect(mocks.confirmLeadRatingMock).toHaveBeenCalled();
+
+    const change = new FormData();
+    change.set('submissionId', 'sub-1');
+    change.set('action', 'change');
+    change.set('reason', 'adjusted');
+    change.set('rating', 'warm');
+    await runLeadRatingAction(change);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING);
+    expect(mocks.changeLeadRatingMock).toHaveBeenCalled();
+  });
+
+  it('lead rating actions do not trigger client communication', async () => {
+    const suggest = new FormData();
+    suggest.set('submissionId', 'sub-1');
+    suggest.set('action', 'suggest');
+    suggest.set('reason', 'triage');
+    await runLeadRatingAction(suggest);
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
   });
 
   it('waived document stores waiver fields', async () => {

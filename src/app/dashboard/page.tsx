@@ -1,7 +1,8 @@
+import React from 'react';
 import { requirePermission } from '@/server/auth/requirePermission';
 import { PERMISSIONS } from '@/server/auth/permissions';
 import Link from 'next/link';
-import { Prisma, RiskSeverity, RiskResolutionStatus, SubmissionStatus } from '@prisma/client';
+import { LeadRating, Prisma, RiskSeverity, RiskResolutionStatus, SubmissionStatus } from '@prisma/client';
 
 import { db } from '@/server/db';
 import {
@@ -37,7 +38,15 @@ type DashboardRow = {
   status: DashboardStatus;
   lastUpdated: Date;
   nextAction: string;
+  leadRating: LeadRating | null;
 };
+const leadRatingLabel = (rating: LeadRating | null) => rating ? rating[0].toUpperCase() + rating.slice(1) : 'Not rated';
+const leadRatingPillClass = (rating: LeadRating | null) =>
+  rating === 'hot' ? 'pill--danger'
+    : rating === 'warm' ? 'pill--warning'
+      : rating === 'cold' ? 'pill--placeholder'
+        : rating === 'escalate' ? 'pill--danger'
+          : 'pill--placeholder';
 
 type IntakePayload = Prisma.JsonObject & {
   firstName?: string;
@@ -156,6 +165,7 @@ export default async function DashboardPage() {
       status,
       lastUpdated: submission.currentReviewState?.updatedAt ?? submission.updatedAt,
       nextAction: nextActionFor(status),
+      leadRating: submission.leadRating,
     };
   });
 
@@ -170,6 +180,10 @@ export default async function DashboardPage() {
     { label: 'Risk escalated', value: countByStatus('Risk escalated') },
     { label: 'Progressing to consultation', value: countByStatus('Progressing to consultation') },
     { label: 'Not progressing', value: countByStatus('Not progressing') },
+    { label: 'Hot leads', value: rows.filter((row) => row.leadRating === 'hot').length },
+    { label: 'Warm leads', value: rows.filter((row) => row.leadRating === 'warm').length },
+    { label: 'Cold leads', value: rows.filter((row) => row.leadRating === 'cold').length },
+    { label: 'Escalate leads', value: rows.filter((row) => row.leadRating === 'escalate').length },
     { label: 'Average time from submission to first review', value: 'Placeholder' },
     { label: 'Consultation conversion', value: 'Placeholder' },
   ];
@@ -311,7 +325,7 @@ export default async function DashboardPage() {
           <h3>Filters (placeholder)</h3>
         </div>
         <div className="dashboard-filters">
-          {['Status', 'Risk flag', 'Country', 'Date submitted', 'Assigned reviewer'].map((filterName) => (
+          {['Status', 'Risk flag', 'Lead Rating', 'Country', 'Date submitted', 'Assigned reviewer'].map((filterName) => (
             <label className="field" key={filterName}>
               <span>{filterName}</span>
               <select defaultValue="">
@@ -344,6 +358,7 @@ export default async function DashboardPage() {
                   <th>Estimated points</th>
                   <th>Risk flags</th>
                   <th>Status</th>
+                  <th>Lead Rating</th>
                   <th>Last updated</th>
                   <th>Next action</th>
                   <th>Review</th>
@@ -370,6 +385,7 @@ export default async function DashboardPage() {
                       )}
                     </td>
                     <td>{submission.status}</td>
+                    <td><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></td>
                     <td>{displayDate(submission.lastUpdated)}</td>
                     <td>{submission.nextAction}</td>
                     <td><Link href={`/dashboard/intakes/${submission.id}`} className="secondary-btn">View</Link></td>
