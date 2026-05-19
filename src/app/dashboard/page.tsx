@@ -41,8 +41,10 @@ type DashboardRow = {
   leadRatingReason: string | null;
 };
 type LeadRatingFilter = 'all' | LeadRating | 'not_rated';
-type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
-type TaskStatus = 'open' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';
+type TaskPriority = 'urgent' | 'high' | 'normal' | 'low';
+type TaskStatus = 'open' | 'in_progress' | 'completed' | 'cancelled';
+type TaskDueScopeFilter = 'all' | 'overdue' | 'due_today' | 'due_this_week' | 'no_due_date';
+type TaskAssigneeFilter = 'all' | 'unassigned' | string;
 type StaffTaskRow = {
   id: string;
   title: string;
@@ -58,6 +60,9 @@ type StaffTaskRow = {
 };
 
 const leadRatingFilters: ReadonlyArray<LeadRatingFilter> = ['all', 'hot', 'warm', 'cold', 'escalate', 'not_rated'];
+const taskStatusFilters = ['all', 'open', 'in_progress', 'completed', 'cancelled'] as const;
+const taskPriorityFilters = ['all', 'low', 'normal', 'high', 'urgent'] as const;
+const taskDueScopeFilters = ['all', 'overdue', 'due_today', 'due_this_week', 'no_due_date'] as const;
 
 const isLeadRatingFilter = (value: string): value is LeadRatingFilter =>
   leadRatingFilters.includes(value as LeadRatingFilter);
@@ -66,6 +71,17 @@ const parseLeadRatingFilter = (value: string | string[] | undefined): LeadRating
   const normalized = Array.isArray(value) ? value[0] : value;
   if (!normalized) return 'all';
   return isLeadRatingFilter(normalized) ? normalized : 'all';
+};
+const parseListFilter = <T extends readonly string[]>(value: string | string[] | undefined, allowed: T): T[number] => {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  if (!normalized) return allowed[0];
+  return (allowed as readonly string[]).includes(normalized) ? (normalized as T[number]) : allowed[0];
+};
+const parseTaskAssigneeFilter = (value: string | string[] | undefined): TaskAssigneeFilter => {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  if (!normalized) return 'all';
+  if (normalized === 'all' || normalized === 'unassigned') return normalized;
+  return normalized;
 };
 
 const leadRatingFilterSummary = (filter: LeadRatingFilter) =>
@@ -115,7 +131,7 @@ const isDueThisWeek = (dueDate: Date | null, now: Date) => {
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
   return dueDate >= weekStart && dueDate < weekEnd;
 };
-const priorityRank: Record<TaskPriority, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+const priorityRank: Record<TaskPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
 
 type IntakePayload = Prisma.JsonObject & {
   firstName?: string;
@@ -168,6 +184,13 @@ export default async function DashboardPage({
   await requirePermission(PERMISSIONS.VIEW_DASHBOARD);
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const leadRatingFilter = parseLeadRatingFilter(resolvedSearchParams.leadRating);
+  const taskStatusFilter = parseListFilter(resolvedSearchParams.taskStatus, taskStatusFilters);
+  const taskPriorityFilter = parseListFilter(resolvedSearchParams.taskPriority, taskPriorityFilters);
+  const taskDueScopeFilter = parseListFilter(resolvedSearchParams.taskDueScope, taskDueScopeFilters);
+  const taskTypeFilterRaw = Array.isArray(resolvedSearchParams.taskType) ? resolvedSearchParams.taskType[0] : resolvedSearchParams.taskType;
+  const taskTypeFilter = taskTypeFilterRaw?.trim() ? taskTypeFilterRaw : 'all';
+  const taskLeadRatingFilter = parseLeadRatingFilter(resolvedSearchParams.taskLeadRating);
+  const taskAssigneeFilter = parseTaskAssigneeFilter(resolvedSearchParams.taskAssignee);
   const [
     consultsBookedToday,
     consultsBookedThisWeek,
@@ -269,8 +292,8 @@ export default async function DashboardPage({
       id: String(task.id),
       title: String(task.title),
       taskType: String(task.taskType),
-      priority: task.priority as TaskPriority,
-      status: task.status as TaskStatus,
+      priority: ((task.priority as string) === 'medium' ? 'normal' : task.priority) as TaskPriority,
+      status: ((task.status as string) === 'blocked' ? 'in_progress' : task.status) as TaskStatus,
       dueDate: (task.dueDate as Date | null) ?? null,
       assignedStaff: String(task.assignedStaffName ?? 'Unassigned'),
       submissionId: submission?.id ?? null,
@@ -280,8 +303,24 @@ export default async function DashboardPage({
     } satisfies StaffTaskRow;
   });
   const now = new Date();
-  const openTasks = staffTasks.filter((task) => task.status === 'open' || task.status === 'in_progress' || task.status === 'blocked');
-  const sortedOpenTasks = [...openTasks].sort((a, b) => {
+  const openTasks = staffTasks.filter((task) => task.status === 'open' || task.status === 'in_progress');
+  const availableTaskTypes = Array.from(new Set(staffTasks.map((task) => task.taskType))).sort((a, b) => a.localeCompare(b));
+  const availableAssignees = Array.from(new Set(staffTasks.map((task) => task.assignedStaff).filter((name) => name !== 'Unassigned'))).sort((a, b) => a.localeCompare(b));
+  const filteredTasks = staffTasks.filter((task) => {
+    if (taskStatusFilter !== 'all' && task.status !== taskStatusFilter) return false;
+    if (taskPriorityFilter !== 'all' && task.priority !== taskPriorityFilter) return false;
+    if (taskDueScopeFilter === 'overdue' && !isOverdue(task.dueDate, now)) return false;
+    if (taskDueScopeFilter === 'due_today' && !isDueToday(task.dueDate, now)) return false;
+    if (taskDueScopeFilter === 'due_this_week' && !isDueThisWeek(task.dueDate, now)) return false;
+    if (taskDueScopeFilter === 'no_due_date' && task.dueDate) return false;
+    if (taskTypeFilter !== 'all' && task.taskType !== taskTypeFilter) return false;
+    if (taskLeadRatingFilter === 'not_rated' && task.leadRating !== null) return false;
+    if (taskLeadRatingFilter !== 'all' && taskLeadRatingFilter !== 'not_rated' && task.leadRating !== taskLeadRatingFilter) return false;
+    if (taskAssigneeFilter === 'unassigned' && task.assignedStaff !== 'Unassigned') return false;
+    if (taskAssigneeFilter !== 'all' && taskAssigneeFilter !== 'unassigned' && task.assignedStaff !== taskAssigneeFilter) return false;
+    return true;
+  });
+  const sortedFilteredTasks = [...filteredTasks].sort((a, b) => {
     const overdueDelta = Number(isOverdue(b.dueDate, now)) - Number(isOverdue(a.dueDate, now));
     if (overdueDelta !== 0) return overdueDelta;
     const priorityDelta = priorityRank[a.priority] - priorityRank[b.priority];
@@ -314,6 +353,43 @@ export default async function DashboardPage({
           <h3>Staff Task Operations</h3>
         </div>
         <p>Staff tasks are internal operational reminders. They do not send client communications or create calendar events.</p>
+        <div className="dashboard-filters">
+          {[
+            ['taskStatus', taskStatusFilter, taskStatusFilters],
+            ['taskPriority', taskPriorityFilter, taskPriorityFilters],
+            ['taskDueScope', taskDueScopeFilter, taskDueScopeFilters],
+            ['taskType', taskTypeFilter, ['all', ...availableTaskTypes]],
+            ['taskLeadRating', taskLeadRatingFilter, leadRatingFilters],
+            ['taskAssignee', taskAssigneeFilter, ['all', 'unassigned', ...availableAssignees]],
+          ].map(([key, active, values]) => (
+            <div key={String(key)} className="dashboard-filters">
+              {(values as string[]).map((value) => {
+                const params = new URLSearchParams();
+                if (leadRatingFilter !== 'all') params.set('leadRating', leadRatingFilter);
+                const entries: Array<[string, string]> = [
+                  ['taskStatus', taskStatusFilter],
+                  ['taskPriority', taskPriorityFilter],
+                  ['taskDueScope', taskDueScopeFilter],
+                  ['taskType', taskTypeFilter],
+                  ['taskLeadRating', taskLeadRatingFilter],
+                  ['taskAssignee', taskAssigneeFilter],
+                ];
+                entries.forEach(([k, v]) => {
+                  const nextValue = k === key ? value : v;
+                  if (nextValue !== 'all') params.set(k, nextValue);
+                });
+                const href = params.toString() ? `/dashboard?${params.toString()}` : '/dashboard';
+                const label = value === 'not_rated' ? 'not rated' : value.replaceAll('_', ' ');
+                return <Link key={`${key}-${value}`} href={href} className={active === value ? 'secondary-btn' : 'primary-btn'}>{label}</Link>;
+              })}
+            </div>
+          ))}
+          <Link href={leadRatingFilter === 'all' ? '/dashboard' : `/dashboard?leadRating=${leadRatingFilter}`} className="secondary-btn">Clear Task Filters</Link>
+        </div>
+        <p>
+          Active task filters: status={taskStatusFilter}, priority={taskPriorityFilter}, due={taskDueScopeFilter}, type={taskTypeFilter}, lead
+          rating={taskLeadRatingFilter}, assignee={taskAssigneeFilter}
+        </p>
         <div className="dashboard-kpi-grid">
           {[
             { label: 'My open tasks', value: openTasks.length },
@@ -329,7 +405,7 @@ export default async function DashboardPage({
           <table className="dashboard-table">
             <thead><tr><th>Task title</th><th>Task type</th><th>Priority</th><th>Status</th><th>Due date</th><th>Assigned staff</th><th>Linked client/submission</th><th>Lead rating</th></tr></thead>
             <tbody>
-              {sortedOpenTasks.map((task) => (
+              {sortedFilteredTasks.length === 0 ? <tr><td colSpan={8}>No staff tasks match the selected filters.</td></tr> : sortedFilteredTasks.map((task) => (
                 <tr key={task.id}>
                   <td>{task.title}{isOverdue(task.dueDate, now) && ' • OVERDUE'}{isDueToday(task.dueDate, now) && ' • DUE TODAY'}{task.priority === 'urgent' && ' • URGENT'}{task.leadRating === 'hot' && ' • HOT LEAD'}{task.leadRating === 'escalate' && ' • ESCALATE LEAD'}</td>
                   <td>{task.taskType}</td><td>{task.priority}</td><td>{task.status}</td><td>{task.dueDate ? displayDate(task.dueDate) : 'Not set'}</td><td>{task.assignedStaff}</td>

@@ -34,6 +34,7 @@ vi.mock('@/server/consultationKpis', () => ({
 
 describe('dashboard lead rating UI', () => {
   const submittedSectionOnly = (markup: string) => markup.slice(markup.indexOf('<h3>Submitted enquiries</h3>'));
+  const taskSectionOnly = (markup: string) => markup.slice(markup.indexOf('<h3>Staff Task Operations</h3>'), markup.indexOf('<h3>Intake KPI snapshot</h3>'));
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getConsultsBookedToday.mockResolvedValue(0);
@@ -57,7 +58,8 @@ describe('dashboard lead rating UI', () => {
     mocks.staffTaskFindMany.mockResolvedValue([
       { id: 'task-1', title: 'Urgent overdue escalate', taskType: 'risk_review', priority: 'urgent', status: 'open', dueDate: new Date('2026-05-18T00:00:00.000Z'), assignedStaffName: 'A', createdAt: new Date('2026-05-19T10:00:00.000Z'), submission: { id: 'sub-escalate', payload: { firstName: 'Escalate', lastName: 'Lead' }, leadRating: 'escalate' } },
       { id: 'task-2', title: 'High due today hot', taskType: 'follow_up', priority: 'high', status: 'in_progress', dueDate: new Date('2026-05-19T20:00:00.000Z'), assignedStaffName: 'B', createdAt: new Date('2026-05-19T09:00:00.000Z'), submission: { id: 'sub-hot', payload: { firstName: 'Hot', lastName: 'Lead' }, leadRating: 'hot' } },
-      { id: 'task-3', title: 'Medium due week', taskType: 'doc_check', priority: 'medium', status: 'blocked', dueDate: new Date('2026-05-21T20:00:00.000Z'), assignedStaffName: 'C', createdAt: new Date('2026-05-18T09:00:00.000Z'), submission: null },
+      { id: 'task-3', title: 'Normal due week', taskType: 'doc_check', priority: 'normal', status: 'in_progress', dueDate: new Date('2026-05-21T20:00:00.000Z'), assignedStaffName: 'C', createdAt: new Date('2026-05-18T09:00:00.000Z'), submission: null },
+      { id: 'task-4', title: 'Low no due unassigned', taskType: 'admin_check', priority: 'low', status: 'completed', dueDate: null, assignedStaffName: null, createdAt: new Date('2026-05-17T09:00:00.000Z'), submission: { id: 'sub-none', payload: { firstName: 'Not', lastName: 'Rated' }, leadRating: null } },
     ]);
   });
 
@@ -150,8 +152,55 @@ describe('dashboard lead rating UI', () => {
   it('sorts tasks overdue first, then priority, then due soonest', async () => {
     const page = (await import('./page')).default;
     const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
-    const order = ['Urgent overdue escalate', 'High due today hot', 'Medium due week'];
+    const order = ['Urgent overdue escalate', 'High due today hot', 'Normal due week'];
     const indices = order.map((label) => markup.indexOf(label));
     expect(indices).toEqual([...indices].sort((a, b) => a - b));
+  });
+
+  it('applies task status filter', async () => {
+    const page = (await import('./page')).default;
+    const markup = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskStatus: 'completed' }) })));
+    expect(markup).toContain('Low no due unassigned');
+    expect(markup).not.toContain('Urgent overdue escalate');
+  });
+
+  it('applies task priority filter', async () => {
+    const page = (await import('./page')).default;
+    const markup = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskPriority: 'high' }) })));
+    expect(markup).toContain('High due today hot');
+    expect(markup).not.toContain('Urgent overdue escalate');
+  });
+
+  it('applies overdue, due today, due this week, and no due date task filters', async () => {
+    const page = (await import('./page')).default;
+    const overdue = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskDueScope: 'overdue' }) })));
+    const dueToday = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskDueScope: 'due_today' }) })));
+    const dueThisWeek = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskDueScope: 'due_this_week' }) })));
+    const noDueDate = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskDueScope: 'no_due_date' }) })));
+    expect(overdue).toContain('Urgent overdue escalate');
+    expect(dueToday).toContain('High due today hot');
+    expect(dueThisWeek).toContain('Normal due week');
+    expect(noDueDate).toContain('Low no due unassigned');
+  });
+
+  it('applies task lead rating and unassigned filters', async () => {
+    const page = (await import('./page')).default;
+    const leadRating = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskLeadRating: 'escalate' }) })));
+    const unassigned = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskAssignee: 'unassigned' }) })));
+    expect(leadRating).toContain('Urgent overdue escalate');
+    expect(leadRating).not.toContain('High due today hot');
+    expect(unassigned).toContain('Low no due unassigned');
+    expect(unassigned).not.toContain('Urgent overdue escalate');
+  });
+
+  it('clear task filters resets task list and keeps communications internal-only', async () => {
+    const page = (await import('./page')).default;
+    const filtered = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskStatus: 'completed' }) })));
+    expect(filtered).not.toContain('Urgent overdue escalate');
+    expect(filtered).toContain('Clear Task Filters');
+    const reset = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) })));
+    expect(reset).toContain('Urgent overdue escalate');
+    expect(reset).toContain('High due today hot');
+    expect(reset).toContain('They do not send client communications or create calendar events.');
   });
 });
