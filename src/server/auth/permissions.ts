@@ -22,6 +22,7 @@ export const PERMISSIONS = {
 
 export type RoleKey = (typeof ROLES)[keyof typeof ROLES];
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+export const UNKNOWN_STAFF_ROLE = 'unknown_staff_role' as const;
 
 export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
   boss_admin: Object.values(PERMISSIONS),
@@ -63,11 +64,31 @@ export function hasPermission(roles: RoleKey[], permission: PermissionKey): bool
   return getPermissionsForRoles(roles).has(permission);
 }
 
+export function isCanonicalRoleKey(value: string): value is RoleKey {
+  return Object.values(ROLES).includes(value as RoleKey);
+}
+
+export function normalizeRoleKeys(rawRoles: string[]): RoleKey[] {
+  return rawRoles.filter(isCanonicalRoleKey);
+}
+
+export function resolveActorRole(rawRoles: string[]): RoleKey | typeof UNKNOWN_STAFF_ROLE {
+  const [firstRole] = normalizeRoleKeys(rawRoles);
+  return firstRole ?? UNKNOWN_STAFF_ROLE;
+}
+
 export async function getRoleKeysForStaffUser(staffUserId: string): Promise<RoleKey[]> {
   const { db } = await import('@/server/db');
   const rows = await db.staffUserRole.findMany({
     where: { staffUserId, revokedAt: null },
     include: { staffRole: true },
   });
-  return rows.map((row) => row.staffRole.key as RoleKey);
+  const rawRoleKeys = rows.map((row) => row.staffRole.key);
+  const canonicalRoleKeys = normalizeRoleKeys(rawRoleKeys);
+  if (canonicalRoleKeys.length !== rawRoleKeys.length) {
+    console.warn(
+      `[auth] Staff user ${staffUserId} has invalid role keys that were ignored. Please audit staff_role assignments.`,
+    );
+  }
+  return canonicalRoleKeys;
 }

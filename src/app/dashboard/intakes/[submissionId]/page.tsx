@@ -1,6 +1,6 @@
 import React from 'react';
 import { requirePermission } from '@/server/auth/requirePermission';
-import { PERMISSIONS } from '@/server/auth/permissions';
+import { PERMISSIONS, resolveActorRole } from '@/server/auth/permissions';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -134,7 +134,7 @@ async function requireStaffActorContextForClientCommunication(permission: string
 
   const actorId = String(session.user.staffUserId ?? '').trim();
   const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
-  const actorRole = session.user.roles?.[0]?.trim() || 'staff';
+  const actorRole = resolveActorRole(session.user.roles ?? []);
   const actorStaffUserId = session.user.staffUserId?.trim() || undefined;
 
   if (!actorId) throw new Error('Missing authenticated staff actor id');
@@ -153,7 +153,7 @@ export async function runInternalReviewAction(formData: FormData) {
   const note = String(formData.get('internalNote') ?? '').trim();
   const actorId = String(session.user.staffUserId);
   const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
-  const actorRole = session.user.roles?.[0]?.trim() || 'staff';
+  const actorRole = resolveActorRole(session.user.roles ?? []);
   const actorStaffUserId = session.user.staffUserId;
 
   if (!submissionId || !action || !note || !actorId) return;
@@ -376,7 +376,7 @@ export async function runConsultationBookingAction(formData: FormData) {
 
   const actorId = String(session.user.staffUserId ?? '').trim();
   const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
-  const actorRole = session.user.roles?.[0]?.trim() || 'staff';
+  const actorRole = resolveActorRole(session.user.roles ?? []);
   const actorStaffUserId = session.user.staffUserId?.trim() || undefined;
 
   if (!actorId) throw new Error('Missing authenticated staff actor id');

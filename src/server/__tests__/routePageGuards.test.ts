@@ -68,4 +68,10 @@ describe('protected staff page entry guards', () => {
     expect(canAccessPath('/intake', false, [])).toBe(true);
     expect(canAccessPath('/intake', true, ['read_only_reviewer'])).toBe(true);
   });
+
+  it('protected namespace defaults stay protected for unknown sub-routes', () => {
+    expect(canAccessPath('/dashboard/new-internal-page', false, [])).toBe(false);
+    expect(canAccessPath('/admin/new-tool', true, ['senior_staff'])).toBe(false);
+    expect(canAccessPath('/admin/new-tool', true, ['boss_admin'])).toBe(true);
+  });
 });
