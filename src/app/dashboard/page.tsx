@@ -37,8 +37,8 @@ type DashboardRow = {
   riskFlags: string[];
   status: DashboardStatus;
   lastUpdated: Date;
-  nextAction: string;
   leadRating: LeadRating | null;
+  leadRatingReason: string | null;
 };
 type LeadRatingFilter = 'all' | LeadRating | 'not_rated';
 
@@ -62,6 +62,23 @@ const leadRatingPillClass = (rating: LeadRating | null) =>
       : rating === 'cold' ? 'pill--placeholder'
         : rating === 'escalate' ? 'pill--danger'
           : 'pill--placeholder';
+const triagePriority: Record<LeadRatingFilter, number> = {
+  all: 99,
+  escalate: 0,
+  hot: 1,
+  warm: 2,
+  not_rated: 3,
+  cold: 4,
+};
+const nextActionHintFor = (rating: LeadRating | null) => {
+  if (rating === 'escalate') return 'Senior risk review required';
+  if (rating === 'hot') return 'Prioritise review / consultation pathway review';
+  if (rating === 'warm') return 'Check missing info or documents';
+  if (rating === 'cold') return 'Low priority review / confirm hold if appropriate';
+  return 'Generate/confirm rating';
+};
+const leadRatingReasonPreview = (reason: string | null) =>
+  reason && reason.trim() ? reason.trim().slice(0, 80) : '—';
 
 type IntakePayload = Prisma.JsonObject & {
   firstName?: string;
@@ -98,23 +115,6 @@ const mapStatus = (submissionStatus: SubmissionStatus, escalatedRisk: boolean): 
   }
 
   return 'Under staff review';
-};
-
-const nextActionFor = (status: DashboardStatus) => {
-  switch (status) {
-    case 'Awaiting review':
-      return 'Assign reviewer';
-    case 'Under staff review':
-      return 'Continue staff assessment';
-    case 'More information requested':
-      return 'Await client documents';
-    case 'Risk escalated':
-      return 'Senior risk review required';
-    case 'Progressing to consultation':
-      return 'Prepare for consultation';
-    case 'Not progressing':
-      return 'Internal closure checks';
-  }
 };
 
 const getPayloadField = (payload: Prisma.JsonValue, key: keyof IntakePayload): string => {
@@ -185,17 +185,24 @@ export default async function DashboardPage({
       riskFlags: submission.riskFlags.map((flag) => formatRiskFlag(flag.riskCode, flag.severity)),
       status,
       lastUpdated: submission.currentReviewState?.updatedAt ?? submission.updatedAt,
-      nextAction: nextActionFor(status),
       leadRating: submission.leadRating,
+      leadRatingReason: submission.leadRatingReason,
     };
   });
 
   const countByStatus = (status: DashboardStatus) => rows.filter((row) => row.status === status).length;
-  const filteredRows = rows.filter((row) => {
-    if (leadRatingFilter === 'all') return true;
-    if (leadRatingFilter === 'not_rated') return row.leadRating === null;
-    return row.leadRating === leadRatingFilter;
-  });
+  const filteredRows = rows
+    .filter((row) => {
+      if (leadRatingFilter === 'all') return true;
+      if (leadRatingFilter === 'not_rated') return row.leadRating === null;
+      return row.leadRating === leadRatingFilter;
+    })
+    .sort((a, b) => {
+      const aPriority = triagePriority[a.leadRating ?? 'not_rated'];
+      const bPriority = triagePriority[b.leadRating ?? 'not_rated'];
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return b.submittedDate.getTime() - a.submittedDate.getTime();
+    });
 
   const kpis = [
     { label: 'Total submitted enquiries', value: rows.length },
@@ -210,6 +217,7 @@ export default async function DashboardPage({
     { label: 'Warm leads', value: rows.filter((row) => row.leadRating === 'warm').length },
     { label: 'Cold leads', value: rows.filter((row) => row.leadRating === 'cold').length },
     { label: 'Escalate leads', value: rows.filter((row) => row.leadRating === 'escalate').length },
+    { label: 'Not Rated leads', value: rows.filter((row) => row.leadRating === null).length },
     { label: 'Average time from submission to first review', value: 'Placeholder' },
     { label: 'Consultation conversion', value: 'Placeholder' },
   ];
@@ -383,6 +391,7 @@ export default async function DashboardPage({
         </div>
         <p>Active filter: {leadRatingFilterSummary(leadRatingFilter)}</p>
         <p>Lead ratings are internal triage classifications and are not client outcomes.</p>
+        <p>Lead rating and next-action hints are internal workflow aids only. They are not client outcomes.</p>
         {filteredRows.length === 0 ? (
           <div className="card">
             <p>No submitted enquiries match the current filter.</p>
@@ -402,8 +411,9 @@ export default async function DashboardPage({
                   <th>Risk flags</th>
                   <th>Status</th>
                   <th>Lead Rating</th>
+                  <th>Lead Rating Reason</th>
                   <th>Last updated</th>
-                  <th>Next action</th>
+                  <th>Next Action Hint</th>
                   <th>Review</th>
                 </tr>
               </thead>
@@ -429,8 +439,9 @@ export default async function DashboardPage({
                     </td>
                     <td>{submission.status}</td>
                     <td><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></td>
+                    <td>{leadRatingReasonPreview(submission.leadRatingReason)}</td>
                     <td>{displayDate(submission.lastUpdated)}</td>
-                    <td>{submission.nextAction}</td>
+                    <td>{nextActionHintFor(submission.leadRating)}</td>
                     <td><Link href={`/dashboard/intakes/${submission.id}`} className="secondary-btn">View</Link></td>
                   </tr>
                 ))}

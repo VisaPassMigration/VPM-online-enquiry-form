@@ -12,5 +12,8 @@ describe('public intake page', () => {
     expect(markup).not.toContain('Warm leads');
     expect(markup).not.toContain('Cold leads');
     expect(markup).not.toContain('Escalate leads');
+    expect(markup).not.toContain('Lead Rating Reason');
+    expect(markup).not.toContain('Next Action Hint');
+    expect(markup).not.toContain('Lead rating and next-action hints are internal workflow aids only.');
   });
 });
