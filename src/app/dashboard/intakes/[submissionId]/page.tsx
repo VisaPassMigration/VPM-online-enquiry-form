@@ -4,7 +4,7 @@ import { PERMISSIONS, resolveActorRole } from '@/server/auth/permissions';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { Prisma, RiskResolutionStatus, RiskSeverity, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
+import { LeadRating, Prisma, RiskResolutionStatus, RiskSeverity, ReviewDecision, ReviewStage, SubmissionStatus, AuditEventType } from '@prisma/client';
 
 import { db } from '@/server/db';
 import { CLIENT_COMMUNICATION_TEMPLATES, createClientCommunicationDraft, releaseConsultationInvitationCommunication, releaseRequestMoreInformationCommunication } from '@/server/clientCommunications';
@@ -20,6 +20,7 @@ import {
   recordConsultationOutcome,
 } from '@/server/consultationBookings';
 import type { RecordAuditEventInput } from '@/server/audit';
+import { changeLeadRating, confirmLeadRating, suggestLeadRating } from '@/server/leadRatings';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -107,6 +108,13 @@ const COMM_STATUS_META: Record<string, { label: string; helper: string; pillClas
 };
 
 const communicationTypeLabel = (type: string) => type.split('_').map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
+const leadRatingLabel = (rating: LeadRating | null) => rating ? rating[0].toUpperCase() + rating.slice(1) : 'Not rated';
+const leadRatingPillClass = (rating: LeadRating | null) =>
+  rating === 'hot' ? 'pill--danger'
+    : rating === 'warm' ? 'pill--warning'
+      : rating === 'cold' ? 'pill--placeholder'
+        : rating === 'escalate' ? 'pill--danger'
+          : 'pill--placeholder';
 
 const renderRows = (pairs: Array<[string, string | number | undefined | null]>) => (
   <dl className="review-grid">
@@ -580,8 +588,50 @@ export async function runDocumentReviewAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+export async function runLeadRatingAction(formData: FormData) {
+  'use server';
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const action = String(formData.get('action') ?? '').trim();
+  const reason = String(formData.get('reason') ?? '').trim();
+  const rating = String(formData.get('rating') ?? '').trim() as LeadRating;
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
+  const actorRole = resolveActorRole(session.user.roles ?? []);
+  const actorRoles = (session.user.roles ?? []) as Array<typeof actorRole>;
+
+  if (!submissionId || !action || !actorId) return;
+
+  const actor = { actorId, actorName, actorRole, actorStaffUserId: actorId, actorRoles };
+  if (action === 'suggest') {
+    await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING);
+    await suggestLeadRating({ submissionId, actor, reason });
+  }
+
+  if (action === 'confirm' && reason) {
+    await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING);
+    await confirmLeadRating({ submissionId, actor, rating, reason });
+  }
+
+  if (action === 'change' && reason) {
+    await requirePermission(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING);
+    await changeLeadRating({ submissionId, actor, rating, reason });
+  }
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
   await requirePermission(PERMISSIONS.VIEW_INTAKE_DETAILS);
+  let canViewLeadRating = true;
+  let canSuggestLeadRating = true;
+  let canConfirmLeadRating = true;
+  let canChangeLeadRating = true;
+  try { await requirePermission(PERMISSIONS.VIEW_LEAD_RATING); } catch { canViewLeadRating = false; }
+  try { await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING); } catch { canSuggestLeadRating = false; }
+  try { await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING); } catch { canConfirmLeadRating = false; }
+  try { await requirePermission(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING); } catch { canChangeLeadRating = false; }
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
     where: { id: submissionId },
@@ -610,6 +660,33 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
         <p>Submission ID: {submission.id}</p>
         <p><Link href="/dashboard">← Back to dashboard</Link></p>
       </section>
+      {canViewLeadRating ? <section className="section review-section">
+        <h3>Lead Quality Rating</h3>
+        <p><strong>Internal only:</strong> Lead Quality Rating is an internal triage tool only. It is not a client outcome and must not be communicated as an assessment result.</p>
+        {renderRows([
+          ['System-suggested rating', leadRatingLabel(submission.leadRatingSuggested)],
+          ['Suggested timestamp', submission.leadRatingSuggestedAt ? displayDate(submission.leadRatingSuggestedAt) : 'Not provided'],
+          ['Confirmed rating', leadRatingLabel(submission.leadRating)],
+          ['Confirmed timestamp', submission.leadRatingConfirmedAt ? displayDate(submission.leadRatingConfirmedAt) : 'Not provided'],
+          ['Confirmed by', submission.leadRatingConfirmedBy],
+          ['Lead rating reason', submission.leadRatingReason],
+        ])}
+        <p><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></p>
+        <form action={runLeadRatingAction} className="intake-form">
+          <input type="hidden" name="submissionId" value={submission.id} />
+          <label><strong>Internal reason/note (required for confirm/change)</strong></label>
+          <textarea name="reason" rows={3} />
+          <label><strong>Confirmed rating (for confirm/change)</strong></label>
+          <select name="rating" defaultValue={submission.leadRatingSuggested ?? submission.leadRating ?? 'warm'}>
+            <option value="hot">Hot</option><option value="warm">Warm</option><option value="cold">Cold</option><option value="escalate">Escalate</option>
+          </select>
+          <div className="button-row">
+            {canSuggestLeadRating ? <button type="submit" name="action" value="suggest">Generate Suggested Rating</button> : null}
+            {canConfirmLeadRating ? <button type="submit" name="action" value="confirm">Confirm Suggested Rating</button> : null}
+            {canChangeLeadRating ? <button type="submit" name="action" value="change">Change Confirmed Rating</button> : null}
+          </div>
+        </form>
+      </section> : null}
       <section className="section dashboard-note" role="note" aria-label="Internal intake review note">
         <strong>Important:</strong> Internal review page only. No client outcome should be released without authorised human review.
         <p>These actions update internal workflow only. No client outcome is released from this page.</p>
