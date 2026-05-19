@@ -44,12 +44,13 @@ describe('dashboard lead rating UI', () => {
     mocks.getCsaIssuedToDepositPaidConversion.mockResolvedValue({ conversionRate: 0, depositPaid: 0, csaIssued: 0 });
     mocks.getSeniorStaffCapacityRows.mockResolvedValue([]);
     mocks.getUpcomingConsultations.mockResolvedValue([]);
+    const now = new Date('2026-05-19T12:00:00.000Z');
     mocks.findMany.mockResolvedValue([
-      { id: 'sub-hot', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Hot', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'hot' },
-      { id: 'sub-warm', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Warm', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'warm' },
-      { id: 'sub-cold', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Cold', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'cold' },
-      { id: 'sub-escalate', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Escalate', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: 'escalate' },
-      { id: 'sub-none', submittedAt: new Date(), createdAt: new Date(), payload: { firstName: 'Not', lastName: 'Rated' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: new Date(), leadRating: null },
+      { id: 'sub-cold', submittedAt: new Date('2026-05-19T01:00:00.000Z'), createdAt: now, payload: { firstName: 'Cold', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'cold', leadRatingReason: null },
+      { id: 'sub-none', submittedAt: new Date('2026-05-19T02:00:00.000Z'), createdAt: now, payload: { firstName: 'Not', lastName: 'Rated' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: null, leadRatingReason: 'AI suggestion pending staff confirmation' },
+      { id: 'sub-warm', submittedAt: new Date('2026-05-19T03:00:00.000Z'), createdAt: now, payload: { firstName: 'Warm', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'warm', leadRatingReason: 'Some supporting docs missing' },
+      { id: 'sub-hot', submittedAt: new Date('2026-05-19T04:00:00.000Z'), createdAt: now, payload: { firstName: 'Hot', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'hot', leadRatingReason: 'High points and complete profile' },
+      { id: 'sub-escalate', submittedAt: new Date('2026-05-19T05:00:00.000Z'), createdAt: now, payload: { firstName: 'Escalate', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'escalate', leadRatingReason: 'Risk flag requires senior decision' },
     ]);
   });
 
@@ -61,18 +62,44 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('Warm leads');
     expect(markup).toContain('Cold leads');
     expect(markup).toContain('Escalate leads');
+    expect(markup).toContain('Not Rated leads');
     expect(markup).toContain('Lead Rating');
+    expect(markup).toContain('Lead Rating Reason');
+    expect(markup).toContain('Next Action Hint');
     expect(markup).toContain('Hot');
     expect(markup).toContain('Clear filters');
     expect(markup).toContain('Active filter: All lead ratings');
     expect(markup).toContain('Lead ratings are internal triage classifications and are not client outcomes.');
+    expect(markup).toContain('Lead rating and next-action hints are internal workflow aids only. They are not client outcomes.');
+  });
+
+  it('shows next action hints and rating reason previews', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+
+    expect(markup).toContain('Senior risk review required');
+    expect(markup).toContain('Prioritise review / consultation pathway review');
+    expect(markup).toContain('Check missing info or documents');
+    expect(markup).toContain('Low priority review / confirm hold if appropriate');
+    expect(markup).toContain('Generate/confirm rating');
+    expect(markup).toContain('Some supporting docs missing');
+    expect(markup).toContain('AI suggestion pending staff confirmation');
+  });
+
+  it('sorts enquiries by triage priority then newest submitted date', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+    const order = ['sub-escalate', 'sub-hot', 'sub-warm', 'sub-none', 'sub-cold'];
+    const indices = order.map((id) => markup.indexOf(`/dashboard/intakes/${id}`));
+    indices.forEach((index) => expect(index).toBeGreaterThan(-1));
+    expect(indices).toEqual([...indices].sort((a, b) => a - b));
   });
 
   it.each([
     ['hot', 'Hot Lead', 'Warm Lead'],
     ['warm', 'Warm Lead', 'Cold Lead'],
     ['cold', 'Cold Lead', 'Escalate Lead'],
-    ['escalate', 'Escalate Lead', 'Not Rated'],
+    ['escalate', 'Escalate Lead', 'Hot Lead'],
     ['not_rated', 'Not Rated', 'Hot Lead'],
   ])('filters rows for %s', async (filter, expectedName, unexpectedName) => {
     const page = (await import('./page')).default;
