@@ -35,6 +35,7 @@ const baseInput = {
   internalReason: 'Records are missing.',
   actorId: 'staff_1',
   actorRole: 'staff' as const,
+  actorStaffUserId: 'staff-user-1',
 };
 
 describe('clientCommunications service', () => {
@@ -69,7 +70,7 @@ describe('clientCommunications service', () => {
   it('release request is allowed when gate passes', async () => {
     const result = await requestClientCommunicationRelease({ ...baseInput, communicationId: 'comm_1' });
     expect(result.status).toBe('pending_staff_release');
-    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'client_comm_release_requested' }));
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'client_comm_release_requested', actorStaffUserId: 'staff-user-1' }));
   });
 
   it('release request is blocked when gate fails', async () => {

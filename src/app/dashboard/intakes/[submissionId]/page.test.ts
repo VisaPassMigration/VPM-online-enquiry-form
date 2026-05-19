@@ -102,7 +102,7 @@ describe('intake dashboard actions', () => {
     await runClientCommunicationAction(formData);
 
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.PREPARE_CLIENT_COMMUNICATION);
-    expect(mocks.createClientCommunicationDraftMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff' }));
+    expect(mocks.createClientCommunicationDraftMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff', actorStaffUserId: 'staff-1' }));
   });
 
   it('release request-more-info uses session-derived actor', async () => {
@@ -115,7 +115,7 @@ describe('intake dashboard actions', () => {
     await runReleaseRequestMoreInformationAction(formData);
 
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.RELEASE_REQUEST_MORE_INFO);
-    expect(mocks.releaseRequestMoreInformationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff' }));
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff', actorStaffUserId: 'staff-1' }));
   });
 
   it('release consultation invite uses session-derived actor', async () => {
@@ -127,7 +127,7 @@ describe('intake dashboard actions', () => {
     await runReleaseConsultationInvitationAction(formData);
 
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.RELEASE_CONSULTATION_INVITE);
-    expect(mocks.releaseConsultationInvitationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff' }));
+    expect(mocks.releaseConsultationInvitationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff', actorStaffUserId: 'staff-1' }));
   });
 
   it('read_only_reviewer cannot prepare communication', async () => {
@@ -174,19 +174,19 @@ describe('intake dashboard actions', () => {
     await runConsultationBookingAction(formData);
 
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.MANAGE_CONSULTATION_BOOKINGS);
-    expect(mocks.createConsultationBookingMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer', actorRole: 'senior_staff' }));
+    expect(mocks.createConsultationBookingMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer', actorRole: 'senior_staff', actorStaffUserId: 'staff-1' }));
   });
 
   it('mark booked and completed use session-derived actor', async () => {
     const booked = new FormData();
     booked.set('submissionId', 'sub-1'); booked.set('bookingId', 'booking-1'); booked.set('action', 'mark_booked'); booked.set('internalReason', 'note');
     await runConsultationBookingAction(booked);
-    expect(mocks.markConsultationBookedMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer' }));
+    expect(mocks.markConsultationBookedMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer', actorStaffUserId: 'staff-1' }));
 
     const completed = new FormData();
     completed.set('submissionId', 'sub-1'); completed.set('bookingId', 'booking-1'); completed.set('action', 'mark_completed'); completed.set('internalReason', 'note');
     await runConsultationBookingAction(completed);
-    expect(mocks.markConsultationCompletedMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer' }));
+    expect(mocks.markConsultationCompletedMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorName: 'Jane Reviewer', actorStaffUserId: 'staff-1' }));
   });
 
   it('enforces consultation booking action permissions', async () => {
@@ -223,5 +223,6 @@ describe('intake dashboard actions', () => {
     expect(auditData.actorId).toBe('staff-1');
     expect(auditData.actorName).toBe('Jane Reviewer');
     expect(auditData.actorRole).toBe('senior_staff');
+    expect(auditData.actorStaffUserId).toBe('staff-1');
   });
 });

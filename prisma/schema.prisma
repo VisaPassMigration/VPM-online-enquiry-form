@@ -321,6 +321,8 @@ model AuditEvent {
   actorId       String?
   actorRole     String?
   actorName     String?
+  actorStaffUserId String?
+  actorStaffUser StaffUser? @relation("AuditEventActorStaffUser", fields: [actorStaffUserId], references: [id])
   relatedEntityType String?
   relatedEntityId String?
   eventAt       DateTime         @default(now())
@@ -338,6 +340,7 @@ model AuditEvent {
   @@index([submissionId])
   @@index([eventType])
   @@index([submissionId, eventAt])
+  @@index([actorStaffUserId])
 }
 
 model ClientCommunication {
@@ -377,6 +380,7 @@ model StaffUser {
   updatedAt                DateTime        @updatedAt
   staffRoles               StaffUserRole[] @relation("StaffRoleAssignments")
   assignedRoles            StaffUserRole[] @relation("RoleAssignedByStaff")
+  auditEventsAsActor       AuditEvent[]   @relation("AuditEventActorStaffUser")
 }
 
 model StaffRole {

@@ -14,6 +14,7 @@ type RequiredFields = {
   internalReason: string;
   actorId: string;
   actorRole: ActorRole;
+  actorStaffUserId?: string;
 };
 
 export type CreateClientCommunicationDraftInput = RequiredFields & {
@@ -76,6 +77,7 @@ async function createAuditEvent(input: {
     | 'client_comm_release_blocked';
   actorId: string;
   actorRole: string;
+  actorStaffUserId?: string;
   reason: string;
   metadata: Prisma.InputJsonObject;
   fromStatus?: string;
@@ -86,13 +88,14 @@ async function createAuditEvent(input: {
     eventType: input.eventType,
     actorId: input.actorId,
     actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
     relatedEntityType: 'client_communication',
     relatedEntityId: input.communicationId,
     fromValue: input.fromStatus,
     toValue: input.toStatus,
     internalNote: input.reason,
     reason: input.reason,
-    metadata: input.metadata,
+    metadata: { ...input.metadata, ...(input.actorStaffUserId ? { actorStaffUserId: input.actorStaffUserId } : {}) },
     eventSource: 'client_communications_service',
   });
 }
@@ -118,6 +121,7 @@ export async function createClientCommunicationDraft(input: CreateClientCommunic
     eventType: 'client_comm_drafted',
     actorId: input.actorId,
     actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
     reason: input.internalReason.trim(),
     metadata: {
       communicationId: created.id,
@@ -147,6 +151,7 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
     internalNote: input.internalReason,
     actorId: input.actorId,
     actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
     resendReason: input.resendReason,
     riskFlags: riskFlags.map((flag) => ({
       key: flag.riskCode,
@@ -182,6 +187,7 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
       reason: gate.blockedReason ?? 'release_blocked',
       metadata: {
         communicationId: input.communicationId,
@@ -210,6 +216,7 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
     eventType: 'client_comm_release_requested',
     actorId: input.actorId,
     actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
     reason: input.internalReason.trim(),
     metadata: {
       communicationId: input.communicationId,
@@ -258,6 +265,7 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
     internalNote: input.internalReason,
     actorId: input.actorId,
     actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
   });
 
   if (!gate.allowed) {
@@ -267,6 +275,7 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
       reason: gate.blockedReason ?? 'release_blocked',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -290,6 +299,7 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
       eventType: 'client_comm_released',
       actorId: input.actorId,
       actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
       reason: input.internalReason.trim(),
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -302,6 +312,7 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
       reason: 'email_send_failed',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType, failureReason } as Prisma.InputJsonObject,
     });
@@ -328,6 +339,7 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
     internalNote: input.internalReason,
     actorId: input.actorId,
     actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
     riskFlags: riskFlags.map((flag) => ({
       key: flag.riskCode,
       severity: flag.severity,
@@ -355,6 +367,7 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
       reason: gate.blockedReason ?? 'release_blocked',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -378,6 +391,7 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
       eventType: 'client_comm_released',
       actorId: input.actorId,
       actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
       reason: input.internalReason.trim(),
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -390,6 +404,7 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
+    actorStaffUserId: input.actorStaffUserId,
       reason: 'email_send_failed',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType, failureReason } as Prisma.InputJsonObject,
     });

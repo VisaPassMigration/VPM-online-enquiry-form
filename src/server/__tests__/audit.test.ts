@@ -169,4 +169,18 @@ describe('recordAuditEvent', () => {
       }),
     );
   });
+
+  it('actorStaffUserId is preserved as first-class field', async () => {
+    await recordAuditEvent({
+      submissionId: 'sub-1',
+      eventType: 'submission_updated',
+      actorStaffUserId: 'staff-user-1',
+    });
+
+    expect(auditCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ actorStaffUserId: 'staff-user-1' }),
+      }),
+    );
+  });
 });

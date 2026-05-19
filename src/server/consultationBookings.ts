@@ -64,6 +64,7 @@ async function writeAuditEvent(
     actorName: input.actorName,
     reason: input.reason,
     internalNote: input.reason,
+    actorStaffUserId: input.actorStaffUserId,
     metadata: { ...(input.metadata ?? {}), ...(input.actorStaffUserId ? { actorStaffUserId: input.actorStaffUserId } : {}) },
     relatedEntityType: 'consultation_booking',
     relatedEntityId: input.relatedEntityId,
