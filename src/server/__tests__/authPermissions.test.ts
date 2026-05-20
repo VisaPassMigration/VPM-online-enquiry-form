@@ -61,6 +61,17 @@ describe('permission matrix', () => {
     expect(hasPermission(['read_only_reviewer'], PERMISSIONS.SHARE_CLEAR_REPORT)).toBe(false);
     expect(hasPermission(['read_only_reviewer'], PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA)).toBe(false);
     expect(hasPermission(['read_only_reviewer'], PERMISSIONS.APPROVE_MIGRATION_REFERENCE_DATA)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.PREPARE_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.APPROVE_STANDARD_CLEAR_REPORT)).toBe(false);
+  });
+
+  it('C.L.E.A.R approval-gate permissions are mapped by role', () => {
+    expect(hasPermission(['kenya_intake_staff'], PERMISSIONS.PREPARE_CLEAR_REPORT)).toBe(true);
+    expect(hasPermission(['kenya_intake_staff'], PERMISSIONS.APPROVE_STANDARD_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['senior_staff'], PERMISSIONS.APPROVE_STANDARD_CLEAR_REPORT)).toBe(true);
+    expect(hasPermission(['senior_staff'], PERMISSIONS.REQUEST_AUSTRALIA_CLEAR_REVIEW)).toBe(true);
+    expect(hasPermission(['australia_migration_team'], PERMISSIONS.COMPLETE_AUSTRALIA_CLEAR_REVIEW)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.OVERRIDE_CLEAR_REPORT_APPROVAL)).toBe(true);
   });
 
   it('migration reference data permissions exist and are mapped as expected', () => {

@@ -178,6 +178,12 @@ enum AuditEventType {
   clear_report_reviewed
   clear_report_approved
   clear_report_shared
+  clear_report_prepared
+  clear_report_approval_requested
+  clear_report_australia_review_requested
+  clear_report_australia_review_completed
+  clear_report_approval_blocked
+  clear_report_override_approved
   migration_reference_dataset_imported
   migration_reference_dataset_reviewed
   migration_reference_dataset_approved
@@ -257,7 +263,18 @@ model ClearReport {
   staffNotes               String?
   clientFacingNotes        String?
   preparedByStaffUserId    String?
+  preparedAt               DateTime?
   reviewedByStaffUserId    String?
+  reviewedAt               DateTime?
+  approvedByStaffUserId    String?
+  approvedAt               DateTime?
+  approvalScope            String?
+  requiresAustraliaReview  Boolean           @default(false)
+  australiaReviewReason    String?
+  australiaReviewedByStaffUserId String?
+  australiaReviewedAt      DateTime?
+  escalationReason         String?
+  reviewNotes              String?
   sharedByStaffUserId      String?
   sharedAt                 DateTime?
   createdAt                DateTime          @default(now())
