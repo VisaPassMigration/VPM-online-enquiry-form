@@ -74,6 +74,21 @@ describe('permission matrix', () => {
     expect(hasPermission(['boss_admin'], PERMISSIONS.OVERRIDE_CLEAR_REPORT_APPROVAL)).toBe(true);
   });
 
+
+  it('Australia review permissions are explicitly constrained by role', () => {
+    expect(hasPermission(['senior_staff'], PERMISSIONS.REQUEST_AUSTRALIA_CLEAR_REVIEW)).toBe(true);
+    expect(hasPermission(['australia_migration_team'], PERMISSIONS.REQUEST_AUSTRALIA_CLEAR_REVIEW)).toBe(false);
+    expect(hasPermission(['australia_migration_team'], PERMISSIONS.COMPLETE_AUSTRALIA_CLEAR_REVIEW)).toBe(true);
+  });
+
+  it('read_only_reviewer cannot mutate C.L.E.A.R workflow actions', () => {
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.PREPARE_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.APPROVE_STANDARD_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.REQUEST_AUSTRALIA_CLEAR_REVIEW)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.COMPLETE_AUSTRALIA_CLEAR_REVIEW)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.OVERRIDE_CLEAR_REPORT_APPROVAL)).toBe(false);
+  });
+
   it('migration reference data permissions exist and are mapped as expected', () => {
     expect(PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA).toBe('manage_migration_reference_data');
     expect(PERMISSIONS.APPROVE_MIGRATION_REFERENCE_DATA).toBe('approve_migration_reference_data');

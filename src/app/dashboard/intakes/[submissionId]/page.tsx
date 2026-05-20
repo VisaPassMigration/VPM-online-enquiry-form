@@ -890,12 +890,13 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 <input type="hidden" name="clearReportId" value={report.id} />
                 <label><strong>Internal note/reason (required)</strong></label>
                 <textarea name="internalReason" required rows={3} />
+                <p>Approval for consultation use is an internal readiness step only. It does not send the report to the client and does not confirm any visa outcome.</p>
                 <div className="button-row">
                   <button type="submit" name="action" value="mark_prepared">Mark Prepared</button>
-                  <button type="submit" name="action" value="approve_for_consultation">Approve for Consultation</button>
+                  <button type="submit" name="action" value="approve_for_consultation">Approve for Consultation Use (Internal)</button>
                   <button type="submit" name="action" value="request_au_review">Request Australia Review</button>
                   <button type="submit" name="action" value="complete_au_review">Complete Australia Review</button>
-                  <button type="submit" name="action" value="boss_override_approve">Boss Override Approval</button>
+                  <button type="submit" name="action" value="boss_override_approve">Boss Override Approval (Internal)</button>
                 </div>
               </form> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
               <h5>Safe snapshot preview</h5>
