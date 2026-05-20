@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   suggestLeadRatingMock: vi.fn(),
   confirmLeadRatingMock: vi.fn(),
   changeLeadRatingMock: vi.fn(),
+  generateClearReportDraftMock: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
@@ -65,6 +66,7 @@ vi.mock('@/server/leadRatings', () => ({
   confirmLeadRating: mocks.confirmLeadRatingMock,
   changeLeadRating: mocks.changeLeadRatingMock,
 }));
+vi.mock('@/server/clearReports', () => ({ generateClearReportDraft: mocks.generateClearReportDraftMock }));
 
 import {
   runClientCommunicationAction,
@@ -74,6 +76,7 @@ import {
   runConsultationBookingAction,
   runDocumentReviewAction,
   runLeadRatingAction,
+  runGenerateClearReportDraftAction,
   default as IntakeReviewPage,
 } from './page';
 
@@ -97,6 +100,7 @@ describe('intake dashboard actions', () => {
       documents: [],
       clientCommunications: [],
       consultationBookings: [],
+      clearReports: [],
       auditEvents: [],
     });
     mocks.updateSubmissionMock.mockResolvedValue({});
@@ -491,6 +495,65 @@ describe('intake dashboard actions', () => {
     expect(html).not.toContain('Mark Under Review');
   });
 
+
+
+  it('clear tab renders label, warning, and generate action with permission', async () => {
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('C.L.E.A.R');
+    expect(html).toContain('internal staff-reviewed preliminary strategy report');
+    expect(html).toContain('Generate C.L.E.A.R Draft');
+    expect(html).not.toContain('PDF');
+    expect(html).not.toContain('Email');
+    expect(html).not.toContain('Approve');
+    expect(html).not.toContain('Share');
+  });
+
+  it('generate clear draft action calls service', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1');
+    fd.set('internalReason', 'internal rationale');
+    fd.set('overrideNote', 'optional override');
+    await runGenerateClearReportDraftAction(fd);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.GENERATE_CLEAR_REPORT);
+    expect(mocks.generateClearReportDraftMock).toHaveBeenCalledWith(expect.objectContaining({ submissionId: 'sub-1', staffNotes: 'internal rationale', overrideNote: 'optional override' }));
+  });
+
+  it('clear tab renders existing reports and safe snapshot preview sections', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', payload: {}, status: 'submitted', leadRating: null, leadRatingSuggested: null, leadRatingReason: null, leadRatingConfirmedAt: null, leadRatingConfirmedBy: null, leadRatingSuggestedAt: null,
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], auditEvents: [],
+      clearReports: [{
+        id: 'cr-1', status: 'draft', reportVersion: 'clear-v1', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date('2026-01-01T01:00:00Z'), preparedByStaffUserId: 'staff-1', reviewedByStaffUserId: 'staff-2', sharedAt: null,
+        generatedSnapshotJson: { clientSnapshot: { a: 1 }, preliminaryPointsSnapshot: { total: 80 }, leadRating: { leadRating: 'hot' }, referenceDataset: { datasetVersion: 'ds-v3', warning: 'dataset stale' }, documentCompleteness: { total: 1 }, riskDisclosuresReviewNotes: [{ riskCode: 'x' }], disclaimer: 'Internal only.' },
+      }],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Report status');
+    expect(html).toContain('Report version');
+    expect(html).toContain('Prepared by staff user ID');
+    expect(html).toContain('Reviewed by staff user ID');
+    expect(html).toContain('Reference dataset warning');
+    expect(html).toContain('Client snapshot');
+    expect(html).toContain('Preliminary points snapshot');
+    expect(html).toContain('Lead rating');
+    expect(html).toContain('Document completeness');
+    expect(html).toContain('Risk review notes');
+    expect(html).toContain('Disclaimer');
+  });
+
+  it('read_only_reviewer can view clear tab but cannot generate', async () => {
+    mocks.requirePermissionMock.mockImplementation(async (permission) => {
+      if (permission === PERMISSIONS.GENERATE_CLEAR_REPORT) throw new Error('not allowed');
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('C.L.E.A.R');
+    expect(html).toContain('Draft generation is not available for your role.');
+    expect(html).not.toContain('Generate C.L.E.A.R Draft');
+  });
+
   it('renders all tab labels and supports tab query parameter fallback', async () => {
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'unknown' }) });
     const html = renderToStaticMarkup(jsx);
@@ -499,6 +562,7 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Documents');
     expect(html).toContain('Lead Rating');
     expect(html).toContain('Communications');
+    expect(html).toContain('C.L.E.A.R');
     expect(html).toContain('Consultation');
     expect(html).toContain('Staff Tasks');
     expect(html).toContain('Audit Trail');

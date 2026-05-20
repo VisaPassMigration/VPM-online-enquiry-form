@@ -21,6 +21,7 @@ import {
 } from '@/server/consultationBookings';
 import type { RecordAuditEventInput } from '@/server/audit';
 import { changeLeadRating, confirmLeadRating, suggestLeadRating } from '@/server/leadRatings';
+import { generateClearReportDraft } from '@/server/clearReports';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -627,7 +628,36 @@ export async function runLeadRatingAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
-const INTAKE_TABS = ['overview', 'intake-details', 'documents', 'lead-rating', 'communications', 'consultation', 'staff-tasks', 'audit-trail'] as const;
+
+export async function runGenerateClearReportDraftAction(formData: FormData) {
+  'use server';
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  await requirePermission(PERMISSIONS.GENERATE_CLEAR_REPORT);
+
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const overrideNote = String(formData.get('overrideNote') ?? '').trim();
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  if (!submissionId || !internalReason || !actorId) return;
+
+  await generateClearReportDraft({
+    submissionId,
+    actor: {
+      actorId,
+      actorName: session.user.name?.trim() || session.user.email?.trim() || actorId,
+      actorRole: resolveActorRole(session.user.roles ?? []),
+      actorStaffUserId: actorId,
+      actorRoles: (session.user.roles ?? []) as any,
+    },
+    staffNotes: internalReason,
+    overrideNote: overrideNote || undefined,
+  });
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
+const INTAKE_TABS = ['overview', 'intake-details', 'documents', 'lead-rating', 'clear', 'communications', 'consultation', 'staff-tasks', 'audit-trail'] as const;
 type IntakeTab = typeof INTAKE_TABS[number];
 
 function resolveTab(tabValue: string | undefined): IntakeTab {
@@ -641,10 +671,12 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   let canSuggestLeadRating = true;
   let canConfirmLeadRating = true;
   let canChangeLeadRating = true;
+  let canGenerateClearReport = true;
   try { await requirePermission(PERMISSIONS.VIEW_LEAD_RATING); } catch { canViewLeadRating = false; }
   try { await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING); } catch { canSuggestLeadRating = false; }
   try { await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING); } catch { canConfirmLeadRating = false; }
   try { await requirePermission(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING); } catch { canChangeLeadRating = false; }
+  try { await requirePermission(PERMISSIONS.GENERATE_CLEAR_REPORT); } catch { canGenerateClearReport = false; }
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
     where: { id: submissionId },
@@ -656,6 +688,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
       auditEvents: { orderBy: { eventAt: 'desc' }, take: 30 },
       clientCommunications: { orderBy: { createdAt: 'desc' } },
       consultationBookings: { orderBy: { createdAt: 'desc' } },
+      clearReports: { orderBy: { createdAt: 'desc' } },
     },
   });
 
@@ -682,6 +715,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           <Link href={`/dashboard/intakes/${submission.id}?tab=intake-details`}>Intake Details</Link>
           <Link href={`/dashboard/intakes/${submission.id}?tab=documents`}>Documents</Link>
           <Link href={`/dashboard/intakes/${submission.id}?tab=lead-rating`}>Lead Rating</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=clear`}>C.L.E.A.R</Link>
           <Link href={`/dashboard/intakes/${submission.id}?tab=communications`}>Communications</Link>
           <Link href={`/dashboard/intakes/${submission.id}?tab=consultation`}>Consultation</Link>
           <Link href={`/dashboard/intakes/${submission.id}?tab=staff-tasks`}>Staff Tasks</Link>
@@ -754,6 +788,59 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             <button type="submit" name="action" value="mark_consultation_ready_internal">Mark Consultation-Ready Internally</button>
           </div>
         </form>
+      </section> : null}
+
+
+      {activeTab === 'clear' ? <section className="section review-section">
+        <h3>C.L.E.A.R</h3>
+        <p><strong>Warning:</strong> C.L.E.A.R is an internal staff-reviewed preliminary strategy report. It must not be shared with clients until reviewed and approved through the authorised workflow.</p>
+        {canGenerateClearReport ? <form action={runGenerateClearReportDraftAction} className="intake-form">
+          <input type="hidden" name="submissionId" value={submission.id} />
+          <label><strong>Internal note/reason (required)</strong></label>
+          <textarea name="internalReason" required rows={3} />
+          <label><strong>Override note (optional for non-hot/non-escalate)</strong></label>
+          <textarea name="overrideNote" rows={2} />
+          <button type="submit">Generate C.L.E.A.R Draft</button>
+        </form> : <p>Draft generation is not available for your role.</p>}
+      </section> : null}
+      {activeTab === 'clear' ? <section className="section review-section">
+        <h3>C.L.E.A.R reports</h3>
+        {submission.clearReports.length === 0 ? <p>No C.L.E.A.R reports generated yet.</p> : <div className="communication-timeline" aria-label="C.L.E.A.R reports timeline">
+          {submission.clearReports.map((report) => {
+            const snapshot = (report.generatedSnapshotJson && typeof report.generatedSnapshotJson === 'object' && !Array.isArray(report.generatedSnapshotJson))
+              ? report.generatedSnapshotJson as Record<string, any>
+              : {};
+            const referenceDatasetVersion = snapshot.referenceDataset?.datasetVersion;
+            const datasetWarning = typeof snapshot.warning === 'string' ? snapshot.warning : (typeof snapshot.referenceDataset?.warning === 'string' ? snapshot.referenceDataset.warning : null);
+            return <article key={report.id} className="communication-card">
+              <header className="communication-card__header">
+                <h4>{report.id}</h4>
+                <span className="pill pill--placeholder">{report.status}</span>
+              </header>
+              <dl className="communication-card__meta">
+                <div><dt>Report status</dt><dd>{report.status}</dd></div>
+                <div><dt>Report version</dt><dd>{report.reportVersion}</dd></div>
+                <div><dt>Created date</dt><dd>{displayDate(report.createdAt)}</dd></div>
+                <div><dt>Updated date</dt><dd>{displayDate(report.updatedAt)}</dd></div>
+                <div><dt>Prepared by staff user ID</dt><dd>{report.preparedByStaffUserId || 'Not provided'}</dd></div>
+                <div><dt>Reviewed by staff user ID</dt><dd>{report.reviewedByStaffUserId || 'Not provided'}</dd></div>
+                <div><dt>Shared date</dt><dd>{report.sharedAt ? displayDate(report.sharedAt) : 'Not provided'}</dd></div>
+                <div><dt>Reference dataset version</dt><dd>{referenceDatasetVersion || 'Not provided'}</dd></div>
+              </dl>
+              {datasetWarning ? <p><strong>Reference dataset warning:</strong> {datasetWarning}</p> : null}
+              <h5>Safe snapshot preview</h5>
+              {renderRows([
+                ['Client snapshot', snapshot.clientSnapshot ? 'Available' : 'Not provided'],
+                ['Preliminary points snapshot', snapshot.preliminaryPointsSnapshot ? 'Available' : 'Not provided'],
+                ['Lead rating', snapshot.leadRating ? JSON.stringify(snapshot.leadRating) : 'Not provided'],
+                ['Reference dataset version', referenceDatasetVersion || 'Not provided'],
+                ['Document completeness', snapshot.documentCompleteness ? JSON.stringify(snapshot.documentCompleteness) : 'Not provided'],
+                ['Risk review notes', snapshot.riskDisclosuresReviewNotes ? JSON.stringify(snapshot.riskDisclosuresReviewNotes) : 'Not provided'],
+                ['Disclaimer', typeof snapshot.disclaimer === 'string' ? snapshot.disclaimer : 'Not provided'],
+              ])}
+            </article>;
+          })}
+        </div>}
       </section> : null}
 
 
