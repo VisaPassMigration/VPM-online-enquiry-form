@@ -24,7 +24,7 @@ type GenerateClearReportDraftResult =
   | { blocked: false; warning?: string; clearReportId: string };
 
 const ALLOWED_LEAD_RATINGS = new Set<LeadRating>(['hot', 'escalate']);
-const UNSAFE_WORDING_PATTERN = /\b(eligible|guaranteed|qualified|suitable|strong candidate)\b/i;
+const UNSAFE_WORDING_PATTERN = /\b(eligible|approved|guaranteed|qualified|suitable|strong candidate|definite|assured)\b/i;
 
 function normalize(value?: string): string | undefined {
   const trimmed = value?.trim();
@@ -122,4 +122,52 @@ export async function generateClearReportDraft(input: GenerateClearReportDraftIn
   const created = await db.clearReport.create({ data: { submissionId: submission.id, consultationBookingId: consultationBooking?.id ?? null, status: 'draft', reportVersion: 'clear-v1', generatedSnapshotJson, preparedByStaffUserId: input.actor.actorStaffUserId, staffNotes: normalize(input.staffNotes) ?? normalize(input.overrideNote), clientFacingNotes: '' } });
   await recordAuditEvent({ submissionId: submission.id, eventType: 'clear_report_generated', actorId: input.actor.actorId, actorName: input.actor.actorName, actorRole: input.actor.actorRole, actorStaffUserId: input.actor.actorStaffUserId, relatedEntityType: 'clear_report', relatedEntityId: created.id, fromValue: null, toValue: { status: created.status, reportVersion: created.reportVersion }, internalNote: normalize(input.overrideNote) ?? 'C.L.E.A.R draft generated for internal review.', metadata: { internalOnly: true, clearReport: true, referenceDatasetVersion: approvedDataset?.datasetVersion ?? null, warning: datasetWarning ?? null } });
   return { blocked: false, warning: datasetWarning, clearReportId: created.id };
+}
+
+export async function updateClearReportNotes(input: {
+  clearReportId: string;
+  actor: ActorContext;
+  staffNotes?: string;
+  clientFacingNotes?: string;
+  reason: string;
+}) {
+  assertPermission(input.actor, PERMISSIONS.EDIT_CLEAR_REPORT);
+  const clearReportId = normalize(input.clearReportId);
+  if (!clearReportId) throw new Error('clearReportId is required.');
+  if (!input.actor.actorId || !input.actor.actorName || !input.actor.actorRole || !input.actor.actorStaffUserId) {
+    throw new Error('Authenticated staff actor context is required.');
+  }
+
+  const reason = normalize(input.reason);
+  if (!reason) throw new Error('Internal note/reason is required.');
+
+  const report = await db.clearReport.findUniqueOrThrow({ where: { id: clearReportId } });
+  const nextStaffNotes = input.staffNotes === undefined ? report.staffNotes : normalize(input.staffNotes) ?? null;
+  const nextClientFacingNotes = input.clientFacingNotes === undefined ? report.clientFacingNotes : normalize(input.clientFacingNotes) ?? '';
+
+  if (nextClientFacingNotes && UNSAFE_WORDING_PATTERN.test(nextClientFacingNotes)) {
+    throw new Error('Prohibited wording detected in client-facing notes.');
+  }
+
+  const updated = await db.clearReport.update({
+    where: { id: clearReportId },
+    data: { staffNotes: nextStaffNotes, clientFacingNotes: nextClientFacingNotes },
+  });
+
+  await recordAuditEvent({
+    submissionId: updated.submissionId,
+    eventType: 'clear_report_updated',
+    actorId: input.actor.actorId,
+    actorName: input.actor.actorName,
+    actorRole: input.actor.actorRole,
+    actorStaffUserId: input.actor.actorStaffUserId,
+    relatedEntityType: 'clear_report',
+    relatedEntityId: clearReportId,
+    fromValue: { staffNotes: report.staffNotes, clientFacingNotes: report.clientFacingNotes },
+    toValue: { staffNotes: updated.staffNotes, clientFacingNotes: updated.clientFacingNotes },
+    internalNote: reason,
+    reason,
+    metadata: { internalOnly: true, clearReport: true },
+  });
+  return updated;
 }
