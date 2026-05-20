@@ -556,7 +556,9 @@ describe('intake dashboard actions', () => {
       pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], auditEvents: [],
       clearReports: [{
         id: 'cr-1', status: 'draft', reportVersion: 'clear-v1', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date('2026-01-01T01:00:00Z'), preparedByStaffUserId: 'staff-1', preparedAt: new Date('2026-01-01T02:00:00Z'), reviewedAt: new Date('2026-01-01T03:00:00Z'), approvedByStaffUserId: 'boss-1', approvedAt: new Date('2026-01-01T04:00:00Z'), approvalScope: 'standard_hot', requiresAustraliaReview: true, australiaReviewReason: 'escalated', australiaReviewedByStaffUserId: 'au-1', australiaReviewedAt: new Date('2026-01-01T05:00:00Z'), escalationReason: 'risk', reviewNotes: 'notes', reviewedByStaffUserId: 'staff-2', sharedAt: null,
-        generatedSnapshotJson: { clientSnapshot: { a: 1 }, preliminaryPointsSnapshot: { total: 80 }, leadRating: { leadRating: 'hot' }, referenceDataset: { datasetVersion: 'ds-v3', warning: 'dataset stale' }, documentCompleteness: { total: 1 }, riskDisclosuresReviewNotes: [{ riskCode: 'x' }], disclaimer: 'Internal only.' },
+        staffNotes: 'Internal strategy note',
+        clientFacingNotes: 'Client-safe note draft',
+        generatedSnapshotJson: { clientSnapshot: { a: 1 }, ageProfileSummary: { age: 30 }, qualificationSummary: { highestQualification: 'Bachelor' }, workExperienceSummary: { years: 5 }, englishSummary: { level: 'Superior' }, potentialOccupationAlignment: { placeholder: 'alignment' }, possibleSkillsAssessmentBodyPathway: { placeholder: 'body/pathway' }, preliminaryPointsSnapshot: { total: 80 }, pointsImprovementStrategy: { placeholder: 'improve points' }, gsmOverviewSc189Sc190Sc491: { placeholder: 'gsm' }, referenceDataset: { datasetVersion: 'ds-v3', warning: 'dataset stale' }, documentCompleteness: { total: 1 }, riskDisclosuresReviewNotes: [{ riskCode: 'x' }], consultationTalkingPoints: { placeholder: 'talking points' }, recommendedNextSteps: { placeholder: 'next steps' }, estimatedForwardCostCategories: [{ code: 'gov_fee' }], disclaimer: 'Internal only.' },
       }],
     });
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
@@ -573,12 +575,33 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Approve for Consultation Use (Internal)');
     expect(html).toContain('Approval for consultation use is an internal readiness step only. It does not send the report to the client and does not confirm any visa outcome.');
     expect(html).toContain('Reference dataset warning');
+    expect(html).toContain('C.L.E.A.R cover/header');
+    expect(html).toContain('Safe language reminder');
+    expect(html).toContain('C.L.E.A.R title');
+    expect(html).toContain('Client Eligibility Assessment Report');
+    expect(html).toContain('Visa Pass Migration');
+    expect(html).toContain('Internal status badge');
     expect(html).toContain('Client snapshot');
+    expect(html).toContain('Age/profile summary');
+    expect(html).toContain('Qualification summary');
+    expect(html).toContain('Work experience summary');
+    expect(html).toContain('English summary');
+    expect(html).toContain('Potential occupation alignment');
+    expect(html).toContain('Possible skills assessment body/pathway');
     expect(html).toContain('Preliminary points snapshot');
-    expect(html).toContain('Lead rating');
+    expect(html).toContain('Points improvement strategy');
+    expect(html).toContain('GSM overview: SC189 / SC190 / SC491');
     expect(html).toContain('Document completeness');
-    expect(html).toContain('Risk review notes');
+    expect(html).toContain('Risk disclosures/review notes');
+    expect(html).toContain('Consultation talking points');
+    expect(html).toContain('Recommended next steps');
+    expect(html).toContain('Estimated forward cost categories');
+    expect(html).toContain('Reference dataset version/source notes');
     expect(html).toContain('Disclaimer');
+    expect(html).toContain('Editing coming next');
+    expect(html).not.toContain('Export');
+    expect(html).not.toContain('Send Email');
+    expect(html).not.toContain('Approve & Share');
   });
 
   it('read_only_reviewer can view clear tab but cannot mutate', async () => {
