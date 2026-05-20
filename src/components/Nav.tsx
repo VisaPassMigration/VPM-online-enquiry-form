@@ -4,6 +4,7 @@ const navItems = [
   { href: '/', label: 'Home' },
   { href: '/intake', label: 'Intake' },
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard/enquiries', label: 'Enquiries' },
 ];
 
 export function Nav() {

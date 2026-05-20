@@ -367,6 +367,7 @@ export default async function DashboardPage({
     <>
       <section className="hero">
         <h1>Staff Dashboard Overview</h1>
+        <p><Link href="/dashboard/enquiries">Go to Enquiries</Link></p>
         <p>Internal management view for intake enquiries and workflow progression.</p>
       </section>
 
