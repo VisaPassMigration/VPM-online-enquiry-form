@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const mocks = vi.hoisted(() => ({
@@ -38,6 +38,8 @@ describe('dashboard lead rating UI', () => {
   const submittedSectionOnly = (markup: string) => markup.slice(markup.indexOf('<h3>Submitted enquiries</h3>'));
   const taskSectionOnly = (markup: string) => markup.slice(markup.indexOf('<h3>Staff Task Operations</h3>'), markup.indexOf('<h3>Intake KPI snapshot</h3>'));
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-19T12:00:00.000Z'));
     vi.clearAllMocks();
     mocks.getConsultsBookedToday.mockResolvedValue(0);
     mocks.getConsultsBookedThisWeek.mockResolvedValue(0);
@@ -64,6 +66,10 @@ describe('dashboard lead rating UI', () => {
       { id: 'task-3', title: 'Normal due week', taskType: 'doc_check', priority: 'normal', status: 'in_progress', dueDate: new Date('2026-05-21T20:00:00.000Z'), assignedStaffName: 'C', assignedStaffUserId: 'staff-c', createdAt: new Date('2026-05-18T09:00:00.000Z'), submission: null },
       { id: 'task-4', title: 'Low no due unassigned', taskType: 'admin_check', priority: 'low', status: 'completed', dueDate: null, assignedStaffName: null, assignedStaffUserId: null, createdAt: new Date('2026-05-17T09:00:00.000Z'), submission: { id: 'sub-none', payload: { firstName: 'Not', lastName: 'Rated' }, leadRating: null } },
     ]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('shows rating counts, filter placeholder, and table column', async () => {

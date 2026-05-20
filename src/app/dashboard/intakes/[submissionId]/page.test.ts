@@ -405,7 +405,7 @@ describe('intake dashboard actions', () => {
   it('lead rating history renders suggested/confirmed/changed events as internal read-only timeline', async () => {
     mocks.findUniqueMock.mockResolvedValueOnce({
       id: 'sub-1',
-      payload: {},
+      payload: { staffTasks: [] },
       status: 'submitted',
       leadRatingSuggested: 'warm',
       leadRatingSuggestedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -442,7 +442,7 @@ describe('intake dashboard actions', () => {
   it('lead rating history empty state renders when no rating history exists', async () => {
     mocks.findUniqueMock.mockResolvedValueOnce({
       id: 'sub-1',
-      payload: {},
+      payload: { staffTasks: [] },
       status: 'submitted',
       leadRatingSuggested: null,
       leadRatingSuggestedAt: null,
