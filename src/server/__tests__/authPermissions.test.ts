@@ -25,7 +25,6 @@ describe('permission matrix', () => {
     expect(hasPermission(normalizeRoleKeys(['staff']), PERMISSIONS.VIEW_DASHBOARD)).toBe(false);
   });
 
-
   it('lead rating permissions are mapped by role', () => {
     expect(hasPermission(['boss_admin'], PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING)).toBe(true);
     expect(hasPermission(['senior_staff'], PERMISSIONS.CONFIRM_LEAD_RATING)).toBe(true);
@@ -38,5 +37,38 @@ describe('permission matrix', () => {
 
   it('actor role resolves to safe unknown value when no canonical role exists', () => {
     expect(resolveActorRole(['staff'])).toBe('unknown_staff_role');
+  });
+
+  it('boss_admin has all clear report and reference data permissions', () => {
+    expect(hasPermission(['boss_admin'], PERMISSIONS.GENERATE_CLEAR_REPORT)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.EDIT_CLEAR_REPORT)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.REVIEW_CLEAR_REPORT)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.SHARE_CLEAR_REPORT)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.VIEW_CLEAR_REPORT)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.APPROVE_MIGRATION_REFERENCE_DATA)).toBe(true);
+    expect(hasPermission(['boss_admin'], PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA)).toBe(true);
+  });
+
+  it('senior_staff can review clear reports', () => {
+    expect(hasPermission(['senior_staff'], PERMISSIONS.REVIEW_CLEAR_REPORT)).toBe(true);
+  });
+
+  it('read_only_reviewer cannot mutate clear reports or reference data', () => {
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.GENERATE_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.EDIT_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.REVIEW_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.SHARE_CLEAR_REPORT)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA)).toBe(false);
+    expect(hasPermission(['read_only_reviewer'], PERMISSIONS.APPROVE_MIGRATION_REFERENCE_DATA)).toBe(false);
+  });
+
+  it('migration reference data permissions exist and are mapped as expected', () => {
+    expect(PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA).toBe('manage_migration_reference_data');
+    expect(PERMISSIONS.APPROVE_MIGRATION_REFERENCE_DATA).toBe('approve_migration_reference_data');
+    expect(PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA).toBe('view_migration_reference_data');
+    expect(hasPermission(['australia_migration_team'], PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA)).toBe(true);
+    expect(hasPermission(['senior_staff'], PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA)).toBe(false);
+    expect(hasPermission(['senior_staff'], PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA)).toBe(true);
   });
 });
