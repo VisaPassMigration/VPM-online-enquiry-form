@@ -627,7 +627,15 @@ export async function runLeadRatingAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
-export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
+const INTAKE_TABS = ['overview', 'intake-details', 'documents', 'lead-rating', 'communications', 'consultation', 'staff-tasks', 'audit-trail'] as const;
+type IntakeTab = typeof INTAKE_TABS[number];
+
+function resolveTab(tabValue: string | undefined): IntakeTab {
+  if (!tabValue) return 'overview';
+  return (INTAKE_TABS as readonly string[]).includes(tabValue) ? (tabValue as IntakeTab) : 'overview';
+}
+
+export default async function IntakeReviewPage({ params, searchParams }: { params: Promise<{ submissionId: string }>; searchParams?: Promise<{ tab?: string }> }) {
   await requirePermission(PERMISSIONS.VIEW_INTAKE_DETAILS);
   let canViewLeadRating = true;
   let canSuggestLeadRating = true;
@@ -656,6 +664,8 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
   const payload = (submission.payload && typeof submission.payload === 'object' && !Array.isArray(submission.payload)
     ? submission.payload
     : {}) as IntakePayload;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const activeTab = resolveTab(resolvedSearchParams?.tab);
   const latestPoints = submission.pointsSnapshots[0];
   const leadRatingHistory = submission.auditEvents.filter((event) => LEAD_RATING_HISTORY_EVENT_TYPES.has(String(event.eventType)));
 
@@ -666,7 +676,19 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
         <p>Submission ID: {submission.id}</p>
         <p><Link href="/dashboard">← Back to dashboard</Link></p>
       </section>
-      {canViewLeadRating ? <section className="section review-section">
+      <section className="section review-section">
+        <nav aria-label="Intake review tabs" className="button-row">
+          <Link href={`/dashboard/intakes/${submission.id}?tab=overview`}>Overview</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=intake-details`}>Intake Details</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=documents`}>Documents</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=lead-rating`}>Lead Rating</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=communications`}>Communications</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=consultation`}>Consultation</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=staff-tasks`}>Staff Tasks</Link>
+          <Link href={`/dashboard/intakes/${submission.id}?tab=audit-trail`}>Audit Trail</Link>
+        </nav>
+      </section>
+      {activeTab === 'overview' && canViewLeadRating ? <section className="section review-section">
         <h3>Lead Quality Rating</h3>
         <p><strong>Internal only:</strong> Lead Quality Rating is an internal triage tool only. It is not a client outcome and must not be communicated as an assessment result.</p>
         <p>Lead rating history is shown for internal accountability and triage review. It must not be shared with clients as an assessment outcome.</p>
@@ -713,11 +735,11 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
           </div>
         </form>
       </section> : null}
-      <section className="section dashboard-note" role="note" aria-label="Internal intake review note">
+      {activeTab === 'overview' ? <section className="section dashboard-note" role="note" aria-label="Internal intake review note">
         <strong>Important:</strong> Internal review page only. No client outcome should be released without authorised human review.
         <p>These actions update internal workflow only. No client outcome is released from this page.</p>
-      </section>
-      <section className="section review-section">
+      </section> : null}
+      {activeTab === 'overview' ? <section className="section review-section">
         <h3>Internal review actions</h3>
         <p>This action only marks the matter internally as ready for consultation invitation review. It does not send a consultation invitation or confirm any outcome.</p>
         <form action={runInternalReviewAction} className="intake-form">
@@ -732,10 +754,10 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
             <button type="submit" name="action" value="mark_consultation_ready_internal">Mark Consultation-Ready Internally</button>
           </div>
         </form>
-      </section>
+      </section> : null}
 
 
-      <section className="section review-section">
+      {activeTab === 'communications' ? <section className="section review-section">
         <h3>Staff-Controlled Client Communications</h3>
         <p><strong>Warning:</strong> Client communication records are internal until released through an authorised staff action.</p>
         <form action={runClientCommunicationAction} className="intake-form">
@@ -748,9 +770,9 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
             <button type="submit" name="communicationType" value="not_progressing_hold">Prepare Not Progressing / Hold</button>
           </div>
         </form>
-      </section>
+      </section> : null}
 
-      <section className="section review-section"><h3>Communication records</h3>{submission.clientCommunications.length === 0 ? <p>No communication records available.</p> : (
+      {activeTab === 'communications' ? <section className="section review-section"><h3>Communication records</h3>{submission.clientCommunications.length === 0 ? <p>No communication records available.</p> : (
         <>
           <div className="communication-status-guide" role="note" aria-label="Communication status guide">
             <p><strong>Drafted</strong> = prepared internally, not sent.</p>
@@ -797,8 +819,8 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
             })}
           </div>
         </>
-      )}</section>
-      <section className="section review-section">
+      )}</section> : null}
+      {activeTab === 'consultation' ? <section className="section review-section">
         <h3>Consultation Booking Management</h3>
         <p>Consultation booking records are for internal operations and KPI tracking. Client outcomes and calendar events are not created from this section.</p>
         <form action={runConsultationBookingAction} className="intake-form">
@@ -884,61 +906,62 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
             ))}
           </div>
         )}
-      </section>
+      </section> : null}
 
-      <section className="section review-section"><h3>Client details</h3>{renderRows([
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>Client details</h3>{renderRows([
         ['First name', payload.firstName as string], ['Last name', payload.lastName as string], ['Date of birth', payload.dateOfBirth as string],
         ['Nationality', payload.nationality as string], ['Country of residence', payload.countryOfResidence as string], ['Address', payload.address as string],
-      ])}</section>
-      <section className="section review-section"><h3>Contact details</h3>{renderRows([
+      ])}</section> : null}
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>Contact details</h3>{renderRows([
         ['Email', payload.email as string], ['Phone', payload.phone as string], ['Preferred contact method', payload.contactMethod as string],
-      ])}</section>
-      <section className="section review-section"><h3>Migration goal</h3>{renderRows([
+      ])}</section> : null}
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>Migration goal</h3>{renderRows([
         ['Interested country', payload.interestedCountry as string], ['Main goal', payload.mainGoal as string], ['Timeframe', payload.timeframe as string],
-      ])}</section>
-      <section className="section review-section"><h3>Family / partner details</h3>{renderRows([
+      ])}</section> : null}
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>Family / partner details</h3>{renderRows([
         ['Marital status', payload.maritalStatus as string], ['Dependants', payload.dependants as string], ['Migrate with family', payload.migrateWithFamily as string], ['Partner name', payload.partnerName as string], ['Partner nationality', payload.partnerNationality as string],
         ['Partner English competency', payload.partnerEnglishCompetency as string], ['Partner skills assessment', payload.partnerSkillsAssessment as string],
-      ])}</section>
-      <section className="section review-section"><h3>Education</h3>{renderRows([
+      ])}</section> : null}
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>Education</h3>{renderRows([
         ['Highest qualification', payload.highestQualification as string], ['Field of study', payload.fieldOfStudy as string], ['Institution', payload.institution as string], ['Study country', payload.studyCountry as string], ['Completion year', payload.completionYear as string],
-      ])}</section>
-      <section className="section review-section"><h3>Employment</h3>{renderRows([
+      ])}</section> : null}
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>Employment</h3>{renderRows([
         ['Current occupation', payload.currentOccupation as string], ['Migration occupation', payload.migrationOccupation as string], ['Work experience years', payload.workExperienceYears as string],
         ['Current employer', payload.currentEmployer as string], ['Duties summary', payload.dutiesSummary as string],
-      ])}</section>
-      <section className="section review-section"><h3>English details</h3>{renderRows([
+      ])}</section> : null}
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>English details</h3>{renderRows([
         ['English test taken', boolText(payload.englishTestTaken as boolean | undefined)], ['English test type', payload.englishTestType as string], ['English overall band', payload.englishOverallBand as number | undefined], ['English test date', payload.englishTestDate as string], ['English score summary', payload.englishScoreSummary as string],
-      ])}</section>
-      <section className="section review-section"><h3>Risk disclosures and risk details</h3>{renderRows([
+      ])}</section> : null}
+      {activeTab === 'intake-details' ? <section className="section review-section"><h3>Risk disclosures and risk details</h3>{renderRows([
         ['Previous visa refusal', boolText(payload.previousVisaRefusal as boolean | undefined)], ['Cancellation/overstay/removal', boolText(payload.cancellationOverstayOrRemoval as boolean | undefined)], ['Criminal history', boolText(payload.criminalHistory as boolean | undefined)], ['Health condition', boolText(payload.healthCondition as boolean | undefined)],
         ['Refusal details', payload.refusalDetails as string], ['Cancellation/overstay details', payload.cancellationOverstayDetails as string], ['Criminal details', payload.criminalDetails as string], ['Health details', payload.healthDetails as string], ['General risk details', payload.riskDetails as string],
-      ])}</section>
+      ])}</section> : null}
 
-      <section className="section review-section"><h3>Latest points snapshot</h3>{latestPoints ? renderRows([
+      {activeTab === 'overview' ? <section className="section review-section"><h3>Latest points snapshot</h3>{latestPoints ? renderRows([
         ['Generated at', displayDate(latestPoints.generatedAt)], ['Total points', latestPoints.totalPoints], ['Calculator version', latestPoints.calculatorVersion], ['Generated by', latestPoints.generatedBy],
         ['Missing items', latestPoints.missingItems.length ? latestPoints.missingItems.join(', ') : 'None'], ['Preliminary label', latestPoints.preliminaryLabel],
-      ]) : <p>No points snapshot available yet.</p>}</section>
+      ]) : <p>No points snapshot available yet.</p>}</section> : null}
 
-      <section className="section review-section"><h3>Active risk flags</h3>{submission.riskFlags.length === 0 ? <p>No active risk flags.</p> : (
+      {activeTab === 'overview' ? <section className="section review-section"><h3>Active risk flags</h3>{submission.riskFlags.length === 0 ? <p>No active risk flags.</p> : (
         <ul className="review-list">{submission.riskFlags.map((flag) => <li key={flag.id}><strong>{flag.riskCode}</strong> ({flag.severity}) — {flag.resolutionStatus}</li>)}</ul>
-      )}</section>
+      )}</section> : null}
 
-      <section className="section review-section"><h3>Document review (staff-controlled)</h3>{submission.documents.length === 0 ? <p>No document metadata available.</p> : (
+      {activeTab === 'documents' ? <section className="section review-section"><h3>Document review (staff-controlled)</h3>{submission.documents.length === 0 ? <p>No document metadata available.</p> : (
         <div className="table-wrap"><table className="dashboard-table"><thead><tr><th>Type</th><th>Filename</th><th>Size (bytes)</th><th>Verification status</th><th>Required/optional</th><th>Waived</th><th>Waiver reason</th><th>Verification notes</th><th>Uploaded date</th><th>Reviewed by</th><th>Actions</th></tr></thead><tbody>{submission.documents.map((doc) => {
           const required = doc.documentType !== 'otherSupportingDocs';
           return <tr key={doc.id}><td>{doc.documentType}</td><td>{doc.originalFilename}</td><td>{doc.fileSizeBytes}</td><td>{doc.verificationStatus}</td><td>{required ? 'Required' : 'Optional'}</td><td>{doc.waived ? 'Yes' : 'No'}</td><td>{doc.waivedReason || 'Not waived'}</td><td>{doc.verificationNotesInternal || 'Not provided'}</td><td>{displayDate(doc.uploadedAt)}</td><td>{doc.verifiedBy || doc.waivedBy || 'Not provided'}</td><td><form action={runDocumentReviewAction} className="intake-form"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="documentId" value={doc.id} /><input type="hidden" name="isRequired" value={required ? 'true' : 'false'} /><input name="internalReason" required placeholder="Internal note/reason" /><input name="waiverReason" placeholder="Waiver reason (required for required docs)" /><div className="button-row"><button type="submit" name="action" value="accept">Mark accepted</button><button type="submit" name="action" value="reject">Mark rejected</button><button type="submit" name="action" value="needs_reupload">Mark needs re-upload</button><button type="submit" name="action" value="waive">Waive requirement</button></div></form></td></tr>;
         })}</tbody></table></div>
-      )}</section>
+      )}</section> : null}
 
-      <section className="section review-section"><h3>Current review state</h3>{submission.currentReviewState ? renderRows([
+      {activeTab === 'overview' ? <section className="section review-section"><h3>Current review state</h3>{submission.currentReviewState ? renderRows([
         ['Current stage', submission.currentReviewState.currentStage], ['Last decision', submission.currentReviewState.lastDecision], ['Mandatory stages complete', boolText(submission.currentReviewState.mandatoryStagesComplete)], ['Release checklist signed', boolText(submission.currentReviewState.releaseChecklistSigned)],
         ['Senior sign-off by', submission.currentReviewState.seniorSignOffBy], ['Senior sign-off at', submission.currentReviewState.seniorSignOffAt ? displayDate(submission.currentReviewState.seniorSignOffAt) : 'Not provided'], ['Updated at', displayDate(submission.currentReviewState.updatedAt)],
-      ]) : <p>No review state available yet.</p>}</section>
+      ]) : <p>No review state available yet.</p>}</section> : null}
+      {activeTab === 'staff-tasks' ? <section className="section review-section"><h3>Staff task list</h3><p>No active staff tasks are currently displayed for this submission.</p><form className="intake-form"><h4>Create task</h4><input name="title" placeholder="Task title" /><textarea name="description" placeholder="Task description" /><input name="assignee" placeholder="Assignee" /><input name="dueDate" type="date" /><select name="taskType"><option>Task type</option></select><select name="priority"><option>Priority</option></select><select name="status"><option>Status</option></select><div className="button-row"><button type="button">Create task</button><button type="button">Start task</button><button type="button">Complete task</button><button type="button">Cancel task</button><button type="button">Assign task</button><button type="button">Reassign task</button></div></form></section> : null}
 
-      <section className="section review-section"><h3>Audit timeline</h3>{submission.auditEvents.length === 0 ? <p>No audit events available.</p> : (
+      {activeTab === 'audit-trail' ? <section className="section review-section"><h3>Audit timeline</h3>{submission.auditEvents.length === 0 ? <p>No audit events available.</p> : (
         <ul className="review-list">{submission.auditEvents.map((event) => <li key={event.id}><strong>{event.eventType}</strong> at {displayDate(event.eventAt)}{event.reason ? ` — ${event.reason}` : ''}</li>)}</ul>
-      )}</section>
+      )}</section> : null}
     </>
   );
 }
