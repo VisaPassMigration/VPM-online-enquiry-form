@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   findSubmissionMock: vi.fn(),
   findDatasetMock: vi.fn(),
   createClearReportMock: vi.fn(),
+  updateClearReportMock: vi.fn(),
+  findClearReportMock: vi.fn(),
   recordAuditEventMock: vi.fn(),
 }));
 
@@ -11,13 +13,13 @@ vi.mock('../db', () => ({
   db: {
     intakeSubmission: { findUniqueOrThrow: mocks.findSubmissionMock },
     migrationReferenceDataset: { findFirst: mocks.findDatasetMock },
-    clearReport: { create: mocks.createClearReportMock },
+    clearReport: { create: mocks.createClearReportMock, update: mocks.updateClearReportMock, findUniqueOrThrow: mocks.findClearReportMock },
   },
 }));
 
 vi.mock('../audit', () => ({ recordAuditEvent: mocks.recordAuditEventMock }));
 
-import { generateClearReportDraft } from '../clearReports';
+import { approveClearReportForConsultation, completeAustraliaClearReview, generateClearReportDraft, markClearReportPrepared, overrideApproveClearReport, requestAustraliaClearReview } from '../clearReports';
 
 const actor = {
   actorId: 'actor-1',
@@ -125,5 +127,65 @@ describe('generateClearReportDraft', () => {
     await generateClearReportDraft({ submissionId: 'sub-1', actor });
     expect(mocks.recordAuditEventMock).toHaveBeenCalledTimes(1);
     expect(mocks.recordAuditEventMock.mock.calls[0][0].eventType).toBe('clear_report_generated');
+  });
+});
+
+
+describe('clear approval gating', () => {
+  beforeEach(() => {
+    mocks.findClearReportMock.mockResolvedValue({ id: 'cr-1', submissionId: 'sub-1', status: 'prepared', australiaReviewedAt: null, generatedSnapshotJson: { safe: true }, submission: { leadRating: 'hot', riskFlags: [] } });
+    mocks.updateClearReportMock.mockImplementation(async ({ data }) => ({ id: 'cr-1', submissionId: 'sub-1', ...data }));
+    mocks.findDatasetMock.mockResolvedValue({ status: 'approved', approvedAt: new Date(), updatedAt: new Date() });
+  });
+
+  it('Kenya senior can approve standard hot report', async () => {
+    const result = await approveClearReportForConsultation({ clearReportId: 'cr-1', actor, approvalNote: 'ready for internal consultation' });
+    expect(result.approved).toBe(true);
+  });
+
+  it('Kenya intake staff can prepare but cannot approve', async () => {
+    const intakeActor = { ...actor, actorRole: 'kenya_intake_staff' as const, actorRoles: ['kenya_intake_staff'] as const };
+    await expect(markClearReportPrepared({ clearReportId: 'cr-1', actor: intakeActor, note: 'prepared' })).resolves.toBeTruthy();
+    await expect(approveClearReportForConsultation({ clearReportId: 'cr-1', actor: intakeActor, approvalNote: 'x' })).rejects.toThrow('Missing permission');
+  });
+
+  it('escalate rating requires Australia review or boss override', async () => {
+    mocks.findClearReportMock.mockResolvedValue({ id: 'cr-1', submissionId: 'sub-1', australiaReviewedAt: null, generatedSnapshotJson: { safe: true }, submission: { leadRating: 'escalate', riskFlags: [] } });
+    const blocked = await approveClearReportForConsultation({ clearReportId: 'cr-1', actor, approvalNote: 'try' });
+    expect(blocked.approved).toBe(false);
+    const boss = { ...actor, actorRole: 'boss_admin' as const, actorRoles: ['boss_admin'] as const };
+    await expect(overrideApproveClearReport({ clearReportId: 'cr-1', actor: boss, overrideReason: 'policy exception' })).resolves.toBeTruthy();
+  });
+
+  it('unresolved high/critical risk blocks approval', async () => {
+    mocks.findClearReportMock.mockResolvedValue({ id: 'cr-1', submissionId: 'sub-1', australiaReviewedAt: null, generatedSnapshotJson: { safe: true }, submission: { leadRating: 'hot', riskFlags: [{ severity: 'critical' }] } });
+    const blocked = await approveClearReportForConsultation({ clearReportId: 'cr-1', actor, approvalNote: 'try' });
+    expect(blocked.approved).toBe(false);
+  });
+
+  it('stale/unapproved/no reference dataset blocks approval', async () => {
+    mocks.findDatasetMock.mockResolvedValue({ status: 'stale', approvedAt: null, updatedAt: new Date() });
+    const blocked = await approveClearReportForConsultation({ clearReportId: 'cr-1', actor, approvalNote: 'try' });
+    expect(blocked.approved).toBe(false);
+  });
+
+  it('unsafe wording blocks approval', async () => {
+    mocks.findClearReportMock.mockResolvedValue({ id: 'cr-1', submissionId: 'sub-1', australiaReviewedAt: null, generatedSnapshotJson: { txt: 'guaranteed approval' }, submission: { leadRating: 'hot', riskFlags: [] } });
+    const blocked = await approveClearReportForConsultation({ clearReportId: 'cr-1', actor, approvalNote: 'try' });
+    expect(blocked.approved).toBe(false);
+  });
+
+  it('Australia review request/completion writes audit', async () => {
+    await requestAustraliaClearReview({ clearReportId: 'cr-1', actor, reason: 'escalate path' });
+    const ausActor = { ...actor, actorRole: 'australia_migration_team' as const, actorRoles: ['australia_migration_team'] as const };
+    await completeAustraliaClearReview({ clearReportId: 'cr-1', actor: ausActor, reviewNotes: 'completed' });
+    expect(mocks.recordAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'clear_report_australia_review_requested' }));
+    expect(mocks.recordAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'clear_report_australia_review_completed' }));
+  });
+
+  it('boss override approves with mandatory reason', async () => {
+    const boss = { ...actor, actorRole: 'boss_admin' as const, actorRoles: ['boss_admin'] as const };
+    await expect(overrideApproveClearReport({ clearReportId: 'cr-1', actor: boss, overrideReason: '' })).rejects.toThrow('Override reason is required');
+    await expect(overrideApproveClearReport({ clearReportId: 'cr-1', actor: boss, overrideReason: 'required reason' })).resolves.toBeTruthy();
   });
 });
