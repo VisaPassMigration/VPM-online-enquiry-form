@@ -53,7 +53,7 @@ describe('enquiry communications', () => {
     mocks.dbMock.enquiryCommunication.findUnique.mockResolvedValue({ id: 'c1', enquiryId: 'e1', intakeSubmissionId: 'sub1', subject: 's', bodyText: 'safe [INTAKE_FORM_LINK]', enquiry: { email: 'x@y.com' } });
     mocks.sendEnquiryFaqEmail.mockResolvedValue({ status: 'sent', provider: 'none' });
     mocks.dbMock.enquiryCommunication.update.mockResolvedValue({ id: 'c1', enquiryId: 'e1', intakeSubmissionId: 'sub1', type: 'faq_general_migration' });
-    await sendService({ communicationId: 'c1', actor });
+    await sendService({ communicationId: 'c1', internalReason: 'Staff reviewed and approved info-only email', actor });
     expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: 'enquiry_faq_email_sent' }));
     expect(mocks.dbMock.staffTask.create).toHaveBeenCalled();
   });

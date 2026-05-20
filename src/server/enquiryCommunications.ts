@@ -21,13 +21,14 @@ export async function draftEnquiryFaqEmail(input: { enquiryId: string; intakeSub
   return created;
 }
 
-export async function sendEnquiryFaqEmail(input: { communicationId: string; actor: StaffActor }): Promise<{ communicationId: string; sendResult: EmailSendResult; followUpTaskCreated: boolean; }> {
+export async function sendEnquiryFaqEmail(input: { communicationId: string; internalReason: string; actor: StaffActor }): Promise<{ communicationId: string; sendResult: EmailSendResult; followUpTaskCreated: boolean; }> {
   assertStaffActor(input.actor); assertSendPermission(input.actor);
+  if (!input.internalReason?.trim()) throw new Error('Internal reason/note is required to send FAQ/pre-intake email.');
   const comm = await db.enquiryCommunication.findUnique({ where: { id: input.communicationId }, include: { enquiry: true } }); if (!comm) throw new Error('Enquiry communication not found.');
   if (/consultation|book|calendly/i.test(comm.bodyText) || /eligible|approved|guaranteed|qualified|suitable|strong candidate/i.test(comm.bodyText)) throw new Error('Unsafe content detected.');
   const sendResult = await dispatchEnquiryFaqEmail({ to: comm.enquiry.email, subject: comm.subject, bodyText: comm.bodyText });
   const updated = await db.enquiryCommunication.update({ where: { id: comm.id }, data: { status: 'sent', provider: sendResult.provider, providerMessageId: sendResult.messageId, sentByStaffUserId: input.actor.actorStaffUserId, sentAt: new Date() } });
-  if (updated.intakeSubmissionId) await recordAuditEvent({ submissionId: updated.intakeSubmissionId, eventType: "enquiry_faq_email_sent" as never, actorId: input.actor.actorId, actorRole: input.actor.actorRole, actorStaffUserId: input.actor.actorStaffUserId, relatedEntityType: 'enquiry_communication', relatedEntityId: updated.id, metadata: { enquiryId: updated.enquiryId, communicationType: updated.type } as Prisma.InputJsonObject, eventSource: 'enquiry_communications_service' });
+  if (updated.intakeSubmissionId) await recordAuditEvent({ submissionId: updated.intakeSubmissionId, eventType: "enquiry_faq_email_sent" as never, actorId: input.actor.actorId, actorRole: input.actor.actorRole, actorStaffUserId: input.actor.actorStaffUserId, relatedEntityType: 'enquiry_communication', relatedEntityId: updated.id, reason: input.internalReason, metadata: { enquiryId: updated.enquiryId, communicationType: updated.type, internalReason: input.internalReason } as Prisma.InputJsonObject, eventSource: 'enquiry_communications_service' });
   let followUpTaskCreated=false;
   if (updated.intakeSubmissionId && (db as any).staffTask?.create) { await (db as any).staffTask.create({ data: { submissionId: updated.intakeSubmissionId, taskType: 'follow_up_client', title: 'Follow up pre-intake questionnaire completion', status: 'open', priority: 'normal', dueDate: new Date(Date.now()+3*24*60*60*1000), internalOnly: true } }); followUpTaskCreated=true; }
   return { communicationId: updated.id, sendResult, followUpTaskCreated };
