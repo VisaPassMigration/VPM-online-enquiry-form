@@ -90,8 +90,14 @@ describe('intake dashboard actions', () => {
 
     mocks.findUniqueMock.mockResolvedValue({
       id: 'sub-1', status: 'submitted',
+      payload: {},
+      pointsSnapshots: [],
       currentReviewState: { currentStage: 'intake_triage', lastDecision: 'manual_hold' },
       riskFlags: [],
+      documents: [],
+      clientCommunications: [],
+      consultationBookings: [],
+      auditEvents: [],
     });
     mocks.updateSubmissionMock.mockResolvedValue({});
     mocks.upsertReviewStateMock.mockResolvedValue({});
@@ -461,5 +467,41 @@ describe('intake dashboard actions', () => {
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }) });
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('No lead rating history recorded yet.');
+  });
+
+  it('overview tab renders internal review actions and current review state', async () => {
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Internal review actions');
+    expect(html).toContain('Mark Under Review');
+    expect(html).toContain('Current review state');
+  });
+
+  it('staff tasks tab renders task controls and excludes internal review action labels', async () => {
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'staff-tasks' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Staff task list');
+    expect(html).toContain('Create task');
+    expect(html).toContain('Start task');
+    expect(html).toContain('Complete task');
+    expect(html).toContain('Cancel task');
+    expect(html).toContain('Assign task');
+    expect(html).toContain('Reassign task');
+    expect(html).not.toContain('Internal review actions');
+    expect(html).not.toContain('Mark Under Review');
+  });
+
+  it('renders all tab labels and supports tab query parameter fallback', async () => {
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'unknown' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Overview');
+    expect(html).toContain('Intake Details');
+    expect(html).toContain('Documents');
+    expect(html).toContain('Lead Rating');
+    expect(html).toContain('Communications');
+    expect(html).toContain('Consultation');
+    expect(html).toContain('Staff Tasks');
+    expect(html).toContain('Audit Trail');
+    expect(html).toContain('Internal review actions');
   });
 });
