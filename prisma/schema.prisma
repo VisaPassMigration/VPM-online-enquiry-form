@@ -152,12 +152,34 @@ enum AuditEventType {
   lead_rating_suggested
   lead_rating_confirmed
   lead_rating_changed
+  enquiry_faq_email_drafted
+  enquiry_faq_email_sent
+  enquiry_faq_email_failed
+  intake_link_sent
+  intake_link_clicked
 }
 
 enum ClientCommunicationType {
   request_more_information
   consultation_invitation
   not_progressing_hold
+}
+
+enum EnquiryCommunicationType {
+  faq_general_migration
+  faq_skilled_migration
+  faq_student_visa
+  faq_partner_family
+  faq_employer_sponsored
+  faq_insufficient_information
+}
+
+enum EnquiryCommunicationStatus {
+  drafted_internal
+  pending_staff_release
+  sent
+  failed
+  cancelled
 }
 
 enum ClientCommunicationStatus {
@@ -179,6 +201,8 @@ model IntakeSubmission {
   riskFlags               RiskFlag[]
   auditEvents             AuditEvent[]
   clientCommunications    ClientCommunication[]
+  enquiries               Enquiry[]
+  enquiryCommunications   EnquiryCommunication[]
   consultationBookings    ConsultationBooking[]
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
@@ -361,6 +385,54 @@ model AuditEvent {
   @@index([actorStaffUserId])
 }
 
+
+model Enquiry {
+  id                  String                 @id @default(uuid())
+  firstName           String?
+  lastName            String?
+  email               String
+  phone               String?
+  enquirySource       String?
+  enquiryMessage      String?
+  countryOfResidence  String?
+  nationality         String?
+  intendedPathway     String?
+  intakeSubmissionId  String?
+  intakeSubmission    IntakeSubmission?      @relation(fields: [intakeSubmissionId], references: [id], onDelete: SetNull)
+  communications      EnquiryCommunication[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([email])
+  @@index([intakeSubmissionId])
+}
+
+model EnquiryCommunication {
+  id                    String                     @id @default(uuid())
+  enquiryId             String
+  enquiry               Enquiry                    @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  intakeSubmissionId    String?
+  intakeSubmission      IntakeSubmission?          @relation(fields: [intakeSubmissionId], references: [id], onDelete: SetNull)
+  type                  EnquiryCommunicationType
+  status                EnquiryCommunicationStatus @default(drafted_internal)
+  subject               String
+  bodyText              String
+  templateVersion       String
+  intakeLinkUrlSnapshot String?
+  provider              String?
+  providerMessageId     String?
+  failureReason         String?
+  sentByStaffUserId     String?
+  sentByStaffUser       StaffUser?                 @relation(fields: [sentByStaffUserId], references: [id], onDelete: SetNull)
+  sentAt                DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+
+  @@index([enquiryId, createdAt])
+  @@index([status, updatedAt])
+  @@index([type, status])
+}
+
 model ClientCommunication {
   id                String                    @id @default(cuid())
   submissionId      String
@@ -399,6 +471,7 @@ model StaffUser {
   staffRoles               StaffUserRole[] @relation("StaffRoleAssignments")
   assignedRoles            StaffUserRole[] @relation("RoleAssignedByStaff")
   auditEventsAsActor       AuditEvent[]   @relation("AuditEventActorStaffUser")
+  sentEnquiryCommunications EnquiryCommunication[]
 }
 
 model StaffRole {
