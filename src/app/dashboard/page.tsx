@@ -17,6 +17,7 @@ import {
   getSeniorStaffCapacityRows,
   getUpcomingConsultations,
 } from '@/server/consultationKpis';
+import { auth } from '@/auth';
 
 type DashboardStatus =
   | 'Awaiting review'
@@ -45,6 +46,7 @@ type TaskPriority = 'urgent' | 'high' | 'normal' | 'low';
 type TaskStatus = 'open' | 'in_progress' | 'completed' | 'cancelled';
 type TaskDueScopeFilter = 'all' | 'overdue' | 'due_today' | 'due_this_week' | 'no_due_date';
 type TaskAssigneeFilter = 'all' | 'unassigned' | string;
+type TaskViewFilter = 'all' | 'my';
 type StaffTaskRow = {
   id: string;
   title: string;
@@ -53,6 +55,7 @@ type StaffTaskRow = {
   status: TaskStatus;
   dueDate: Date | null;
   assignedStaff: string;
+  assignedStaffUserId: string | null;
   submissionId: string | null;
   clientName: string;
   leadRating: LeadRating | null;
@@ -82,6 +85,11 @@ const parseTaskAssigneeFilter = (value: string | string[] | undefined): TaskAssi
   if (!normalized) return 'all';
   if (normalized === 'all' || normalized === 'unassigned') return normalized;
   return normalized;
+};
+const parseTaskViewFilter = (value: string | string[] | undefined): TaskViewFilter => {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  if (!normalized) return 'all';
+  return normalized === 'my' ? 'my' : 'all';
 };
 
 const leadRatingFilterSummary = (filter: LeadRatingFilter) =>
@@ -191,6 +199,9 @@ export default async function DashboardPage({
   const taskTypeFilter = taskTypeFilterRaw?.trim() ? taskTypeFilterRaw : 'all';
   const taskLeadRatingFilter = parseLeadRatingFilter(resolvedSearchParams.taskLeadRating);
   const taskAssigneeFilter = parseTaskAssigneeFilter(resolvedSearchParams.taskAssignee);
+  const taskViewFilter = parseTaskViewFilter(resolvedSearchParams.taskView);
+  const session = await auth();
+  const sessionStaffUserId = session?.user?.staffUserId?.trim() || null;
   const [
     consultsBookedToday,
     consultsBookedThisWeek,
@@ -296,6 +307,7 @@ export default async function DashboardPage({
       status: ((task.status as string) === 'blocked' ? 'in_progress' : task.status) as TaskStatus,
       dueDate: (task.dueDate as Date | null) ?? null,
       assignedStaff: String(task.assignedStaffName ?? 'Unassigned'),
+      assignedStaffUserId: task.assignedStaffUserId ? String(task.assignedStaffUserId) : null,
       submissionId: submission?.id ?? null,
       clientName: submission ? `${getPayloadField(submission.payload, 'firstName')} ${getPayloadField(submission.payload, 'lastName')}`.trim() : 'Not linked',
       leadRating: submission?.leadRating ?? null,
@@ -304,6 +316,25 @@ export default async function DashboardPage({
   });
   const now = new Date();
   const openTasks = staffTasks.filter((task) => task.status === 'open' || task.status === 'in_progress');
+  const myOpenTasks = sessionStaffUserId ? openTasks.filter((task) => task.assignedStaffUserId === sessionStaffUserId) : [];
+  const unassignedOpenTasks = openTasks.filter((task) => task.assignedStaff === 'Unassigned').length;
+  const workloadRows = Array.from(new Set(staffTasks.filter((task) => task.assignedStaff !== 'Unassigned').map((task) => task.assignedStaff)))
+    .sort((a, b) => a.localeCompare(b))
+    .map((staffName) => {
+      const assigned = staffTasks.filter((task) => task.assignedStaff === staffName);
+      const assignedOpen = assigned.filter((task) => task.status === 'open' || task.status === 'in_progress');
+      return {
+        staffName,
+        open: assignedOpen.filter((task) => task.status === 'open').length,
+        inProgress: assignedOpen.filter((task) => task.status === 'in_progress').length,
+        overdue: assignedOpen.filter((task) => isOverdue(task.dueDate, now)).length,
+        urgentOrHigh: assignedOpen.filter((task) => task.priority === 'urgent' || task.priority === 'high').length,
+        dueToday: assignedOpen.filter((task) => isDueToday(task.dueDate, now)).length,
+        dueThisWeek: assignedOpen.filter((task) => isDueThisWeek(task.dueDate, now)).length,
+        hotLead: assignedOpen.filter((task) => task.leadRating === 'hot').length,
+        escalateLead: assignedOpen.filter((task) => task.leadRating === 'escalate').length,
+      };
+    });
   const availableTaskTypes = Array.from(new Set(staffTasks.map((task) => task.taskType))).sort((a, b) => a.localeCompare(b));
   const availableAssignees = Array.from(new Set(staffTasks.map((task) => task.assignedStaff).filter((name) => name !== 'Unassigned'))).sort((a, b) => a.localeCompare(b));
   const filteredTasks = staffTasks.filter((task) => {
@@ -318,6 +349,7 @@ export default async function DashboardPage({
     if (taskLeadRatingFilter !== 'all' && taskLeadRatingFilter !== 'not_rated' && task.leadRating !== taskLeadRatingFilter) return false;
     if (taskAssigneeFilter === 'unassigned' && task.assignedStaff !== 'Unassigned') return false;
     if (taskAssigneeFilter !== 'all' && taskAssigneeFilter !== 'unassigned' && task.assignedStaff !== taskAssigneeFilter) return false;
+    if (taskViewFilter === 'my' && sessionStaffUserId && task.assignedStaffUserId !== sessionStaffUserId) return false;
     return true;
   });
   const sortedFilteredTasks = [...filteredTasks].sort((a, b) => {
@@ -353,8 +385,10 @@ export default async function DashboardPage({
           <h3>Staff Task Operations</h3>
         </div>
         <p>Staff tasks are internal operational reminders. They do not send client communications or create calendar events.</p>
+        <p><strong>Note:</strong> Task ownership and workload visibility are for internal operational management only.</p>
         <div className="dashboard-filters">
           {[
+            ['taskView', taskViewFilter, ['all', 'my']],
             ['taskStatus', taskStatusFilter, taskStatusFilters],
             ['taskPriority', taskPriorityFilter, taskPriorityFilters],
             ['taskDueScope', taskDueScopeFilter, taskDueScopeFilters],
@@ -373,6 +407,7 @@ export default async function DashboardPage({
                   ['taskType', taskTypeFilter],
                   ['taskLeadRating', taskLeadRatingFilter],
                   ['taskAssignee', taskAssigneeFilter],
+                  ['taskView', taskViewFilter],
                 ];
                 entries.forEach(([k, v]) => {
                   const nextValue = k === key ? value : v;
@@ -388,11 +423,15 @@ export default async function DashboardPage({
         </div>
         <p>
           Active task filters: status={taskStatusFilter}, priority={taskPriorityFilter}, due={taskDueScopeFilter}, type={taskTypeFilter}, lead
-          rating={taskLeadRatingFilter}, assignee={taskAssigneeFilter}
+          rating={taskLeadRatingFilter}, assignee={taskAssigneeFilter}, view={taskViewFilter}
         </p>
+        {taskViewFilter === 'my' && !sessionStaffUserId && (
+          <p>My Tasks view is unavailable because your staff session ID could not be resolved. Showing all tasks for safety.</p>
+        )}
         <div className="dashboard-kpi-grid">
           {[
-            { label: 'My open tasks', value: openTasks.length },
+            { label: 'My open tasks', value: myOpenTasks.length },
+            { label: 'Unassigned tasks', value: unassignedOpenTasks },
             { label: 'Overdue tasks', value: openTasks.filter((task) => isOverdue(task.dueDate, now)).length },
             { label: 'Due today', value: openTasks.filter((task) => isDueToday(task.dueDate, now)).length },
             { label: 'Due this week', value: openTasks.filter((task) => isDueThisWeek(task.dueDate, now)).length },
@@ -400,6 +439,18 @@ export default async function DashboardPage({
             { label: 'Tasks linked to Hot leads', value: openTasks.filter((task) => task.leadRating === 'hot').length },
             { label: 'Tasks linked to Escalate leads', value: openTasks.filter((task) => task.leadRating === 'escalate').length },
           ].map((kpi) => <article className="card kpi-card" key={kpi.label}><p>{kpi.label}</p><h4>{kpi.value}</h4></article>)}
+        </div>
+        <div className="table-wrap">
+          <table className="dashboard-table">
+            <thead><tr><th>Staff member</th><th>Open tasks</th><th>In-progress tasks</th><th>Overdue tasks</th><th>Urgent/high priority tasks</th><th>Due today</th><th>Due this week</th><th>Hot lead tasks</th><th>Escalate lead tasks</th></tr></thead>
+            <tbody>
+              {workloadRows.length === 0 ? <tr><td colSpan={9}>No assigned staff workload to display.</td></tr> : workloadRows.map((row) => (
+                <tr key={row.staffName}>
+                  <td>{row.staffName}</td><td>{row.open}</td><td>{row.inProgress}</td><td>{row.overdue}</td><td>{row.urgentOrHigh}</td><td>{row.dueToday}</td><td>{row.dueThisWeek}</td><td>{row.hotLead}</td><td>{row.escalateLead}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <div className="table-wrap">
           <table className="dashboard-table">

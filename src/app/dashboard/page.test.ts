@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getCsaIssuedToDepositPaidConversion: vi.fn(),
   getSeniorStaffCapacityRows: vi.fn(),
   getUpcomingConsultations: vi.fn(),
+  auth: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermission }));
@@ -31,6 +32,7 @@ vi.mock('@/server/consultationKpis', () => ({
   getSeniorStaffCapacityRows: mocks.getSeniorStaffCapacityRows,
   getUpcomingConsultations: mocks.getUpcomingConsultations,
 }));
+vi.mock('@/auth', () => ({ auth: mocks.auth }));
 
 describe('dashboard lead rating UI', () => {
   const submittedSectionOnly = (markup: string) => markup.slice(markup.indexOf('<h3>Submitted enquiries</h3>'));
@@ -47,6 +49,7 @@ describe('dashboard lead rating UI', () => {
     mocks.getCsaIssuedToDepositPaidConversion.mockResolvedValue({ conversionRate: 0, depositPaid: 0, csaIssued: 0 });
     mocks.getSeniorStaffCapacityRows.mockResolvedValue([]);
     mocks.getUpcomingConsultations.mockResolvedValue([]);
+    mocks.auth.mockResolvedValue({ user: { staffUserId: 'staff-a' } });
     const now = new Date('2026-05-19T12:00:00.000Z');
     mocks.findMany.mockResolvedValue([
       { id: 'sub-cold', submittedAt: new Date('2026-05-19T01:00:00.000Z'), createdAt: now, payload: { firstName: 'Cold', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'cold', leadRatingReason: null },
@@ -56,10 +59,10 @@ describe('dashboard lead rating UI', () => {
       { id: 'sub-escalate', submittedAt: new Date('2026-05-19T05:00:00.000Z'), createdAt: now, payload: { firstName: 'Escalate', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'escalate', leadRatingReason: 'Risk flag requires senior decision' },
     ]);
     mocks.staffTaskFindMany.mockResolvedValue([
-      { id: 'task-1', title: 'Urgent overdue escalate', taskType: 'risk_review', priority: 'urgent', status: 'open', dueDate: new Date('2026-05-18T00:00:00.000Z'), assignedStaffName: 'A', createdAt: new Date('2026-05-19T10:00:00.000Z'), submission: { id: 'sub-escalate', payload: { firstName: 'Escalate', lastName: 'Lead' }, leadRating: 'escalate' } },
-      { id: 'task-2', title: 'High due today hot', taskType: 'follow_up', priority: 'high', status: 'in_progress', dueDate: new Date('2026-05-19T20:00:00.000Z'), assignedStaffName: 'B', createdAt: new Date('2026-05-19T09:00:00.000Z'), submission: { id: 'sub-hot', payload: { firstName: 'Hot', lastName: 'Lead' }, leadRating: 'hot' } },
-      { id: 'task-3', title: 'Normal due week', taskType: 'doc_check', priority: 'normal', status: 'in_progress', dueDate: new Date('2026-05-21T20:00:00.000Z'), assignedStaffName: 'C', createdAt: new Date('2026-05-18T09:00:00.000Z'), submission: null },
-      { id: 'task-4', title: 'Low no due unassigned', taskType: 'admin_check', priority: 'low', status: 'completed', dueDate: null, assignedStaffName: null, createdAt: new Date('2026-05-17T09:00:00.000Z'), submission: { id: 'sub-none', payload: { firstName: 'Not', lastName: 'Rated' }, leadRating: null } },
+      { id: 'task-1', title: 'Urgent overdue escalate', taskType: 'risk_review', priority: 'urgent', status: 'open', dueDate: new Date('2026-05-18T00:00:00.000Z'), assignedStaffName: 'A', assignedStaffUserId: 'staff-a', createdAt: new Date('2026-05-19T10:00:00.000Z'), submission: { id: 'sub-escalate', payload: { firstName: 'Escalate', lastName: 'Lead' }, leadRating: 'escalate' } },
+      { id: 'task-2', title: 'High due today hot', taskType: 'follow_up', priority: 'high', status: 'in_progress', dueDate: new Date('2026-05-19T20:00:00.000Z'), assignedStaffName: 'B', assignedStaffUserId: 'staff-b', createdAt: new Date('2026-05-19T09:00:00.000Z'), submission: { id: 'sub-hot', payload: { firstName: 'Hot', lastName: 'Lead' }, leadRating: 'hot' } },
+      { id: 'task-3', title: 'Normal due week', taskType: 'doc_check', priority: 'normal', status: 'in_progress', dueDate: new Date('2026-05-21T20:00:00.000Z'), assignedStaffName: 'C', assignedStaffUserId: 'staff-c', createdAt: new Date('2026-05-18T09:00:00.000Z'), submission: null },
+      { id: 'task-4', title: 'Low no due unassigned', taskType: 'admin_check', priority: 'low', status: 'completed', dueDate: null, assignedStaffName: null, assignedStaffUserId: null, createdAt: new Date('2026-05-17T09:00:00.000Z'), submission: { id: 'sub-none', payload: { firstName: 'Not', lastName: 'Rated' }, leadRating: null } },
     ]);
   });
 
@@ -141,11 +144,40 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('Urgent tasks');
     expect(markup).toContain('Tasks linked to Hot leads');
     expect(markup).toContain('Tasks linked to Escalate leads');
+    expect(markup).toContain('Unassigned tasks');
     expect(markup).toContain('OVERDUE');
     expect(markup).toContain('DUE TODAY');
     expect(markup).toContain('URGENT');
     expect(markup).toContain('HOT LEAD');
     expect(markup).toContain('ESCALATE LEAD');
+    expect(markup).toContain('They do not send client communications or create calendar events.');
+  });
+  it('renders staff workload summary table and counts by staff', async () => {
+    const page = (await import('./page')).default;
+    const markup = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) })));
+    expect(markup).toContain('Staff member');
+    expect(markup).toContain('<td>A</td><td>1</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>1</td>');
+    expect(markup).toContain('<td>B</td><td>0</td><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td>');
+  });
+
+  it('my tasks uses session staff user id where available and falls back safely', async () => {
+    const page = (await import('./page')).default;
+    const myTasks = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskView: 'my' }) })));
+    expect(myTasks).toContain('Urgent overdue escalate');
+    expect(myTasks).not.toContain('High due today hot');
+
+    mocks.auth.mockResolvedValue({ user: {} });
+    const fallback = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskView: 'my' }) })));
+    expect(fallback).toContain('My Tasks view is unavailable because your staff session ID could not be resolved. Showing all tasks for safety.');
+    expect(fallback).toContain('High due today hot');
+  });
+
+  it('keeps dashboard tasks read-only and does not trigger client communication', async () => {
+    const page = (await import('./page')).default;
+    const markup = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) })));
+    expect(markup).not.toContain('Create task');
+    expect(markup).not.toContain('Complete');
+    expect(markup).not.toContain('Cancel');
     expect(markup).toContain('They do not send client communications or create calendar events.');
   });
 
