@@ -21,7 +21,14 @@ import {
 } from '@/server/consultationBookings';
 import type { RecordAuditEventInput } from '@/server/audit';
 import { changeLeadRating, confirmLeadRating, suggestLeadRating } from '@/server/leadRatings';
-import { generateClearReportDraft } from '@/server/clearReports';
+import {
+  approveClearReportForConsultation,
+  completeAustraliaClearReview,
+  generateClearReportDraft,
+  markClearReportPrepared,
+  overrideApproveClearReport,
+  requestAustraliaClearReview,
+} from '@/server/clearReports';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -657,6 +664,33 @@ export async function runGenerateClearReportDraftAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+export async function runClearWorkflowAction(formData: FormData) {
+  'use server';
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  const clearReportId = String(formData.get('clearReportId') ?? '').trim();
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const action = String(formData.get('action') ?? '').trim();
+  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  if (!clearReportId || !submissionId || !action || !internalReason || !actorId) return;
+
+  const actor = {
+    actorId,
+    actorName: session.user.name?.trim() || session.user.email?.trim() || actorId,
+    actorRole: resolveActorRole(session.user.roles ?? []),
+    actorStaffUserId: actorId,
+    actorRoles: (session.user.roles ?? []) as any,
+  };
+
+  if (action === 'mark_prepared') await markClearReportPrepared({ clearReportId, actor, note: internalReason });
+  if (action === 'approve_for_consultation') await approveClearReportForConsultation({ clearReportId, actor, approvalNote: internalReason });
+  if (action === 'request_au_review') await requestAustraliaClearReview({ clearReportId, actor, reason: internalReason });
+  if (action === 'complete_au_review') await completeAustraliaClearReview({ clearReportId, actor, reviewNotes: internalReason });
+  if (action === 'boss_override_approve') await overrideApproveClearReport({ clearReportId, actor, overrideReason: internalReason });
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
 const INTAKE_TABS = ['overview', 'intake-details', 'documents', 'lead-rating', 'clear', 'communications', 'consultation', 'staff-tasks', 'audit-trail'] as const;
 type IntakeTab = typeof INTAKE_TABS[number];
 
@@ -672,11 +706,15 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   let canConfirmLeadRating = true;
   let canChangeLeadRating = true;
   let canGenerateClearReport = true;
+  let canViewClear = true;
+  let canMutateClear = true;
   try { await requirePermission(PERMISSIONS.VIEW_LEAD_RATING); } catch { canViewLeadRating = false; }
   try { await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING); } catch { canSuggestLeadRating = false; }
   try { await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING); } catch { canConfirmLeadRating = false; }
   try { await requirePermission(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING); } catch { canChangeLeadRating = false; }
   try { await requirePermission(PERMISSIONS.GENERATE_CLEAR_REPORT); } catch { canGenerateClearReport = false; }
+  try { await requirePermission(PERMISSIONS.VIEW_CLEAR_REPORT); } catch { canViewClear = false; }
+  try { await requirePermission(PERMISSIONS.PREPARE_CLEAR_REPORT); } catch { canMutateClear = false; }
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
     where: { id: submissionId },
@@ -794,6 +832,14 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
       {activeTab === 'clear' ? <section className="section review-section">
         <h3>C.L.E.A.R</h3>
         <p><strong>Warning:</strong> C.L.E.A.R is an internal staff-reviewed preliminary strategy report. It must not be shared with clients until reviewed and approved through the authorised workflow.</p>
+        <p><strong>Internal only:</strong> C.L.E.A.R workflow actions are internal governance steps only. Approval for consultation does not confirm any visa outcome and does not send the report to the client.</p>
+        <ul>
+          <li>Unresolved high/critical risk may require Australia review.</li>
+          <li>Escalate rating may require Australia review.</li>
+          <li>Stale/unapproved reference data blocks normal approval.</li>
+          <li>Unsafe wording blocks approval.</li>
+          <li>Boss override requires mandatory reason.</li>
+        </ul>
         {canGenerateClearReport ? <form action={runGenerateClearReportDraftAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
           <label><strong>Internal note/reason (required)</strong></label>
@@ -803,7 +849,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           <button type="submit">Generate C.L.E.A.R Draft</button>
         </form> : <p>Draft generation is not available for your role.</p>}
       </section> : null}
-      {activeTab === 'clear' ? <section className="section review-section">
+      {activeTab === 'clear' && canViewClear ? <section className="section review-section">
         <h3>C.L.E.A.R reports</h3>
         {submission.clearReports.length === 0 ? <p>No C.L.E.A.R reports generated yet.</p> : <div className="communication-timeline" aria-label="C.L.E.A.R reports timeline">
           {submission.clearReports.map((report) => {
@@ -822,12 +868,36 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 <div><dt>Report version</dt><dd>{report.reportVersion}</dd></div>
                 <div><dt>Created date</dt><dd>{displayDate(report.createdAt)}</dd></div>
                 <div><dt>Updated date</dt><dd>{displayDate(report.updatedAt)}</dd></div>
-                <div><dt>Prepared by staff user ID</dt><dd>{report.preparedByStaffUserId || 'Not provided'}</dd></div>
+                <div><dt>Prepared by</dt><dd>{report.preparedByStaffUserId || 'Not provided'}</dd></div>
+                <div><dt>Prepared at</dt><dd>{report.preparedAt ? displayDate(report.preparedAt) : 'Not provided'}</dd></div>
+                <div><dt>Reviewed at</dt><dd>{report.reviewedAt ? displayDate(report.reviewedAt) : 'Not provided'}</dd></div>
+                <div><dt>Approved by</dt><dd>{report.approvedByStaffUserId || 'Not provided'}</dd></div>
+                <div><dt>Approved at</dt><dd>{report.approvedAt ? displayDate(report.approvedAt) : 'Not provided'}</dd></div>
+                <div><dt>Approval scope</dt><dd>{report.approvalScope || 'Not provided'}</dd></div>
+                <div><dt>Requires Australia review</dt><dd>{boolText(report.requiresAustraliaReview)}</dd></div>
+                <div><dt>Australia review reason</dt><dd>{report.australiaReviewReason || 'Not provided'}</dd></div>
+                <div><dt>Australia reviewed by</dt><dd>{report.australiaReviewedByStaffUserId || 'Not provided'}</dd></div>
+                <div><dt>Australia reviewed at</dt><dd>{report.australiaReviewedAt ? displayDate(report.australiaReviewedAt) : 'Not provided'}</dd></div>
+                <div><dt>Escalation reason</dt><dd>{report.escalationReason || 'Not provided'}</dd></div>
+                <div><dt>Review notes</dt><dd>{report.reviewNotes || 'Not provided'}</dd></div>
                 <div><dt>Reviewed by staff user ID</dt><dd>{report.reviewedByStaffUserId || 'Not provided'}</dd></div>
                 <div><dt>Shared date</dt><dd>{report.sharedAt ? displayDate(report.sharedAt) : 'Not provided'}</dd></div>
                 <div><dt>Reference dataset version</dt><dd>{referenceDatasetVersion || 'Not provided'}</dd></div>
               </dl>
               {datasetWarning ? <p><strong>Reference dataset warning:</strong> {datasetWarning}</p> : null}
+              {canMutateClear ? <form action={runClearWorkflowAction} className="intake-form">
+                <input type="hidden" name="submissionId" value={submission.id} />
+                <input type="hidden" name="clearReportId" value={report.id} />
+                <label><strong>Internal note/reason (required)</strong></label>
+                <textarea name="internalReason" required rows={3} />
+                <div className="button-row">
+                  <button type="submit" name="action" value="mark_prepared">Mark Prepared</button>
+                  <button type="submit" name="action" value="approve_for_consultation">Approve for Consultation</button>
+                  <button type="submit" name="action" value="request_au_review">Request Australia Review</button>
+                  <button type="submit" name="action" value="complete_au_review">Complete Australia Review</button>
+                  <button type="submit" name="action" value="boss_override_approve">Boss Override Approval</button>
+                </div>
+              </form> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
               <h5>Safe snapshot preview</h5>
               {renderRows([
                 ['Client snapshot', snapshot.clientSnapshot ? 'Available' : 'Not provided'],
