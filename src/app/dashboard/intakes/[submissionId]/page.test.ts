@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   requestAustraliaClearReviewMock: vi.fn(),
   completeAustraliaClearReviewMock: vi.fn(),
   overrideApproveClearReportMock: vi.fn(),
+  updateClearReportNotesMock: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
@@ -78,6 +79,7 @@ vi.mock('@/server/clearReports', () => ({
   requestAustraliaClearReview: mocks.requestAustraliaClearReviewMock,
   completeAustraliaClearReview: mocks.completeAustraliaClearReviewMock,
   overrideApproveClearReport: mocks.overrideApproveClearReportMock,
+  updateClearReportNotes: mocks.updateClearReportNotesMock,
 }));
 
 import {
@@ -90,6 +92,7 @@ import {
   runLeadRatingAction,
   runGenerateClearReportDraftAction,
   runClearWorkflowAction,
+  runUpdateClearReportNotesAction,
   default as IntakeReviewPage,
 } from './page';
 
@@ -598,16 +601,24 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Estimated forward cost categories');
     expect(html).toContain('Reference dataset version/source notes');
     expect(html).toContain('Disclaimer');
-    expect(html).toContain('Editing coming next');
+    expect(html).toContain('Update C.L.E.A.R Notes');
     expect(html).not.toContain('Export');
     expect(html).not.toContain('Send Email');
     expect(html).not.toContain('Approve & Share');
+    expect(html).not.toContain('PDF');
+    expect(html).not.toContain('Email');
   });
 
   it('read_only_reviewer can view clear tab but cannot mutate', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', payload: {}, status: 'submitted', leadRating: null, leadRatingSuggested: null, leadRatingReason: null, leadRatingConfirmedAt: null, leadRatingConfirmedBy: null, leadRatingSuggestedAt: null,
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], auditEvents: [],
+      clearReports: [{ id: 'cr-1', status: 'draft', reportVersion: 'clear-v1', createdAt: new Date(), updatedAt: new Date(), preparedByStaffUserId: null, preparedAt: null, reviewedAt: null, approvedByStaffUserId: null, approvedAt: null, approvalScope: null, requiresAustraliaReview: false, australiaReviewReason: null, australiaReviewedByStaffUserId: null, australiaReviewedAt: null, escalationReason: null, reviewNotes: null, reviewedByStaffUserId: null, sharedAt: null, staffNotes: 'a', clientFacingNotes: 'b', generatedSnapshotJson: {} }],
+    });
     mocks.requirePermissionMock.mockImplementation(async (permission) => {
       if (permission === PERMISSIONS.GENERATE_CLEAR_REPORT) throw new Error('not allowed');
       if (permission === PERMISSIONS.PREPARE_CLEAR_REPORT) throw new Error('not allowed');
+      if (permission === PERMISSIONS.EDIT_CLEAR_REPORT) throw new Error('not allowed');
     });
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
     const html = renderToStaticMarkup(jsx);
@@ -615,6 +626,25 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Draft generation is not available for your role.');
     expect(html).not.toContain('Generate C.L.E.A.R Draft');
     expect(html).not.toContain('Mark Prepared');
+    expect(html).not.toContain('Update C.L.E.A.R Notes');
+    expect(html).toContain('Read-only mode: you can view C.L.E.A.R notes but cannot edit them.');
+  });
+
+  it('clear notes edit action calls service for users with edit permission', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1');
+    fd.set('clearReportId', 'cr-1');
+    fd.set('staffNotes', 'staff update');
+    fd.set('clientFacingNotes', 'safe preliminary note');
+    fd.set('internalReason', 'audit reason');
+    await runUpdateClearReportNotesAction(fd);
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.EDIT_CLEAR_REPORT);
+    expect(mocks.updateClearReportNotesMock).toHaveBeenCalledWith(expect.objectContaining({
+      clearReportId: 'cr-1',
+      staffNotes: 'staff update',
+      clientFacingNotes: 'safe preliminary note',
+      reason: 'audit reason',
+    }));
   });
 
   it('clear workflow actions call mapped services and require reason', async () => {

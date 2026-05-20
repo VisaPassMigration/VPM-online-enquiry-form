@@ -19,7 +19,7 @@ vi.mock('../db', () => ({
 
 vi.mock('../audit', () => ({ recordAuditEvent: mocks.recordAuditEventMock }));
 
-import { approveClearReportForConsultation, completeAustraliaClearReview, generateClearReportDraft, markClearReportPrepared, overrideApproveClearReport, requestAustraliaClearReview } from '../clearReports';
+import { approveClearReportForConsultation, completeAustraliaClearReview, generateClearReportDraft, markClearReportPrepared, overrideApproveClearReport, requestAustraliaClearReview, updateClearReportNotes } from '../clearReports';
 
 const actor = {
   actorId: 'actor-1',
@@ -187,5 +187,40 @@ describe('clear approval gating', () => {
     const boss = { ...actor, actorRole: 'boss_admin' as const, actorRoles: ['boss_admin'] as const };
     await expect(overrideApproveClearReport({ clearReportId: 'cr-1', actor: boss, overrideReason: '' })).rejects.toThrow('Override reason is required');
     await expect(overrideApproveClearReport({ clearReportId: 'cr-1', actor: boss, overrideReason: 'required reason' })).resolves.toBeTruthy();
+  });
+});
+
+describe('updateClearReportNotes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.findClearReportMock.mockResolvedValue({ id: 'cr-1', submissionId: 'sub-1', staffNotes: 'old staff', clientFacingNotes: 'old safe note' });
+    mocks.updateClearReportMock.mockImplementation(async ({ data }) => ({ id: 'cr-1', submissionId: 'sub-1', ...data }));
+  });
+
+  it('updates staffNotes', async () => {
+    await updateClearReportNotes({ clearReportId: 'cr-1', actor, staffNotes: 'new staff note', reason: 'internal update' });
+    expect(mocks.updateClearReportMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ staffNotes: 'new staff note' }) }));
+  });
+
+  it('updates clientFacingNotes', async () => {
+    await updateClearReportNotes({ clearReportId: 'cr-1', actor, clientFacingNotes: 'preliminary pathway only', reason: 'internal update' });
+    expect(mocks.updateClearReportMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ clientFacingNotes: 'preliminary pathway only' }) }));
+  });
+
+  it('blocks prohibited wording in clientFacingNotes', async () => {
+    await expect(updateClearReportNotes({ clearReportId: 'cr-1', actor, clientFacingNotes: 'You are approved', reason: 'internal update' })).rejects.toThrow('Prohibited wording');
+  });
+
+  it('blocks missing internal reason', async () => {
+    await expect(updateClearReportNotes({ clearReportId: 'cr-1', actor, staffNotes: 'x', reason: '' })).rejects.toThrow('Internal note/reason is required');
+  });
+
+  it('writes clear_report_updated audit with from/to values', async () => {
+    await updateClearReportNotes({ clearReportId: 'cr-1', actor, staffNotes: 'new staff', clientFacingNotes: 'safe note', reason: 'audit trace' });
+    expect(mocks.recordAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'clear_report_updated',
+      fromValue: { staffNotes: 'old staff', clientFacingNotes: 'old safe note' },
+      toValue: { staffNotes: 'new staff', clientFacingNotes: 'safe note' },
+    }));
   });
 });

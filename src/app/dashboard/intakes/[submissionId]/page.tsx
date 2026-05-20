@@ -28,6 +28,7 @@ import {
   markClearReportPrepared,
   overrideApproveClearReport,
   requestAustraliaClearReview,
+  updateClearReportNotes,
 } from '@/server/clearReports';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
@@ -709,6 +710,35 @@ export async function runClearWorkflowAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+export async function runUpdateClearReportNotesAction(formData: FormData) {
+  'use server';
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  await requirePermission(PERMISSIONS.EDIT_CLEAR_REPORT);
+  const clearReportId = String(formData.get('clearReportId') ?? '').trim();
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const staffNotes = String(formData.get('staffNotes') ?? '');
+  const clientFacingNotes = String(formData.get('clientFacingNotes') ?? '');
+  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  if (!clearReportId || !submissionId || !internalReason || !actorId) return;
+
+  await updateClearReportNotes({
+    clearReportId,
+    actor: {
+      actorId,
+      actorName: session.user.name?.trim() || session.user.email?.trim() || actorId,
+      actorRole: resolveActorRole(session.user.roles ?? []),
+      actorStaffUserId: actorId,
+      actorRoles: (session.user.roles ?? []) as any,
+    },
+    staffNotes,
+    clientFacingNotes,
+    reason: internalReason,
+  });
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
+
 const INTAKE_TABS = ['overview', 'intake-details', 'documents', 'lead-rating', 'clear', 'communications', 'consultation', 'staff-tasks', 'audit-trail'] as const;
 type IntakeTab = typeof INTAKE_TABS[number];
 
@@ -726,6 +756,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   let canGenerateClearReport = true;
   let canViewClear = true;
   let canMutateClear = true;
+  let canEditClear = true;
   try { await requirePermission(PERMISSIONS.VIEW_LEAD_RATING); } catch { canViewLeadRating = false; }
   try { await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING); } catch { canSuggestLeadRating = false; }
   try { await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING); } catch { canConfirmLeadRating = false; }
@@ -733,6 +764,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   try { await requirePermission(PERMISSIONS.GENERATE_CLEAR_REPORT); } catch { canGenerateClearReport = false; }
   try { await requirePermission(PERMISSIONS.VIEW_CLEAR_REPORT); } catch { canViewClear = false; }
   try { await requirePermission(PERMISSIONS.PREPARE_CLEAR_REPORT); } catch { canMutateClear = false; }
+  try { await requirePermission(PERMISSIONS.EDIT_CLEAR_REPORT); } catch { canEditClear = false; }
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
     where: { id: submissionId },
@@ -954,7 +986,17 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                   ['Staff notes', report.staffNotes || 'Not provided'],
                   ['Client-facing notes', report.clientFacingNotes || 'Not provided'],
                 ])}
-                <p><strong>Editing coming next:</strong> staffNotes and clientFacingNotes are read-only in this view until ClearReport update services are added.</p>
+                {canEditClear ? <form action={runUpdateClearReportNotesAction} className="intake-form">
+                  <input type="hidden" name="submissionId" value={submission.id} />
+                  <input type="hidden" name="clearReportId" value={report.id} />
+                  <label><strong>Staff notes</strong></label>
+                  <textarea name="staffNotes" defaultValue={report.staffNotes || ''} rows={3} />
+                  <label><strong>Client-facing notes</strong></label>
+                  <textarea name="clientFacingNotes" defaultValue={report.clientFacingNotes || ''} rows={3} />
+                  <label><strong>Internal reason/note (required)</strong></label>
+                  <textarea name="internalReason" required rows={3} />
+                  <button type="submit">Update C.L.E.A.R Notes</button>
+                </form> : <p>Read-only mode: you can view C.L.E.A.R notes but cannot edit them.</p>}
               </section>
             </article>;
           })}
