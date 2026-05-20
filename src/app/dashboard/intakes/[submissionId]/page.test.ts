@@ -31,6 +31,11 @@ const mocks = vi.hoisted(() => ({
   confirmLeadRatingMock: vi.fn(),
   changeLeadRatingMock: vi.fn(),
   generateClearReportDraftMock: vi.fn(),
+  markClearReportPreparedMock: vi.fn(),
+  approveClearReportForConsultationMock: vi.fn(),
+  requestAustraliaClearReviewMock: vi.fn(),
+  completeAustraliaClearReviewMock: vi.fn(),
+  overrideApproveClearReportMock: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
@@ -66,7 +71,14 @@ vi.mock('@/server/leadRatings', () => ({
   confirmLeadRating: mocks.confirmLeadRatingMock,
   changeLeadRating: mocks.changeLeadRatingMock,
 }));
-vi.mock('@/server/clearReports', () => ({ generateClearReportDraft: mocks.generateClearReportDraftMock }));
+vi.mock('@/server/clearReports', () => ({
+  generateClearReportDraft: mocks.generateClearReportDraftMock,
+  markClearReportPrepared: mocks.markClearReportPreparedMock,
+  approveClearReportForConsultation: mocks.approveClearReportForConsultationMock,
+  requestAustraliaClearReview: mocks.requestAustraliaClearReviewMock,
+  completeAustraliaClearReview: mocks.completeAustraliaClearReviewMock,
+  overrideApproveClearReport: mocks.overrideApproveClearReportMock,
+}));
 
 import {
   runClientCommunicationAction,
@@ -77,6 +89,7 @@ import {
   runDocumentReviewAction,
   runLeadRatingAction,
   runGenerateClearReportDraftAction,
+  runClearWorkflowAction,
   default as IntakeReviewPage,
 } from './page';
 
@@ -505,8 +518,9 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Generate C.L.E.A.R Draft');
     expect(html).not.toContain('PDF');
     expect(html).not.toContain('Email');
-    expect(html).not.toContain('Approve');
+    expect(html).toContain('internal governance steps only');
     expect(html).not.toContain('Share');
+    expect(html).toContain('Stale/unapproved reference data blocks normal approval');
   });
 
   it('generate clear draft action calls service', async () => {
@@ -524,7 +538,7 @@ describe('intake dashboard actions', () => {
       id: 'sub-1', payload: {}, status: 'submitted', leadRating: null, leadRatingSuggested: null, leadRatingReason: null, leadRatingConfirmedAt: null, leadRatingConfirmedBy: null, leadRatingSuggestedAt: null,
       pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], auditEvents: [],
       clearReports: [{
-        id: 'cr-1', status: 'draft', reportVersion: 'clear-v1', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date('2026-01-01T01:00:00Z'), preparedByStaffUserId: 'staff-1', reviewedByStaffUserId: 'staff-2', sharedAt: null,
+        id: 'cr-1', status: 'draft', reportVersion: 'clear-v1', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date('2026-01-01T01:00:00Z'), preparedByStaffUserId: 'staff-1', preparedAt: new Date('2026-01-01T02:00:00Z'), reviewedAt: new Date('2026-01-01T03:00:00Z'), approvedByStaffUserId: 'boss-1', approvedAt: new Date('2026-01-01T04:00:00Z'), approvalScope: 'standard_hot', requiresAustraliaReview: true, australiaReviewReason: 'escalated', australiaReviewedByStaffUserId: 'au-1', australiaReviewedAt: new Date('2026-01-01T05:00:00Z'), escalationReason: 'risk', reviewNotes: 'notes', reviewedByStaffUserId: 'staff-2', sharedAt: null,
         generatedSnapshotJson: { clientSnapshot: { a: 1 }, preliminaryPointsSnapshot: { total: 80 }, leadRating: { leadRating: 'hot' }, referenceDataset: { datasetVersion: 'ds-v3', warning: 'dataset stale' }, documentCompleteness: { total: 1 }, riskDisclosuresReviewNotes: [{ riskCode: 'x' }], disclaimer: 'Internal only.' },
       }],
     });
@@ -532,8 +546,13 @@ describe('intake dashboard actions', () => {
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('Report status');
     expect(html).toContain('Report version');
-    expect(html).toContain('Prepared by staff user ID');
-    expect(html).toContain('Reviewed by staff user ID');
+    expect(html).toContain('Prepared by');
+    expect(html).toContain('Approval scope');
+    expect(html).toContain('Requires Australia review');
+    expect(html).toContain('Australia reviewed by');
+    expect(html).toContain('Escalation reason');
+    expect(html).toContain('Mark Prepared');
+    expect(html).toContain('Boss Override Approval');
     expect(html).toContain('Reference dataset warning');
     expect(html).toContain('Client snapshot');
     expect(html).toContain('Preliminary points snapshot');
@@ -543,15 +562,35 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Disclaimer');
   });
 
-  it('read_only_reviewer can view clear tab but cannot generate', async () => {
+  it('read_only_reviewer can view clear tab but cannot mutate', async () => {
     mocks.requirePermissionMock.mockImplementation(async (permission) => {
       if (permission === PERMISSIONS.GENERATE_CLEAR_REPORT) throw new Error('not allowed');
+      if (permission === PERMISSIONS.PREPARE_CLEAR_REPORT) throw new Error('not allowed');
     });
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('C.L.E.A.R');
     expect(html).toContain('Draft generation is not available for your role.');
     expect(html).not.toContain('Generate C.L.E.A.R Draft');
+    expect(html).not.toContain('Mark Prepared');
+  });
+
+  it('clear workflow actions call mapped services and require reason', async () => {
+    const actions = [
+      ['mark_prepared', mocks.markClearReportPreparedMock],
+      ['approve_for_consultation', mocks.approveClearReportForConsultationMock],
+      ['request_au_review', mocks.requestAustraliaClearReviewMock],
+      ['complete_au_review', mocks.completeAustraliaClearReviewMock],
+      ['boss_override_approve', mocks.overrideApproveClearReportMock],
+    ] as const;
+    for (const [action, fn] of actions) {
+      const fd = new FormData(); fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', action); fd.set('internalReason', 'internal note');
+      await runClearWorkflowAction(fd);
+      expect(fn).toHaveBeenCalled();
+    }
+    const missingReason = new FormData(); missingReason.set('submissionId', 'sub-1'); missingReason.set('clearReportId', 'cr-1'); missingReason.set('action', 'mark_prepared');
+    await runClearWorkflowAction(missingReason);
+    expect(mocks.markClearReportPreparedMock).toHaveBeenCalledTimes(1);
   });
 
   it('renders all tab labels and supports tab query parameter fallback', async () => {
