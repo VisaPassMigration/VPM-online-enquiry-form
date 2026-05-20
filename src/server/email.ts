@@ -199,3 +199,58 @@ export async function sendConsultationInvitationEmail(input: ConsultationInvitat
 export { SUBJECT as CLIENT_INTAKE_RECEIVED_SUBJECT };
 export { REQUEST_MORE_INFORMATION_SUBJECT };
 export { CONSULTATION_INVITATION_SUBJECT };
+
+
+const ENQUIRY_FAQ_SUBJECTS = {
+  faq_general_migration: 'General migration enquiry — next steps',
+  faq_skilled_migration: 'Skilled migration enquiry — next steps',
+  faq_student_visa: 'Student visa enquiry — next steps',
+  faq_partner_family: 'Partner/family enquiry — next steps',
+  faq_employer_sponsored: 'Employer-sponsored enquiry — next steps',
+  faq_insufficient_information: 'More information needed before preliminary review',
+} as const;
+
+type EnquiryFaqType = keyof typeof ENQUIRY_FAQ_SUBJECTS;
+
+function safeEnquiryBody(nextStep: string, intakeLink: string, docsHint: string) {
+  return [
+    'Thank you for your enquiry with Visa Pass Migration.',
+    '',
+    nextStep,
+    '',
+    'Please complete our preliminary questionnaire using this link:',
+    intakeLink,
+    '',
+    docsHint,
+    '',
+    'Important: this preliminary process is informational only and does not confirm any migration outcome. Any future pathway discussion depends on full evidence checks and applicable legal requirements.',
+    '',
+    'Kind regards,',
+    'Visa Pass Migration',
+  ].join('\n');
+}
+
+export function buildEnquiryFaqEmailTemplate(input: { type: EnquiryFaqType; intakeLinkUrl?: string }) {
+  const intakeLink = input.intakeLinkUrl?.trim() || '[INTAKE_FORM_LINK]';
+  const templates: Record<EnquiryFaqType, { subject: string; bodyText: string }> = {
+    faq_general_migration: { subject: ENQUIRY_FAQ_SUBJECTS.faq_general_migration, bodyText: safeEnquiryBody('Our team will begin a preliminary review after we receive your completed questionnaire.', intakeLink, 'Helpful items for preliminary review may include identification details, travel/residency history, and any prior visa correspondence.') },
+    faq_skilled_migration: { subject: ENQUIRY_FAQ_SUBJECTS.faq_skilled_migration, bodyText: safeEnquiryBody('Our team will conduct a preliminary skilled migration review after your questionnaire is submitted.', intakeLink, 'Helpful items may include resume/CV, qualifications, employment evidence, and English test details (if available).') },
+    faq_student_visa: { subject: ENQUIRY_FAQ_SUBJECTS.faq_student_visa, bodyText: safeEnquiryBody('Our team will complete a preliminary student visa review once your questionnaire is received.', intakeLink, 'Helpful items may include current study history, intended course details, financial planning information, and passport information.') },
+    faq_partner_family: { subject: ENQUIRY_FAQ_SUBJECTS.faq_partner_family, bodyText: safeEnquiryBody('Our team will complete a preliminary partner/family review after questionnaire completion.', intakeLink, 'Helpful items may include relationship timeline notes, identity documents, and prior visa history for both parties where relevant.') },
+    faq_employer_sponsored: { subject: ENQUIRY_FAQ_SUBJECTS.faq_employer_sponsored, bodyText: safeEnquiryBody('Our team will begin preliminary employer-sponsored pathway checks once your questionnaire is submitted.', intakeLink, 'Helpful items may include role details, employer information, occupation background, and employment evidence.') },
+    faq_insufficient_information: { subject: ENQUIRY_FAQ_SUBJECTS.faq_insufficient_information, bodyText: safeEnquiryBody('We need additional details before we can start a preliminary review of your enquiry.', intakeLink, 'Please include as much detail as possible in the questionnaire so our team can complete a meaningful preliminary review.') },
+  };
+  return templates[input.type];
+}
+
+export async function sendEnquiryFaqEmail(input: { to: string; subject: string; bodyText: string }): Promise<EmailSendResult> {
+  const config = getEmailConfig();
+  if (config.provider === 'none') return { status: 'queued', provider: 'none' };
+  if (config.provider === 'resend') {
+    const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: config.from, to: input.to, subject: input.subject, text: input.bodyText }) });
+    if (!response.ok) throw new Error(`Resend send failed (${response.status}): ${await response.text()}`);
+    const payload = (await response.json()) as { id?: string };
+    return { status: 'sent', provider: 'resend', messageId: payload.id };
+  }
+  throw new Error('SMTP provider is configured but no SMTP transport is installed in this runtime. Use EMAIL_PROVIDER=resend for active delivery.');
+}
