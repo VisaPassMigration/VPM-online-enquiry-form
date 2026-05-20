@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PERMISSIONS } from '@/server/auth/permissions';
 
@@ -92,6 +92,23 @@ import {
   runClearWorkflowAction,
   default as IntakeReviewPage,
 } from './page';
+
+
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+let originalConsoleError: typeof console.error;
+
+beforeAll(() => {
+  originalConsoleError = console.error;
+  consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+    const [first] = args;
+    if (typeof first === 'string' && first.includes('Invalid value for prop `action` on <form> tag')) return;
+    originalConsoleError(...(args as Parameters<typeof console.error>));
+  });
+});
+
+afterAll(() => {
+  consoleErrorSpy.mockRestore();
+});
 
 describe('intake dashboard actions', () => {
   beforeEach(() => {
@@ -552,7 +569,9 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Australia reviewed by');
     expect(html).toContain('Escalation reason');
     expect(html).toContain('Mark Prepared');
-    expect(html).toContain('Boss Override Approval');
+    expect(html).toContain('Boss Override Approval (Internal)');
+    expect(html).toContain('Approve for Consultation Use (Internal)');
+    expect(html).toContain('Approval for consultation use is an internal readiness step only. It does not send the report to the client and does not confirm any visa outcome.');
     expect(html).toContain('Reference dataset warning');
     expect(html).toContain('Client snapshot');
     expect(html).toContain('Preliminary points snapshot');
