@@ -140,6 +140,24 @@ const renderRows = (pairs: Array<[string, string | number | undefined | null]>) 
   </dl>
 );
 
+const previewValue = (value: unknown) => {
+  if (value === undefined || value === null) return 'Not provided';
+  if (typeof value === 'string') return value.trim() ? value : 'Not provided';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return 'Not provided';
+  }
+};
+
+const renderClearPreviewSection = (title: string, value: unknown) => (
+  <section className="section review-section" key={title}>
+    <h6>{title}</h6>
+    <pre>{previewValue(value)}</pre>
+  </section>
+);
+
 
 type StaffActorContext = {
   actorId: string;
@@ -899,16 +917,45 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                   <button type="submit" name="action" value="boss_override_approve">Boss Override Approval (Internal)</button>
                 </div>
               </form> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
-              <h5>Safe snapshot preview</h5>
-              {renderRows([
-                ['Client snapshot', snapshot.clientSnapshot ? 'Available' : 'Not provided'],
-                ['Preliminary points snapshot', snapshot.preliminaryPointsSnapshot ? 'Available' : 'Not provided'],
-                ['Lead rating', snapshot.leadRating ? JSON.stringify(snapshot.leadRating) : 'Not provided'],
-                ['Reference dataset version', referenceDatasetVersion || 'Not provided'],
-                ['Document completeness', snapshot.documentCompleteness ? JSON.stringify(snapshot.documentCompleteness) : 'Not provided'],
-                ['Risk review notes', snapshot.riskDisclosuresReviewNotes ? JSON.stringify(snapshot.riskDisclosuresReviewNotes) : 'Not provided'],
-                ['Disclaimer', typeof snapshot.disclaimer === 'string' ? snapshot.disclaimer : 'Not provided'],
-              ])}
+              <h5>Internal C.L.E.A.R editable report preview</h5>
+              <p><strong>Safe language reminder:</strong> C.L.E.A.R preview language must remain preliminary, indicative, and subject to review. Do not use it as a visa outcome or guarantee.</p>
+              <section className="section review-section">
+                <h6>C.L.E.A.R cover/header</h6>
+                <dl className="review-grid">
+                  <div className="review-grid-row"><dt>C.L.E.A.R title</dt><dd>C.L.E.A.R</dd></div>
+                  <div className="review-grid-row"><dt>Client Eligibility Assessment Report</dt><dd>Client Eligibility Assessment Report</dd></div>
+                  <div className="review-grid-row"><dt>Visa Pass Migration</dt><dd>Visa Pass Migration</dd></div>
+                  <div className="review-grid-row"><dt>Report version</dt><dd>{report.reportVersion}</dd></div>
+                  <div className="review-grid-row"><dt>Internal status badge</dt><dd><span className="pill pill--placeholder">{report.status}</span></dd></div>
+                </dl>
+              </section>
+              {[
+                ['Client snapshot', snapshot.clientSnapshot],
+                ['Age/profile summary', snapshot.ageProfileSummary],
+                ['Qualification summary', snapshot.qualificationSummary],
+                ['Work experience summary', snapshot.workExperienceSummary],
+                ['English summary', snapshot.englishSummary],
+                ['Potential occupation alignment', snapshot.potentialOccupationAlignment],
+                ['Possible skills assessment body/pathway', snapshot.possibleSkillsAssessmentBodyPathway],
+                ['Preliminary points snapshot', snapshot.preliminaryPointsSnapshot],
+                ['Points improvement strategy', snapshot.pointsImprovementStrategy],
+                ['GSM overview: SC189 / SC190 / SC491', snapshot.gsmOverviewSc189Sc190Sc491],
+                ['Document completeness', snapshot.documentCompleteness],
+                ['Risk disclosures/review notes', snapshot.riskDisclosuresReviewNotes],
+                ['Consultation talking points', snapshot.consultationTalkingPoints],
+                ['Recommended next steps', snapshot.recommendedNextSteps],
+                ['Estimated forward cost categories', snapshot.estimatedForwardCostCategories],
+                ['Reference dataset version/source notes', snapshot.referenceDataset],
+                ['Disclaimer', snapshot.disclaimer],
+              ].map(([title, value]) => renderClearPreviewSection(title, value))}
+              <section className="section review-section">
+                <h6>Internal editable fields</h6>
+                {renderRows([
+                  ['Staff notes', report.staffNotes || 'Not provided'],
+                  ['Client-facing notes', report.clientFacingNotes || 'Not provided'],
+                ])}
+                <p><strong>Editing coming next:</strong> staffNotes and clientFacingNotes are read-only in this view until ClearReport update services are added.</p>
+              </section>
             </article>;
           })}
         </div>}
