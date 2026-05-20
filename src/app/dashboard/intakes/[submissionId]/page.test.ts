@@ -30,11 +30,13 @@ const mocks = vi.hoisted(() => ({
   suggestLeadRatingMock: vi.fn(),
   confirmLeadRatingMock: vi.fn(),
   changeLeadRatingMock: vi.fn(),
+  assignStaffTaskMock: vi.fn(),
+  staffTaskFindUniqueMock: vi.fn(),
 }));
 
 vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks.requireStaffSessionMock }));
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermissionMock }));
-vi.mock('@/server/db', () => ({ db: { $transaction: mocks.transactionMock, intakeSubmission: { findUnique: mocks.findUniqueMock } } }));
+vi.mock('@/server/db', () => ({ db: { $transaction: mocks.transactionMock, intakeSubmission: { findUnique: mocks.findUniqueMock }, staffUser: { findMany: vi.fn().mockResolvedValue([]) } } }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }));
 vi.mock('next/link', () => ({ default: ({ children }: { children: string }) => children }));
 
@@ -65,6 +67,7 @@ vi.mock('@/server/leadRatings', () => ({
   confirmLeadRating: mocks.confirmLeadRatingMock,
   changeLeadRating: mocks.changeLeadRatingMock,
 }));
+vi.mock('@/server/staffTasks', () => ({ assignStaffTask: mocks.assignStaffTaskMock }));
 
 import {
   runClientCommunicationAction,
@@ -74,6 +77,7 @@ import {
   runConsultationBookingAction,
   runDocumentReviewAction,
   runLeadRatingAction,
+  runAssignStaffTaskAction,
   default as IntakeReviewPage,
 } from './page';
 
@@ -92,6 +96,7 @@ describe('intake dashboard actions', () => {
       id: 'sub-1', status: 'submitted',
       currentReviewState: { currentStage: 'intake_triage', lastDecision: 'manual_hold' },
       riskFlags: [],
+      staffTasks: [],
     });
     mocks.updateSubmissionMock.mockResolvedValue({});
     mocks.upsertReviewStateMock.mockResolvedValue({});
@@ -113,7 +118,10 @@ describe('intake dashboard actions', () => {
       staffReview: { create: mocks.createStaffReviewMock },
       auditEvent: { create: mocks.createAuditEventMock },
       riskFlag: { updateMany: mocks.updateManyRiskMock },
+      staffTask: { findUnique: mocks.staffTaskFindUniqueMock },
     }));
+    mocks.staffTaskFindUniqueMock.mockResolvedValue({ id: 'task-1', assigneeStaffUserId: 'staff-old' });
+    mocks.assignStaffTaskMock.mockResolvedValue({ id: 'task-1', assigneeStaffUserId: 'staff-new' });
   });
 
   it('prepare communication uses session-derived actor', async () => {
@@ -233,6 +241,40 @@ describe('intake dashboard actions', () => {
     mocks.requireStaffSessionMock.mockRejectedValueOnce(new Error('redirect'));
     const fd = new FormData(); fd.set('submissionId','sub-1'); fd.set('action','mark_booked'); fd.set('bookingId','booking-1'); fd.set('internalReason','note');
     await expect(runConsultationBookingAction(fd)).rejects.toThrow('redirect');
+  });
+
+  it('assign/reassign requires assign_staff_task permission and writes audit event', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1');
+    fd.set('taskId', 'task-1');
+    fd.set('assigneeStaffUserId', 'staff-new');
+    fd.set('internalNote', 'workload balancing');
+
+    await runAssignStaffTaskAction(fd);
+
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.ASSIGN_STAFF_TASK);
+    expect(mocks.assignStaffTaskMock).toHaveBeenCalledWith({ taskId: 'task-1', assigneeStaffUserId: 'staff-new', assignedByStaffUserId: 'staff-1' });
+    const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
+    expect(auditData.eventType).toBe('staff_task_assigned');
+    expect(auditData.fromValue).toBe('staff-old');
+    expect(auditData.toValue).toBe('staff-new');
+    expect(auditData.actorStaffUserId).toBe('staff-1');
+  });
+
+  it('read_only_reviewer cannot assign/reassign', async () => {
+    mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('taskId', 'task-1'); fd.set('assigneeStaffUserId', 'staff-new'); fd.set('internalNote', 'note');
+    await expect(runAssignStaffTaskAction(fd)).rejects.toThrow('notFound');
+  });
+
+  it('assignment does not trigger client communication', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('taskId', 'task-1'); fd.set('assigneeStaffUserId', 'staff-new'); fd.set('internalNote', 'note');
+    await runAssignStaffTaskAction(fd);
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
   });
 
   it('uses actor identity from authenticated session and stamps audit actor fields', async () => {
