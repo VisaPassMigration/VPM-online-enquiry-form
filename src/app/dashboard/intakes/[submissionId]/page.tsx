@@ -21,6 +21,7 @@ import {
 } from '@/server/consultationBookings';
 import type { RecordAuditEventInput } from '@/server/audit';
 import { changeLeadRating, confirmLeadRating, suggestLeadRating } from '@/server/leadRatings';
+import { assignStaffTask } from '@/server/staffTasks';
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -627,6 +628,36 @@ export async function runLeadRatingAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
+
+
+export async function runAssignStaffTaskAction(formData: FormData) {
+  'use server';
+  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
+  const session = await requireStaffSession();
+  await requirePermission(PERMISSIONS.ASSIGN_STAFF_TASK);
+
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const taskId = String(formData.get('taskId') ?? '').trim();
+  const assigneeStaffUserId = String(formData.get('assigneeStaffUserId') ?? '').trim();
+  const internalNote = String(formData.get('internalNote') ?? '').trim();
+  if (!submissionId || !taskId || !assigneeStaffUserId || !internalNote) return;
+
+  const actorId = String(session.user.staffUserId ?? '').trim();
+  const actorName = session.user.name?.trim() || session.user.email?.trim() || actorId;
+  const actorRole = resolveActorRole(session.user.roles ?? []);
+  const actorStaffUserId = session.user.staffUserId?.trim() || undefined;
+
+  if (!actorId) throw new Error('Missing authenticated staff actor id');
+
+  await db.$transaction(async (tx) => {
+    const prev = await (tx as unknown as { staffTask: { findUnique: (args: object) => Promise<Record<string, unknown> | null> } }).staffTask.findUnique({ where: { id: taskId } });
+    const previousAssignee = prev?.assigneeStaffUserId ? String(prev.assigneeStaffUserId) : null;
+    await assignStaffTask({ taskId, assigneeStaffUserId, assignedByStaffUserId: actorId });
+    await tx.auditEvent.create({ data: { submissionId, eventType: AuditEventType.staff_task_assigned, actorId, actorName, actorRole, actorStaffUserId, relatedEntityType: 'staff_task', relatedEntityId: taskId, fromValue: previousAssignee, toValue: assigneeStaffUserId, internalNote, metadata: { internalOnly: true } } });
+  });
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
 export default async function IntakeReviewPage({ params }: { params: Promise<{ submissionId: string }> }) {
   await requirePermission(PERMISSIONS.VIEW_INTAKE_DETAILS);
   let canViewLeadRating = true;
@@ -648,6 +679,13 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
       auditEvents: { orderBy: { eventAt: 'desc' }, take: 30 },
       clientCommunications: { orderBy: { createdAt: 'desc' } },
       consultationBookings: { orderBy: { createdAt: 'desc' } },
+      staffTasks: {
+        include: {
+          assigneeStaffUser: { select: { id: true, displayName: true, email: true } },
+          assignedByStaffUser: { select: { id: true, displayName: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
     },
   });
 
@@ -658,6 +696,7 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
     : {}) as IntakePayload;
   const latestPoints = submission.pointsSnapshots[0];
   const leadRatingHistory = submission.auditEvents.filter((event) => LEAD_RATING_HISTORY_EVENT_TYPES.has(String(event.eventType)));
+  const activeStaffUsers = await db.staffUser.findMany({ where: { isActive: true }, orderBy: { email: 'asc' } });
 
   return (
     <>
@@ -885,6 +924,35 @@ export default async function IntakeReviewPage({ params }: { params: Promise<{ s
           </div>
         )}
       </section>
+
+      <section className="section review-section"><h3>Staff Tasks</h3>{submission.staffTasks.length === 0 ? <p>No staff tasks available.</p> : (
+        <div className="communication-timeline" aria-label="Staff tasks">
+          {submission.staffTasks.map((task) => {
+            const assigneeLabel = task.assigneeStaffUser?.displayName || task.assigneeStaffUser?.email || 'Unassigned';
+            const assignedByLabel = task.assignedByStaffUser?.displayName || task.assignedByStaffUser?.email || 'Not available';
+            const changedAt = task.updatedAt;
+            return <article key={task.id} className="communication-card">
+              <header className="communication-card__header"><div><p className="communication-card__type">{task.taskType}</p><h4>{task.title}</h4></div><span className="pill pill--placeholder">{task.status}</span></header>
+              <dl className="communication-card__meta">
+                <div><dt>Current assignee</dt><dd>{assigneeLabel}</dd></div>
+                <div><dt>Assigned by</dt><dd>{assignedByLabel}</dd></div>
+                <div><dt>Assignment changed</dt><dd>{displayDate(changedAt)}</dd></div>
+              </dl>
+              <form action={runAssignStaffTaskAction} className="intake-form">
+                <input type="hidden" name="submissionId" value={submission.id} />
+                <input type="hidden" name="taskId" value={task.id} />
+                <label><strong>{task.assigneeStaffUserId ? 'Reassign task' : 'Assign task'}</strong></label>
+                <select name="assigneeStaffUserId" defaultValue={task.assigneeStaffUserId ?? ''} required>
+                  <option value="" disabled>Select active staff user</option>
+                  {activeStaffUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName || user.email}</option>)}
+                </select>
+                <input name="internalNote" required placeholder="Internal reason/note" />
+                <button type="submit">{task.assigneeStaffUserId ? 'Reassign Task' : 'Assign Task'}</button>
+              </form>
+            </article>;
+          })}
+        </div>
+      )}</section>
 
       <section className="section review-section"><h3>Client details</h3>{renderRows([
         ['First name', payload.firstName as string], ['Last name', payload.lastName as string], ['Date of birth', payload.dateOfBirth as string],

@@ -23,6 +23,7 @@ export const PERMISSIONS = {
   CONFIRM_LEAD_RATING: 'confirm_lead_rating',
   CHANGE_CONFIRMED_LEAD_RATING: 'change_confirmed_lead_rating',
   VIEW_LEAD_RATING: 'view_lead_rating',
+  ASSIGN_STAFF_TASK: 'assign_staff_task',
 } as const;
 
 export type RoleKey = (typeof ROLES)[keyof typeof ROLES];
@@ -46,6 +47,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     PERMISSIONS.CONFIRM_LEAD_RATING,
     PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING,
     PERMISSIONS.VIEW_LEAD_RATING,
+    PERMISSIONS.ASSIGN_STAFF_TASK,
   ],
   kenya_intake_staff: [
     PERMISSIONS.VIEW_DASHBOARD,
@@ -56,6 +58,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     PERMISSIONS.REVIEW_SUBMISSION_DOCUMENTS,
     PERMISSIONS.SUGGEST_LEAD_RATING,
     PERMISSIONS.VIEW_LEAD_RATING,
+    PERMISSIONS.ASSIGN_STAFF_TASK,
   ],
   australia_migration_team: [
     PERMISSIONS.VIEW_DASHBOARD,
@@ -69,6 +72,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionKey[]> = {
     PERMISSIONS.SUGGEST_LEAD_RATING,
     PERMISSIONS.CONFIRM_LEAD_RATING,
     PERMISSIONS.VIEW_LEAD_RATING,
+    PERMISSIONS.ASSIGN_STAFF_TASK,
   ],
   read_only_reviewer: [PERMISSIONS.VIEW_DASHBOARD, PERMISSIONS.VIEW_INTAKE_DETAILS, PERMISSIONS.VIEW_LEAD_RATING],
 };
