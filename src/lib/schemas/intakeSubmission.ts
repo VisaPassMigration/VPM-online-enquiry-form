@@ -96,6 +96,12 @@ const baseSchema = z.object({
   cancellationOverstayOrRemoval: z.boolean(),
   criminalHistory: z.boolean(),
   healthCondition: z.boolean(),
+  structuredRiskDetails: z.object({
+    refusalDetails: z.string().optional(),
+    cancellationOverstayDetails: z.string().optional(),
+    criminalDetails: z.string().optional(),
+    healthDetails: z.string().optional(),
+  }).optional(),
   riskDetails: z.string().optional(),
 
   preliminaryPoints: z.number().int().nonnegative().max(200).optional(),
@@ -192,6 +198,7 @@ export type IntakeSubmissionInput = {
   cancellationOverstayOrRemoval: boolean;
   criminalHistory: boolean;
   healthCondition: boolean;
+  structuredRiskDetails?: { refusalDetails?: string; cancellationOverstayDetails?: string; criminalDetails?: string; healthDetails?: string; };
   riskDetails?: string;
   preliminaryPoints?: number;
   documents: Array<{
