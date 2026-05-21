@@ -6,6 +6,7 @@ export function canAccessPath(pathname: string, isActiveStaff: boolean, roles: R
   if (pathname.startsWith('/dashboard')) return isActiveStaff && hasPermission(roles, PERMISSIONS.VIEW_DASHBOARD);
   if (pathname.startsWith('/admin/audit-log')) return isActiveStaff && hasPermission(roles, PERMISSIONS.VIEW_ADMIN_AUDIT_LOG);
   if (pathname.startsWith('/admin/migration-reference-data')) return isActiveStaff && hasPermission(roles, PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA);
+  if (pathname.startsWith('/admin/legal-references')) return isActiveStaff && hasPermission(roles, PERMISSIONS.VIEW_LEGAL_REFERENCE);
   if (pathname.startsWith('/admin')) return isActiveStaff && roles.includes('boss_admin');
   return true;
 }
