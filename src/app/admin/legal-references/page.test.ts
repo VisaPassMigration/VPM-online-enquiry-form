@@ -10,4 +10,9 @@ beforeEach(() => { vi.clearAllMocks(); mocks.findMany.mockResolvedValue([{ id: '
 describe('legal references admin page', () => {
   it('renders read-only list and governance warning', async () => { const page = (await import('./page')).default; const html = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) })); expect(html).toContain('Legal Reference Library is internal guidance only'); expect(html).toContain('Apply filters'); expect(html).toContain('type/topic/status'); expect(html).toContain('reviewedBy/At'); expect(html).toContain('approvedBy/At'); });
   it('requires view permission', async () => { const page = (await import('./page')).default; await page({ searchParams: Promise.resolve({}) }); expect(mocks.requirePermission).toHaveBeenCalled(); });
+  it('invalid URL filter values safely fall back to no filter', async () => {
+    const page = (await import('./page')).default;
+    await page({ searchParams: Promise.resolve({ topic: 'invalid', referenceType: 'bad', status: 'wat' }) });
+    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
 });
