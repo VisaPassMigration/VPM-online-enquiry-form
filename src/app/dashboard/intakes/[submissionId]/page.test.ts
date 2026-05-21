@@ -606,6 +606,7 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('C.L.E.A.R title');
     expect(html).toContain('Client Eligibility Assessment Report');
     expect(html).toContain('Visa Pass Migration');
+    expect(html).toContain('src="/brand/vpm-logo-light.png"');
     expect(html).toContain('Internal status badge');
     expect(html).toContain('Client snapshot');
     expect(html).toContain('Age/profile summary');
