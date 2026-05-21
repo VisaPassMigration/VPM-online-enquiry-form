@@ -28,7 +28,15 @@ export function parseIntakePayload(raw: unknown): { payload?: IntakeSubmissionIn
   return { payload: parsed.data };
 }
 
-export function toPointsInput(payload: IntakeSubmissionInput): PointsCalculatorInput {
+export function toPointsInput(payload: IntakeSubmissionInput): PointsCalculatorInput & { unknownFactors: string[] } {
+  const unknownFactors: string[] = [];
+  if (!payload.ageBracket) unknownFactors.push('ageBracket');
+  if (!payload.englishLevel && payload.englishOverallBand === undefined) unknownFactors.push('englishLevel');
+  if (!payload.overseasSkilledEmploymentYears) unknownFactors.push('overseasSkilledEmploymentYears');
+  if (!payload.australianSkilledEmploymentYears) unknownFactors.push('australianSkilledEmploymentYears');
+  if (!payload.highestQualificationLevel) unknownFactors.push('highestQualificationLevel');
+  if (!payload.partnerPointsCategory) unknownFactors.push('partnerPointsCategory');
+  if (!payload.nominationType) unknownFactors.push('nominationType');
   return {
     ageBracket: payload.ageBracket ?? '25-32',
     englishLevel: payload.englishLevel ?? (payload.englishOverallBand && payload.englishOverallBand >= 8 ? 'Superior' : payload.englishOverallBand && payload.englishOverallBand >= 7 ? 'Proficient' : 'Competent'),
@@ -46,6 +54,7 @@ export function toPointsInput(payload: IntakeSubmissionInput): PointsCalculatorI
     migrationOccupation: payload.migrationOccupation ?? '',
     workExperienceYears: payload.workExperienceYears ?? '',
     completionYear: payload.completionYear ?? '',
+    unknownFactors,
   };
 }
 

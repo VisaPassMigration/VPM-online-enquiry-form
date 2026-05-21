@@ -2,6 +2,7 @@
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { calculateEstimatedSkilledMigrationPoints } from '@/lib/pointsCalculator';
+import { buildCanonicalIntakePayload } from '@/lib/intakePayloadContract';
 
 type ContactMethod = 'Email' | 'Phone' | 'WhatsApp';
 type InterestedCountry = 'Australia' | 'New Zealand' | 'Both';
@@ -74,28 +75,6 @@ const sectionNav = [{ id: 'client-details', label: 'Client details' }, { id: 'mi
 const requiredFields = { fullName: 'Please enter your full name so we know what to call you.', email: 'Please share your email so we can contact you with next steps.', dateOfBirth: 'Please add your date of birth for eligibility checks.', nationality: 'Please add your nationality.', residenceCountry: 'Please add your current country of residence.', address: 'Please add your residential address.', phone: 'Please add your phone number in case we need to reach you quickly.', contactMethod: 'Please choose your preferred contact method.', mainGoal: 'Please choose the migration goal that best matches your plans.', timeframe: 'Please add your preferred timeframe.', currentOccupation: 'Please add your current occupation.' };
 const keyItems = Object.keys(requiredFields) as Array<keyof typeof requiredFields>;
 
-
-function toYesNoUnknown(value: string): 'yes' | 'no' | 'unknown' {
-  if (value === 'Yes') return 'yes';
-  if (value === 'No') return 'no';
-  return 'unknown';
-}
-
-function toEnglishOverallBand(summary: string): number | undefined {
-  const match = summary.match(/(\d(?:\.\d)?)/);
-  if (!match) return undefined;
-  const band = Number(match[1]);
-  return Number.isFinite(band) ? band : undefined;
-}
-
-function splitName(fullName: string) {
-  const trimmed = fullName.trim();
-  if (!trimmed) return { firstName: '', lastName: '' };
-  const parts = trimmed.split(/\s+/);
-  const firstName = parts.shift() ?? '';
-  const lastName = parts.join(' ') || '-';
-  return { firstName, lastName };
-}
 
 export default function IntakePage() { const [formData, setFormData] = useState<IntakeFormData>(initialData); const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof IntakeFormData, string>>>({}); const [touched, setTouched] = useState<Partial<Record<keyof IntakeFormData, boolean>>>({}); const [submitAttempted, setSubmitAttempted] = useState(false); const [draftStatus, setDraftStatus] = useState('Autosaving draft locally…'); const [selectedFiles, setSelectedFiles] = useState<Partial<Record<DocumentKey, SelectedFileState>>>({}); const [lastSavedAt, setLastSavedAt] = useState<string | null>(null); const [submitState, setSubmitState] = useState<SubmitState>('idle'); const [submitMessage, setSubmitMessage] = useState('');
 useEffect(() => { const savedDraft = window.localStorage.getItem(DRAFT_KEY); if (!savedDraft) return; try { const parsed = JSON.parse(savedDraft) as Partial<IntakeFormData & { __savedAt: string }>; const { __savedAt, ...rest } = parsed; setFormData((prev) => ({ ...prev, ...rest })); if (__savedAt) setLastSavedAt(__savedAt); setDraftStatus('Saved draft restored from this browser.'); } catch { setDraftStatus('We could not restore a previous draft. You can continue with a new one.'); } }, []);
