@@ -188,6 +188,9 @@ enum AuditEventType {
   migration_reference_dataset_reviewed
   migration_reference_dataset_approved
   migration_reference_dataset_marked_stale
+  migration_reference_dataset_archived
+  occupation_reference_created
+  cost_reference_created
 }
 
 enum ClientCommunicationType {

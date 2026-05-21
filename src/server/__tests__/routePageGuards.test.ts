@@ -6,6 +6,7 @@ import { PERMISSIONS } from '@/server/auth/permissions';
 const dashboardFindMany = vi.fn();
 const intakeFindUnique = vi.fn();
 const auditFindMany = vi.fn();
+const migrationDatasetFindMany = vi.fn();
 
 const requirePermissionMock = vi.fn();
 
@@ -27,6 +28,9 @@ vi.mock('@/server/db', () => ({
     auditEvent: {
       findMany: auditFindMany,
     },
+    migrationReferenceDataset: {
+      findMany: migrationDatasetFindMany,
+    },
   },
 }));
 
@@ -37,6 +41,7 @@ describe('protected staff page entry guards', () => {
     dashboardFindMany.mockReset();
     intakeFindUnique.mockReset();
     auditFindMany.mockReset();
+    migrationDatasetFindMany.mockReset();
   });
 
   it('dashboard requires view_dashboard before querying data', async () => {
@@ -67,6 +72,16 @@ describe('protected staff page entry guards', () => {
     await expect(page({ searchParams: Promise.resolve({}) })).rejects.toThrow('blocked');
     expect(requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.VIEW_ADMIN_AUDIT_LOG);
     expect(auditFindMany).not.toHaveBeenCalled();
+  });
+
+  it('migration reference data page requires view_migration_reference_data before querying data', async () => {
+    requirePermissionMock.mockRejectedValueOnce(new Error('blocked'));
+
+    const page = (await import('@/app/admin/migration-reference-data/page')).default;
+
+    await expect(page()).rejects.toThrow('blocked');
+    expect(requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA);
+    expect(migrationDatasetFindMany).not.toHaveBeenCalled();
   });
 
   it('/intake remains public in route access rules', () => {

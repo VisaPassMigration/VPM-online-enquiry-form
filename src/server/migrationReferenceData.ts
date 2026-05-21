@@ -37,7 +37,14 @@ function requireReason(reason?: string) {
 
 async function writeDatasetAudit(input: {
   datasetId: string;
-  eventType: 'migration_reference_dataset_imported' | 'migration_reference_dataset_reviewed' | 'migration_reference_dataset_approved' | 'migration_reference_dataset_marked_stale';
+  eventType:
+    | 'migration_reference_dataset_imported'
+    | 'migration_reference_dataset_reviewed'
+    | 'migration_reference_dataset_approved'
+    | 'migration_reference_dataset_marked_stale'
+    | 'migration_reference_dataset_archived'
+    | 'occupation_reference_created'
+    | 'cost_reference_created';
   actor: StaffActorContext;
   reason: string;
   fromValue?: string | null;
@@ -69,7 +76,7 @@ export async function createMigrationReferenceDataset(input: { actor: StaffActor
   return created;
 }
 
-async function setStatus(input: { actor: StaffActorContext; datasetId: string; reason: string; toStatus: MigrationReferenceDatasetStatus; eventType: 'migration_reference_dataset_reviewed' | 'migration_reference_dataset_approved' | 'migration_reference_dataset_marked_stale'; }) {
+async function setStatus(input: { actor: StaffActorContext; datasetId: string; reason: string; toStatus: MigrationReferenceDatasetStatus; eventType: 'migration_reference_dataset_reviewed' | 'migration_reference_dataset_approved' | 'migration_reference_dataset_marked_stale' | 'migration_reference_dataset_archived'; }) {
   requireStaffActorContext(input.actor);
   const reason = requireReason(input.reason);
   const permission = input.toStatus === 'approved' ? PERMISSIONS.APPROVE_MIGRATION_REFERENCE_DATA : PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA;
@@ -95,14 +102,14 @@ export const approveMigrationReferenceDataset = (input: { actor: StaffActorConte
 export const markMigrationReferenceDatasetStale = (input: { actor: StaffActorContext; datasetId: string; reason: string; }) =>
   setStatus({ ...input, toStatus: 'stale', eventType: 'migration_reference_dataset_marked_stale' });
 export const archiveMigrationReferenceDataset = (input: { actor: StaffActorContext; datasetId: string; reason: string; }) =>
-  setStatus({ ...input, toStatus: 'archived', eventType: 'migration_reference_dataset_marked_stale' });
+  setStatus({ ...input, toStatus: 'archived', eventType: 'migration_reference_dataset_archived' });
 
 export async function addOccupationReference(input: { actor: StaffActorContext; datasetId: string; reason: string; occupationCode: string; occupationTitle: string; classificationSource?: string; possibleVisaSubclasses?: string[]; occupationListSource?: string; assessingAuthority?: string; shortageIndicator?: string; sourceUrl?: string; sourceDate?: string; notes?: string; }) {
   requireStaffActorContext(input.actor);
   assertPermission(input.actor, PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA);
   const reason = requireReason(input.reason);
   const created = await db.occupationReference.create({ data: { datasetId: input.datasetId, occupationCode: input.occupationCode.trim(), occupationTitle: input.occupationTitle.trim(), classificationSource: normalize(input.classificationSource) ?? null, possibleVisaSubclasses: input.possibleVisaSubclasses ?? [], occupationListSource: normalize(input.occupationListSource) ?? null, assessingAuthority: normalize(input.assessingAuthority) ?? null, shortageIndicator: normalize(input.shortageIndicator) ?? null, sourceUrl: normalize(input.sourceUrl) ?? null, sourceDate: input.sourceDate ? new Date(input.sourceDate) : null, notes: normalize(input.notes) ?? null } });
-  await writeDatasetAudit({ datasetId: input.datasetId, eventType: 'migration_reference_dataset_reviewed', actor: input.actor, reason, toValue: `occupation_reference:${created.id}` });
+  await writeDatasetAudit({ datasetId: input.datasetId, eventType: 'occupation_reference_created', actor: input.actor, reason, toValue: `occupation_reference:${created.id}` });
   return created;
 }
 
@@ -111,6 +118,6 @@ export async function addCostReference(input: { actor: StaffActorContext; datase
   assertPermission(input.actor, PERMISSIONS.MANAGE_MIGRATION_REFERENCE_DATA);
   const reason = requireReason(input.reason);
   const created = await db.costReference.create({ data: { datasetId: input.datasetId, category: input.category.trim(), label: input.label.trim(), amount: normalize(input.amount) ?? null, currency: normalize(input.currency) ?? null, sourceUrl: normalize(input.sourceUrl) ?? null, sourceDate: input.sourceDate ? new Date(input.sourceDate) : null, notes: normalize(input.notes) ?? null } });
-  await writeDatasetAudit({ datasetId: input.datasetId, eventType: 'migration_reference_dataset_reviewed', actor: input.actor, reason, toValue: `cost_reference:${created.id}` });
+  await writeDatasetAudit({ datasetId: input.datasetId, eventType: 'cost_reference_created', actor: input.actor, reason, toValue: `cost_reference:${created.id}` });
   return created;
 }
