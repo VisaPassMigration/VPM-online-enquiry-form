@@ -561,7 +561,7 @@ describe('intake dashboard actions', () => {
         id: 'cr-1', status: 'draft', reportVersion: 'clear-v1', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date('2026-01-01T01:00:00Z'), preparedByStaffUserId: 'staff-1', preparedAt: new Date('2026-01-01T02:00:00Z'), reviewedAt: new Date('2026-01-01T03:00:00Z'), approvedByStaffUserId: 'boss-1', approvedAt: new Date('2026-01-01T04:00:00Z'), approvalScope: 'standard_hot', requiresAustraliaReview: true, australiaReviewReason: 'escalated', australiaReviewedByStaffUserId: 'au-1', australiaReviewedAt: new Date('2026-01-01T05:00:00Z'), escalationReason: 'risk', reviewNotes: 'notes', reviewedByStaffUserId: 'staff-2', sharedAt: null,
         staffNotes: 'Internal strategy note',
         clientFacingNotes: 'Client-safe note draft',
-        generatedSnapshotJson: { clientSnapshot: { a: 1 }, ageProfileSummary: { age: 30 }, qualificationSummary: { highestQualification: 'Bachelor' }, workExperienceSummary: { years: 5 }, englishSummary: { level: 'Superior' }, potentialOccupationAlignment: { placeholder: 'alignment' }, possibleSkillsAssessmentBodyPathway: { placeholder: 'body/pathway' }, preliminaryPointsSnapshot: { total: 80 }, pointsImprovementStrategy: { placeholder: 'improve points' }, gsmOverviewSc189Sc190Sc491: { placeholder: 'gsm' }, referenceDataset: { datasetVersion: 'ds-v3', warning: 'dataset stale' }, legalReferenceGuidance: { internalOnly: true, matchedReferences: [{ legalReferenceId: 'lr-1', topic: 'refusal_history', sourceUrl: 'https://example.gov', approvedAt: '2026-01-01' }] }, documentCompleteness: { total: 1 }, riskDisclosuresReviewNotes: [{ riskCode: 'x' }], consultationTalkingPoints: { placeholder: 'talking points' }, recommendedNextSteps: { placeholder: 'next steps' }, estimatedForwardCostCategories: [{ code: 'gov_fee' }], disclaimer: 'Internal only.' },
+        generatedSnapshotJson: { clientSnapshot: { a: 1 }, ageProfileSummary: { age: 30 }, qualificationSummary: { highestQualification: 'Bachelor' }, workExperienceSummary: { years: 5 }, englishSummary: { level: 'Superior' }, potentialOccupationAlignment: { placeholder: 'alignment' }, possibleSkillsAssessmentBodyPathway: { placeholder: 'body/pathway' }, preliminaryPointsSnapshot: { total: 80 }, pointsImprovementStrategy: { placeholder: 'improve points' }, gsmOverviewSc189Sc190Sc491: { placeholder: 'gsm' }, referenceDataset: { datasetVersion: 'ds-v3', warning: 'dataset stale' }, legalReferenceGuidance: { internalOnly: true, matchedReferences: [{ legalReferenceId: 'lr-1', topic: 'refusal_history', referenceType: 'act_section', sectionOrSchedule: 's57', sourceUrl: 'https://example.gov', legendComReference: 'LEG-1', sourceDate: '2026-01-02', approvedAt: '2026-01-01', summary: 'Refusal context', operationalNotes: 'ops', riskTriggerNotes: 'risk note' }] }, documentCompleteness: { total: 1 }, riskDisclosuresReviewNotes: [{ riskCode: 'x' }], consultationTalkingPoints: { placeholder: 'talking points' }, recommendedNextSteps: { placeholder: 'next steps' }, estimatedForwardCostCategories: [{ code: 'gov_fee' }], disclaimer: 'Internal only.' },
       }],
     });
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
@@ -603,6 +603,11 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Legal Reference Guidance (Internal only)');
     expect(html).toContain('Internal Legal Reference Guidance (Approved sources only)');
     expect(html).toContain('Staff must verify source and approval metadata before any client discussion.');
+    expect(html).toContain('Warning:');
+    expect(html).toContain('referenceType');
+    expect(html).toContain('sectionOrSchedule');
+    expect(html).toContain('legendComReference');
+    expect(html).toContain('sourceDate');
     expect(html).toContain('Disclaimer');
     expect(html).toContain('Update C.L.E.A.R Notes');
     expect(html).not.toContain('Export');

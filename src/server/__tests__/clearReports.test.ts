@@ -136,6 +136,70 @@ describe('generateClearReportDraft', () => {
     expect(mocks.recordAuditEventMock.mock.calls[0][0].eventType).toBe('clear_report_generated');
   });
 
+
+  it('matched legal references expose strict metadata schema', async () => {
+    mocks.findSubmissionMock.mockResolvedValue(submissionFixture({
+      payload: { refusalHistory: true, characterDisclosure: true },
+      riskFlags: [{ riskCode: 'refusal_history_check', severity: 'medium', resolutionStatus: 'open', clientSafeDisclosure: 'prior refusal', resolutionSummaryInternal: 'character and refusal' }],
+    }));
+    await generateClearReportDraft({ submissionId: 'sub-1', actor });
+    const payload = mocks.createClearReportMock.mock.calls[0][0].data.generatedSnapshotJson as Record<string, any>;
+    for (const reference of payload.legalReferenceGuidance.matchedReferences) {
+      for (const key of ['legalReferenceId','topic','referenceType','sectionOrSchedule','sourceUrl','legendComReference','sourceDate','approvedAt','summary','operationalNotes','riskTriggerNotes']) {
+        expect(reference).toHaveProperty(key);
+      }
+    }
+  });
+
+  it('topic matching: refusal_history positive and negative', async () => {
+    mocks.findSubmissionMock.mockResolvedValue(submissionFixture({ payload: { refusalHistory: true }, riskFlags: [] }));
+    await generateClearReportDraft({ submissionId: 'sub-1', actor });
+    let payload = mocks.createClearReportMock.mock.calls.at(-1)[0].data.generatedSnapshotJson as Record<string, any>;
+    expect(payload.legalReferenceGuidance.matchedTopics).toContain('refusal_history');
+
+    mocks.findSubmissionMock.mockResolvedValue(submissionFixture({ payload: { refusalHistory: false, notes: 'clean history' }, riskFlags: [] }));
+    await generateClearReportDraft({ submissionId: 'sub-1', actor });
+    payload = mocks.createClearReportMock.mock.calls.at(-1)[0].data.generatedSnapshotJson as Record<string, any>;
+    expect(payload.legalReferenceGuidance.matchedTopics).not.toContain('refusal_history');
+  });
+
+  it('topic matching: cancellation_history, character, health, section_48_bar, section_116_cancellation, skills_assessment, and gsm_points behavior', async () => {
+    mocks.findSubmissionMock.mockResolvedValue(submissionFixture({
+      payload: {
+        cancellationHistory: true,
+        characterDisclosure: true,
+        healthDeclaration: true,
+        section48: 'possible',
+        section116: 'possible',
+        skillsAssessmentStatus: 'required',
+      },
+      riskFlags: [],
+    }));
+    await generateClearReportDraft({ submissionId: 'sub-1', actor });
+    let payload = mocks.createClearReportMock.mock.calls.at(-1)[0].data.generatedSnapshotJson as Record<string, any>;
+    for (const topic of ['cancellation_history','character','health','section_48_bar','section_116_cancellation','skills_assessment','gsm_points']) {
+      expect(payload.legalReferenceGuidance.matchedTopics).toContain(topic);
+    }
+
+    mocks.findSubmissionMock.mockResolvedValue(submissionFixture({
+      payload: {
+        cancellationHistory: false,
+        characterDisclosure: false,
+        healthDeclaration: false,
+        section48: 'none',
+        section116: 'none',
+        skillsAssessmentStatus: 'not_required',
+      },
+      riskFlags: [],
+    }));
+    await generateClearReportDraft({ submissionId: 'sub-1', actor });
+    payload = mocks.createClearReportMock.mock.calls.at(-1)[0].data.generatedSnapshotJson as Record<string, any>;
+    for (const topic of ['cancellation_history','character','health','section_48_bar','section_116_cancellation','skills_assessment']) {
+      expect(payload.legalReferenceGuidance.matchedTopics).not.toContain(topic);
+    }
+    expect(payload.legalReferenceGuidance.matchedTopics).toContain('gsm_points');
+  });
+
   it('includes approved legal references matched by risk context with safe language and metadata', async () => {
     mocks.findSubmissionMock.mockResolvedValue(submissionFixture({
       payload: { refusalHistory: true, characterDisclosure: true, section48: 'possible' },

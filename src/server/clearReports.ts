@@ -36,16 +36,40 @@ function lowerString(value: unknown): string {
 
 function detectLegalTopics(payload: Record<string, unknown>, riskFlags: Array<{ riskCode: string; clientSafeDisclosure: string | null; resolutionSummaryInternal: string | null }>): Set<LegalReferenceTopic> {
   const topics = new Set<LegalReferenceTopic>(['gsm_points']);
+
+  const refusalHistory = payload.refusalHistory;
+  if (refusalHistory === true || refusalHistory === 'yes') topics.add('refusal_history');
+
+  const cancellationHistory = payload.cancellationHistory;
+  if (cancellationHistory === true || cancellationHistory === 'yes') topics.add('cancellation_history');
+
+  const characterDisclosure = payload.characterDisclosure;
+  if (characterDisclosure === true || characterDisclosure === 'yes') topics.add('character');
+
+  const healthDeclaration = payload.healthDeclaration;
+  if (healthDeclaration === true || healthDeclaration === 'yes') topics.add('health');
+
+  const section48 = lowerString(payload.section48);
+  if (section48 && section48 !== 'none' && section48 !== 'no') topics.add('section_48_bar');
+
+  const section116 = lowerString(payload.section116);
+  if (section116 && section116 !== 'none' && section116 !== 'no') topics.add('section_116_cancellation');
+
+  const skillsAssessmentStatus = lowerString(payload.skillsAssessmentStatus);
+  if (skillsAssessmentStatus && skillsAssessmentStatus !== 'not_required' && skillsAssessmentStatus !== 'none') topics.add('skills_assessment');
+
+  // Free-text fallback is retained for legacy payloads and risk notes that are not yet fully structured.
+  // Future direction: map intake schema fields and risk codes directly to legal topics to remove regex inference risk.
   const text = JSON.stringify(payload).toLowerCase();
   const riskText = riskFlags.map((f) => `${f.riskCode} ${lowerString(f.clientSafeDisclosure)} ${lowerString(f.resolutionSummaryInternal)}`).join(' ').toLowerCase();
   const combined = `${text} ${riskText}`;
 
-  if (/refusal/.test(combined)) topics.add('refusal_history');
-  if (/(cancellation|cancelled|overstay|removal|deport)/.test(combined)) topics.add('cancellation_history');
-  if (/(character|criminal|police|offen|convict)/.test(combined)) topics.add('character');
-  if (/(health|medical)/.test(combined)) topics.add('health');
-  if (/(section\s*48|s48|sec\s*48)/.test(combined)) topics.add('section_48_bar');
-  if (/(section\s*116|s116|sec\s*116)/.test(combined)) topics.add('section_116_cancellation');
+  if (/\brefusal\b/.test(combined)) topics.add('refusal_history');
+  if (/\b(cancellation|cancelled|overstay|removal|deport)\b/.test(combined)) topics.add('cancellation_history');
+  if (/\b(character|criminal|police|offen[cs]e?|convict)\b/.test(combined)) topics.add('character');
+  if (/\b(health|medical)\b/.test(combined)) topics.add('health');
+  if (/(\bsection\s+48\b|\bs\s*48\b|\bsec\s*48\b)/.test(combined)) topics.add('section_48_bar');
+  if (/(\bsection\s+116\b|\bs\s*116\b|\bsec\s*116\b)/.test(combined)) topics.add('section_116_cancellation');
   if (/(skills assessment|assessing authority|anzsco)/.test(combined)) topics.add('skills_assessment');
   return topics;
 }
