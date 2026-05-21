@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   findSubmissionMock: vi.fn(),
   findDatasetMock: vi.fn(),
+  findLegalReferencesMock: vi.fn(),
   createClearReportMock: vi.fn(),
   updateClearReportMock: vi.fn(),
   findClearReportMock: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock('../db', () => ({
   db: {
     intakeSubmission: { findUniqueOrThrow: mocks.findSubmissionMock },
     migrationReferenceDataset: { findFirst: mocks.findDatasetMock },
+    legalReference: { findMany: mocks.findLegalReferencesMock },
     clearReport: { create: mocks.createClearReportMock, update: mocks.updateClearReportMock, findUniqueOrThrow: mocks.findClearReportMock },
   },
 }));
@@ -58,6 +60,11 @@ describe('generateClearReportDraft', () => {
       costReferences: [{ category: 'visa', label: 'Visa Application Charge', amount: '4,640', currency: 'AUD' }],
     });
     mocks.createClearReportMock.mockImplementation(async ({ data }) => ({ id: 'cr-1', ...data }));
+    mocks.findLegalReferencesMock.mockResolvedValue([
+      { id: 'lr-1', topic: 'refusal_history', referenceType: 'act_section', sectionOrSchedule: 's57', sourceUrl: 'https://example.gov/refusal', legendComReference: 'LEG-REF-1', sourceDate: new Date('2026-02-01T00:00:00Z'), approvedAt: new Date('2026-03-01T00:00:00Z'), summary: 'Refusal context', operationalNotes: 'ops', riskTriggerNotes: 'risk trigger' },
+      { id: 'lr-2', topic: 'character', referenceType: 'policy_reference', sectionOrSchedule: 'PIC 4001', sourceUrl: 'https://example.gov/character', legendComReference: null, sourceDate: new Date('2026-02-05T00:00:00Z'), approvedAt: new Date('2026-03-02T00:00:00Z'), summary: 'Character context', operationalNotes: null, riskTriggerNotes: null },
+      { id: 'lr-3', topic: 'gsm_points', referenceType: 'internal_guidance', sectionOrSchedule: 'GSM policy', sourceUrl: 'https://example.gov/gsm', legendComReference: null, sourceDate: null, approvedAt: new Date('2026-03-03T00:00:00Z'), summary: 'Points context', operationalNotes: null, riskTriggerNotes: null },
+    ]);
     mocks.recordAuditEventMock.mockResolvedValue({ id: 'audit-1' });
   });
 
@@ -127,6 +134,27 @@ describe('generateClearReportDraft', () => {
     await generateClearReportDraft({ submissionId: 'sub-1', actor });
     expect(mocks.recordAuditEventMock).toHaveBeenCalledTimes(1);
     expect(mocks.recordAuditEventMock.mock.calls[0][0].eventType).toBe('clear_report_generated');
+  });
+
+  it('includes approved legal references matched by risk context with safe language and metadata', async () => {
+    mocks.findSubmissionMock.mockResolvedValue(submissionFixture({
+      payload: { refusalHistory: true, characterDisclosure: true, section48: 'possible' },
+      riskFlags: [{ riskCode: 'refusal_history_check', severity: 'medium', resolutionStatus: 'open', clientSafeDisclosure: 'prior refusal', resolutionSummaryInternal: 'character and refusal' }],
+    }));
+    await generateClearReportDraft({ submissionId: 'sub-1', actor });
+    const payload = mocks.createClearReportMock.mock.calls[0][0].data.generatedSnapshotJson as Record<string, any>;
+    expect(payload.legalReferenceGuidance.internalOnly).toBe(true);
+    expect(payload.legalReferenceGuidance.disclaimer).toContain('does not constitute legal advice');
+    expect(payload.legalReferenceGuidance.matchedTopics).toContain('refusal_history');
+    expect(payload.legalReferenceGuidance.matchedReferences[0]).toEqual(expect.objectContaining({
+      legalReferenceId: expect.any(String),
+      topic: expect.any(String),
+      referenceType: expect.any(String),
+      sectionOrSchedule: expect.any(String),
+      sourceUrl: expect.any(String),
+      summary: expect.any(String),
+      internalGuidanceText: expect.stringContaining('internal guidance only'),
+    }));
   });
 });
 
