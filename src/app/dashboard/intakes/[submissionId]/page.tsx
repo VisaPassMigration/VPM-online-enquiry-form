@@ -978,8 +978,14 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 ['Recommended next steps', snapshot.recommendedNextSteps],
                 ['Estimated forward cost categories', snapshot.estimatedForwardCostCategories],
                 ['Reference dataset version/source notes', snapshot.referenceDataset],
+                ['Legal Reference Guidance (Internal only)', snapshot.legalReferenceGuidance],
                 ['Disclaimer', snapshot.disclaimer],
               ].map(([title, value]) => renderClearPreviewSection(title, value))}
+              {snapshot.legalReferenceGuidance ? <section className="section review-section">
+                <h6>Internal Legal Reference Guidance (Approved sources only)</h6>
+                <p><strong>Internal only:</strong> Staff must verify source and approval metadata before any client discussion.</p>
+                <p><strong>Warning:</strong> This content is internal guidance only and subject to authorised review based on information provided.</p>
+              </section> : null}
               <section className="section review-section">
                 <h6>Internal editable fields</h6>
                 {renderRows([
