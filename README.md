@@ -58,6 +58,11 @@ This repository establishes the initial structure for a professional intake plat
 
 ## Local Development
 
+## Online Deployment (No Local Terminal)
+
+Use the beginner guide: [docs/vercel-preview-setup.md](docs/vercel-preview-setup.md).
+
+
 1. Install dependencies:
 
    ```bash
