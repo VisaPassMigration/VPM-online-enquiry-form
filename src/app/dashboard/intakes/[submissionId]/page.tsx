@@ -152,12 +152,26 @@ const previewValue = (value: unknown) => {
   }
 };
 
-const renderClearPreviewSection = (title: string, value: unknown) => (
-  <section className="section review-section" key={title}>
-    <h6>{title}</h6>
-    <pre>{previewValue(value)}</pre>
-  </section>
-);
+const renderClearPreviewSection = (title: string, value: unknown) => {
+  if (title === 'VPM / C.L.E.A.R header') {
+    return (
+      <section className="section review-section" key={title}>
+        <h6>{title}</h6>
+        <div className="clear-pack-header">
+          <img src="/brand/vpm-logo-light.png" alt="Visa Pass Migration" className="clear-pack-header__logo" />
+        </div>
+        <pre>{previewValue(value)}</pre>
+      </section>
+    );
+  }
+
+  return (
+    <section className="section review-section" key={title}>
+      <h6>{title}</h6>
+      <pre>{previewValue(value)}</pre>
+    </section>
+  );
+};
 
 
 type StaffActorContext = {
