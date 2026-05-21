@@ -8,6 +8,14 @@ describe('permission matrix', () => {
     expect(hasPermission(['boss_admin'], PERMISSIONS.VIEW_ADMIN_AUDIT_LOG)).toBe(true);
     expect(canAccessPath('/admin/audit-log', true, ['boss_admin'])).toBe(true);
   });
+  it('migration reference admin route requires view_migration_reference_data', () => {
+    expect(canAccessPath('/admin/migration-reference-data', true, ['senior_staff'])).toBe(true);
+    expect(canAccessPath('/admin/migration-reference-data', true, ['australia_migration_team'])).toBe(true);
+    expect(canAccessPath('/admin/migration-reference-data', true, ['read_only_reviewer'])).toBe(false);
+  });
+  it('migration reference data permission alone does not grant audit log access', () => {
+    expect(canAccessPath('/admin/audit-log', true, ['senior_staff'])).toBe(false);
+  });
 
   it('read_only_reviewer cannot perform internal staff actions', () => {
     expect(hasPermission(['read_only_reviewer'], PERMISSIONS.PERFORM_INTERNAL_REVIEW_ACTIONS)).toBe(false);

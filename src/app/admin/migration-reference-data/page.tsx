@@ -1,8 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 
-import { auth } from '@/auth';
-import { PERMISSIONS, hasPermission, resolveActorRole, type RoleKey } from '@/server/auth/permissions';
+import { PERMISSIONS, resolveActorRole, type RoleKey } from '@/server/auth/permissions';
 import { requirePermission } from '@/server/auth/requirePermission';
 import { db } from '@/server/db';
 import { addCostReference, addOccupationReference, approveMigrationReferenceDataset, archiveMigrationReferenceDataset, createMigrationReferenceDataset, markMigrationReferenceDatasetReviewed, markMigrationReferenceDatasetStale } from '@/server/migrationReferenceData';
@@ -35,9 +34,7 @@ export async function runMutationAction(formData: FormData) {
 }
 
 export default async function MigrationReferenceDataPage() {
-  const session = await auth();
-  const roles = (session?.user?.roles ?? []) as RoleKey[];
-  if (!hasPermission(roles, PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA) && !hasPermission(roles, PERMISSIONS.VIEW_ADMIN_AUDIT_LOG)) await requirePermission(PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA);
+  await requirePermission(PERMISSIONS.VIEW_MIGRATION_REFERENCE_DATA);
   const datasets = await db.migrationReferenceDataset.findMany({ include: { occupationReferences: true, costReferences: true }, orderBy: { importedAt: 'desc' } });
   return <section className="section"><h1>Migration Reference Data</h1><p>Migration Reference Data is used to support internal C.L.E.A.R report preparation. It must be reviewed and approved by authorised staff before being relied on for consultation reports.</p><Link href="/admin/audit-log">Audit log</Link>{datasets.map((d)=><article key={d.id}><h3>{d.datasetVersion}</h3><p>Status: {d.status} | Source: {d.sourceSummary ?? '—'} | Imported: {d.importedAt.toISOString()}</p><p>Reviewed: {d.reviewedByStaffUserId ?? '—'} / {d.reviewedAt?.toISOString() ?? '—'} | Approved: {d.approvedByStaffUserId ?? '—'} / {d.approvedAt?.toISOString() ?? '—'} | Stale: {d.staleAt?.toISOString() ?? '—'}</p><p>Notes: {d.notes ?? '—'} | Occupation refs: {d.occupationReferences.length} | Cost refs: {d.costReferences.length}</p></article>)}<form action={runMutationAction}><h3>Create dataset</h3><input name="action" defaultValue="create_dataset" hidden readOnly/><input name="datasetVersion" placeholder="dataset version"/><input name="sourceSummary" placeholder="source summary"/><textarea name="notes"/><textarea name="reason"/><button type="submit">Create dataset</button></form></section>;
 }
