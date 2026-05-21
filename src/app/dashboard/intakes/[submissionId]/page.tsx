@@ -908,6 +908,10 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
               : {};
             const referenceDatasetVersion = snapshot.referenceDataset?.datasetVersion;
             const datasetWarning = typeof snapshot.warning === 'string' ? snapshot.warning : (typeof snapshot.referenceDataset?.warning === 'string' ? snapshot.referenceDataset.warning : null);
+            const hasRiskFlags = Array.isArray(snapshot.riskDisclosuresReviewNotes) && snapshot.riskDisclosuresReviewNotes.length > 0;
+            const hasMissingDocuments = Boolean(snapshot.documentCompleteness?.missingDocuments?.length);
+            const hasLegalGuidance = Boolean(snapshot.legalReferenceGuidance);
+            const consultationApproved = report.status === 'approved_for_consultation';
             return <article key={report.id} className="communication-card">
               <header className="communication-card__header">
                 <h4>{report.id}</h4>
@@ -935,6 +939,44 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 <div><dt>Reference dataset version</dt><dd>{referenceDatasetVersion || 'Not provided'}</dd></div>
               </dl>
               {datasetWarning ? <p><strong>Reference dataset warning:</strong> {datasetWarning}</p> : null}
+              <section className="section review-section">
+                <h5>Consultation Pack</h5>
+                <p><strong>Internal only warning:</strong> This Consultation Pack is an internal staff tool for structured discussion. It does not confirm any visa outcome and must not be treated as legal advice.</p>
+                <dl className="review-grid">
+                  <div className="review-grid-row"><dt>Report status marker</dt><dd><span className="pill pill--placeholder">{report.status}</span></dd></div>
+                  <div className="review-grid-row"><dt>Approved for consultation marker</dt><dd>{boolText(consultationApproved)}</dd></div>
+                  <div className="review-grid-row"><dt>Requires Australia review marker</dt><dd>{boolText(report.requiresAustraliaReview)}</dd></div>
+                  <div className="review-grid-row"><dt>Reference dataset warning marker</dt><dd>{boolText(Boolean(datasetWarning))}</dd></div>
+                  <div className="review-grid-row"><dt>Legal reference guidance marker</dt><dd>{boolText(hasLegalGuidance)}</dd></div>
+                  <div className="review-grid-row"><dt>Risk flags marker</dt><dd>{boolText(hasRiskFlags)}</dd></div>
+                  <div className="review-grid-row"><dt>Missing documents marker</dt><dd>{boolText(hasMissingDocuments)}</dd></div>
+                </dl>
+                {[
+                  ['VPM / C.L.E.A.R header', { reportTitle: 'C.L.E.A.R', provider: 'Visa Pass Migration', reportVersion: report.reportVersion }],
+                  ['Client snapshot', snapshot.clientSnapshot],
+                  ['Consultation readiness status', { reportStatus: report.status, approvedForConsultation: consultationApproved, requiresAustraliaReview: report.requiresAustraliaReview }],
+                  ['Lead rating summary', snapshot.leadRating],
+                  ['Key strengths / positive pathway indicators', snapshot.ageProfileSummary],
+                  ['Key concerns / risk items', snapshot.riskDisclosuresReviewNotes],
+                  ['Qualification summary', snapshot.qualificationSummary],
+                  ['Work experience summary', snapshot.workExperienceSummary],
+                  ['English summary', snapshot.englishSummary],
+                  ['Potential occupation alignment', snapshot.potentialOccupationAlignment],
+                  ['Possible assessing body / skills assessment pathway', snapshot.possibleSkillsAssessmentBodyPathway],
+                  ['Preliminary points position', snapshot.preliminaryPointsSnapshot],
+                  ['Points improvement opportunities', snapshot.pointsImprovementStrategy],
+                  ['GSM pathway overview: SC189 / SC190 / SC491', snapshot.gsmOverviewSc189Sc190Sc491],
+                  ['Document completeness / missing documents', snapshot.documentCompleteness],
+                  ['Internal legal reference guidance summary', snapshot.legalReferenceGuidance],
+                  ['Consultation talking points', snapshot.consultationTalkingPoints],
+                  ['Recommended next steps', snapshot.recommendedNextSteps],
+                  ['CSA discussion prompt', 'If the client understands the strategy and wishes to proceed, discuss the Client Service Agreement pathway and next onboarding steps.'],
+                  ['Estimated forward cost categories', snapshot.estimatedForwardCostCategories],
+                  ['Reference dataset version', snapshot.referenceDataset],
+                  ['Legal/reference warning', { referenceDatasetWarning: datasetWarning ?? 'Not provided', legalGuidancePresent: hasLegalGuidance ? 'Yes' : 'No' }],
+                  ['Disclaimer', snapshot.disclaimer],
+                ].map(([title, value]) => renderClearPreviewSection(title, value))}
+              </section>
               {canMutateClear ? <form action={runClearWorkflowAction} className="intake-form">
                 <input type="hidden" name="submissionId" value={submission.id} />
                 <input type="hidden" name="clearReportId" value={report.id} />
