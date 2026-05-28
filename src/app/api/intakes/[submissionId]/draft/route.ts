@@ -4,6 +4,9 @@ import { recordAuditEvent } from '@/server/audit';
 import { db } from '@/server/db';
 import { assertDraftStatus, mapPrismaError, parseIntakePayload } from '@/server/intakeApi';
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 type RouteContext = { params: Promise<{ submissionId: string }> };
 
 export async function PATCH(request: Request, context: RouteContext) {

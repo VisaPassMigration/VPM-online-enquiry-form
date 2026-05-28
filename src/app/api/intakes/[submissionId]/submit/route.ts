@@ -6,6 +6,9 @@ import { db } from '@/server/db';
 import { sendClientIntakeReceivedEmail } from '@/server/email';
 import { assertDraftStatus, computeRiskFlags, mapPrismaError, mapToPointsSnapshotCreateInput, mapToRiskPayload, parseIntakePayload, preparePointsSnapshot, prepareStatusTransition, sendClientConfirmationEmailWithAudit, toPointsInput } from '@/server/intakeApi';
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 type RouteContext = { params: Promise<{ submissionId: string }> };
 
 export async function POST(_request: Request, context: RouteContext) {
