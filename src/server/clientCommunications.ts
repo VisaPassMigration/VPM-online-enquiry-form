@@ -88,7 +88,7 @@ async function createAuditEvent(input: {
     eventType: input.eventType,
     actorId: input.actorId,
     actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
     relatedEntityType: 'client_communication',
     relatedEntityId: input.communicationId,
     fromValue: input.fromStatus,
@@ -121,7 +121,7 @@ export async function createClientCommunicationDraft(input: CreateClientCommunic
     eventType: 'client_comm_drafted',
     actorId: input.actorId,
     actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
     reason: input.internalReason.trim(),
     metadata: {
       communicationId: created.id,
@@ -151,7 +151,7 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
     internalNote: input.internalReason,
     actorId: input.actorId,
     actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
     resendReason: input.resendReason,
     riskFlags: riskFlags.map((flag) => ({
       key: flag.riskCode,
@@ -184,17 +184,17 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
 
     await createAuditEvent({
       submissionId: input.submissionId,
+      communicationId: input.communicationId,
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
       reason: gate.blockedReason ?? 'release_blocked',
       metadata: {
         communicationId: input.communicationId,
         communicationType: input.communicationType,
         requiredChecks: gate.requiredChecks as unknown as Prisma.InputJsonObject,
       },
-      communicationId: input.communicationId,
       toStatus: 'blocked',
     });
 
@@ -216,7 +216,7 @@ export async function requestClientCommunicationRelease(input: RequestClientComm
     eventType: 'client_comm_release_requested',
     actorId: input.actorId,
     actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
     reason: input.internalReason.trim(),
     metadata: {
       communicationId: input.communicationId,
@@ -265,17 +265,18 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
     internalNote: input.internalReason,
     actorId: input.actorId,
     actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
   });
 
   if (!gate.allowed) {
     await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'blocked' } });
     await createAuditEvent({
       submissionId: input.submissionId,
+      communicationId: input.communicationId,
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
       reason: gate.blockedReason ?? 'release_blocked',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -296,10 +297,11 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
     });
     await createAuditEvent({
       submissionId: input.submissionId,
+      communicationId: input.communicationId,
       eventType: 'client_comm_released',
       actorId: input.actorId,
       actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
       reason: input.internalReason.trim(),
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -309,10 +311,11 @@ export async function releaseRequestMoreInformationCommunication(input: RequestC
     const failed = await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'failed', failureReason } });
     await createAuditEvent({
       submissionId: input.submissionId,
+      communicationId: input.communicationId,
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
       reason: 'email_send_failed',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType, failureReason } as Prisma.InputJsonObject,
     });
@@ -339,7 +342,7 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
     internalNote: input.internalReason,
     actorId: input.actorId,
     actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
     riskFlags: riskFlags.map((flag) => ({
       key: flag.riskCode,
       severity: flag.severity,
@@ -364,10 +367,11 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
     await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'blocked' } });
     await createAuditEvent({
       submissionId: input.submissionId,
+      communicationId: input.communicationId,
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
       reason: gate.blockedReason ?? 'release_blocked',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -388,10 +392,11 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
     });
     await createAuditEvent({
       submissionId: input.submissionId,
+      communicationId: input.communicationId,
       eventType: 'client_comm_released',
       actorId: input.actorId,
       actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
       reason: input.internalReason.trim(),
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType },
     });
@@ -401,10 +406,11 @@ export async function releaseConsultationInvitationCommunication(input: RequestC
     const failed = await db.clientCommunication.update({ where: { id: input.communicationId }, data: { status: 'failed', failureReason } });
     await createAuditEvent({
       submissionId: input.submissionId,
+      communicationId: input.communicationId,
       eventType: 'client_comm_release_blocked',
       actorId: input.actorId,
       actorRole: input.actorRole,
-    actorStaffUserId: input.actorStaffUserId,
+      actorStaffUserId: input.actorStaffUserId,
       reason: 'email_send_failed',
       metadata: { communicationId: input.communicationId, communicationType: input.communicationType, failureReason } as Prisma.InputJsonObject,
     });

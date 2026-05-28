@@ -188,7 +188,7 @@ export default async function DashboardPage({
   searchParams,
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+}) {
   await requirePermission(PERMISSIONS.VIEW_DASHBOARD);
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const leadRatingFilter = parseLeadRatingFilter(resolvedSearchParams.leadRating);

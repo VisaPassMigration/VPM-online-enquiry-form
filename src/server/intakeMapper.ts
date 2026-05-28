@@ -93,9 +93,9 @@ export function mapToPointsSnapshotCreateInput(
   return {
     submissionId,
     calculatorVersion: snapshot.calculatorVersion,
-    inputPayload: snapshot.inputPayload as Prisma.InputJsonValue,
+    inputPayload: snapshot.inputPayload as unknown as Prisma.InputJsonValue,
     totalPoints: snapshot.estimatedTotalPoints ?? snapshot.estimatedTotal,
-    pointsBreakdown: snapshot.pointsBreakdown as Prisma.InputJsonValue,
+    pointsBreakdown: snapshot.pointsBreakdown as unknown as Prisma.InputJsonValue,
     missingItems: snapshot.missingItems,
     generatedBy: snapshot.generatedBy as PointsGeneratedBy,
     generatedAt: new Date(snapshot.generatedAt),

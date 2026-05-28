@@ -22,21 +22,21 @@ describe('enquiry actions', () => {
   });
 
   it('create enquiry action works', async () => {
-    const { runCreateEnquiryAction } = await import('./page');
+    const { runCreateEnquiryAction } = await import('./actions');
     const fd = new FormData(); fd.set('email', 'x@y.com');
     await runCreateEnquiryAction(fd);
     expect(mocks.createEnquiry).toHaveBeenCalledWith(expect.objectContaining({ email: 'x@y.com' }));
   });
 
   it('draft FAQ email action works', async () => {
-    const { runDraftFaqAction } = await import('./page');
+    const { runDraftFaqAction } = await import('./actions');
     const fd = new FormData(); fd.set('enquiryId', 'e1'); fd.set('template', 'faq_student_visa');
     await runDraftFaqAction(fd);
     expect(mocks.draftEnquiryFaqEmail).toHaveBeenCalledWith(expect.objectContaining({ enquiryId: 'e1', type: 'faq_student_visa' }));
   });
 
   it('send FAQ email action works and requires internal reason', async () => {
-    const { runSendFaqAction } = await import('./page');
+    const { runSendFaqAction } = await import('./actions');
     const fd = new FormData(); fd.set('communicationId', 'c1'); fd.set('internalReason', 'info only');
     await runSendFaqAction(fd);
     expect(mocks.sendEnquiryFaqEmail).toHaveBeenCalledWith(expect.objectContaining({ communicationId: 'c1', internalReason: 'info only' }));
@@ -44,7 +44,7 @@ describe('enquiry actions', () => {
 
   it('read_only_reviewer cannot send', async () => {
     mocks.requirePermission.mockRejectedValueOnce(new Error('Missing permission'));
-    const { runSendFaqAction } = await import('./page');
+    const { runSendFaqAction } = await import('./actions');
     const fd = new FormData(); fd.set('communicationId', 'c1'); fd.set('internalReason', 'info only');
     await expect(runSendFaqAction(fd)).rejects.toThrow('Missing permission');
   });

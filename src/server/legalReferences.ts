@@ -84,7 +84,7 @@ export async function updateLegalReference(input: { actor: StaffActorContext; le
         acc[field] = { before: (existing as Record<string, unknown>)[field], after: (updated as Record<string, unknown>)[field] };
         return acc;
       }, {}),
-    },
+    } as any,
   });
   return updated;
 }

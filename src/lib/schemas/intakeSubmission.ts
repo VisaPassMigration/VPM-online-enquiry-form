@@ -109,7 +109,7 @@ const baseSchema = z.object({
 });
 
 export const intakeSubmissionSchema = baseSchema
-  .superRefine((data: IntakeSubmissionRefinementInput, ctx: { addIssue: (issue: { code: string; path?: string[]; message: string }) => void }) => {
+  .superRefine((data, ctx) => {
     if (data.englishTestTaken) {
       if (!data.englishTestType?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['englishTestType'], message: 'English test type is required.' });

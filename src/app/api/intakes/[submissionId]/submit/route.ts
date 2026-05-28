@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 
 import { recordAuditEvent } from '@/server/audit';
 import { db } from '@/server/db';
@@ -45,10 +46,9 @@ export async function POST(_request: Request, context: RouteContext) {
       });
 
       await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'submission_submitted', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, fromValue: { status: existing.status }, toValue: { status: 'submitted' }, metadata: { status: 'submitted' }, eventSource: 'intake_api' });
-      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'status_transition_requested', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, fromValue: { status: transition.fromStatus }, toValue: { status: transition.toStatus }, internalNote: transition.internalNote, metadata: transition, eventSource: 'intake_api' });
-      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'status_transition_applied', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, fromValue: { status: transition.fromStatus }, toValue: { status: transition.toStatus }, internalNote: transition.internalNote, metadata: transition, eventSource: 'intake_api' });
+      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'status_transition_executed', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, fromValue: { status: transition.from }, toValue: { status: transition.to }, internalNote: `Validated transition ${transition.from} -> ${transition.to}.`, metadata: transition, eventSource: 'intake_api' });
       await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'points_snapshot_generated', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, metadata: { estimatedTotal: pointsSnapshot.estimatedTotal, potentialRange: pointsSnapshot.potentialRange }, eventSource: 'intake_api' });
-      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'risk_flags_computed', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, metadata: { count: riskFlags.length, flags: riskFlags.map((f) => f.key) }, eventSource: 'intake_api' });
+      await recordAuditEvent({ tx, submissionId: submission.id, eventType: 'risk_flag_created', actorRole: 'system', relatedEntityType: 'intake_submission', relatedEntityId: submission.id, metadata: { count: riskFlags.length, flags: riskFlags.map((f) => f.key) }, eventSource: 'intake_api' });
 
       return { submission, payload };
     });
@@ -60,13 +60,14 @@ export async function POST(_request: Request, context: RouteContext) {
         clientName: [result.payload.firstName, result.payload.lastName].filter(Boolean).join(' '),
       }),
       recordAudit: async (eventType, metadata) => {
+        if (eventType !== 'submission_updated') throw new Error(`Unsupported intake email audit event: ${eventType}`);
         await recordAuditEvent({
           submissionId: result.submission.id,
           eventType,
           actorRole: 'system',
           relatedEntityType: 'intake_submission',
           relatedEntityId: result.submission.id,
-          metadata,
+          metadata: metadata as Prisma.InputJsonObject,
           eventSource: 'intake_api',
         });
       },
