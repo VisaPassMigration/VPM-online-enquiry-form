@@ -4,6 +4,9 @@ import { recordAuditEvent } from '@/server/audit';
 import { db } from '@/server/db';
 import { mapPrismaError, mapToIntakeSubmissionCreateInput, parseIntakePayload } from '@/server/intakeApi';
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();

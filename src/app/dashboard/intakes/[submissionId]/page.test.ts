@@ -82,6 +82,7 @@ vi.mock('@/server/clearReports', () => ({
   updateClearReportNotes: mocks.updateClearReportNotesMock,
 }));
 
+import IntakeReviewPage from './page';
 import {
   runClientCommunicationAction,
   runInternalReviewAction,
@@ -93,8 +94,7 @@ import {
   runGenerateClearReportDraftAction,
   runClearWorkflowAction,
   runUpdateClearReportNotesAction,
-  default as IntakeReviewPage,
-} from './page';
+} from './actions';
 
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -169,7 +169,7 @@ describe('intake dashboard actions', () => {
     await runClientCommunicationAction(formData);
 
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.PREPARE_CLIENT_COMMUNICATION);
-    expect(mocks.createClientCommunicationDraftMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff', actorStaffUserId: 'staff-1' }));
+    expect(mocks.createClientCommunicationDraftMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'staff', actorStaffUserId: 'staff-1' }));
   });
 
   it('release request-more-info uses session-derived actor', async () => {
@@ -182,7 +182,7 @@ describe('intake dashboard actions', () => {
     await runReleaseRequestMoreInformationAction(formData);
 
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.RELEASE_REQUEST_MORE_INFO);
-    expect(mocks.releaseRequestMoreInformationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff', actorStaffUserId: 'staff-1' }));
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'staff', actorStaffUserId: 'staff-1' }));
   });
 
   it('release consultation invite uses session-derived actor', async () => {
@@ -194,7 +194,7 @@ describe('intake dashboard actions', () => {
     await runReleaseConsultationInvitationAction(formData);
 
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.RELEASE_CONSULTATION_INVITE);
-    expect(mocks.releaseConsultationInvitationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'senior_staff', actorStaffUserId: 'staff-1' }));
+    expect(mocks.releaseConsultationInvitationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'staff', actorStaffUserId: 'staff-1' }));
   });
 
   it('read_only_reviewer cannot prepare communication', async () => {

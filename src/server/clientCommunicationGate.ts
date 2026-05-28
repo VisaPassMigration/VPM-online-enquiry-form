@@ -23,7 +23,7 @@ export type ClientCommunicationStatus =
 export type CommunicationRiskFlag = {
   key: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  status?: 'open' | 'under_review' | 'resolved' | 'closed';
+  status?: 'open' | 'under_review' | 'resolved' | 'closed' | 'accepted_with_controls';
 };
 
 export type CommunicationReviewState = {
@@ -42,6 +42,7 @@ export type ValidateClientCommunicationReleaseInput = {
   internalNote?: string;
   actorId?: string;
   actorRole?: string;
+  actorStaffUserId?: string;
   riskFlags?: CommunicationRiskFlag[];
   reviewState?: CommunicationReviewState;
   existingCommunications?: ExistingCommunicationRecord[];

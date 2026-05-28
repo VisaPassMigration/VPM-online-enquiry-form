@@ -1,21 +1,17 @@
 import React from 'react';
+import { LegalReferenceStatus, LegalReferenceTopic, LegalReferenceType } from '@prisma/client';
 
 import { auth } from '@/auth';
-import {
-  approveLegalReference,
-  archiveLegalReference,
-  createLegalReference,
-  markLegalReferenceReviewed,
-  markLegalReferenceStale,
-  updateLegalReference,
-} from '@/server/legalReferences';
-import { PERMISSIONS, hasPermission, resolveActorRole, type RoleKey } from '@/server/auth/permissions';
+import { PERMISSIONS, hasPermission, type RoleKey } from '@/server/auth/permissions';
 import { requirePermission } from '@/server/auth/requirePermission';
 import { db } from '@/server/db';
+import { runMutationAction } from './actions';
 
-const LEGAL_REFERENCE_TOPICS = ['section_48_bar', 'character', 'visa_criteria', 'procedural_fairness', 'health', 'family_violence', 'detention', 'review_rights', 'bridging_visa'] as const;
-const LEGAL_REFERENCE_TYPES = ['act_section', 'regulation', 'legislative_instrument', 'policy_guidance', 'case_law'] as const;
-const LEGAL_REFERENCE_STATUSES = ['draft', 'reviewed', 'approved', 'stale', 'archived'] as const;
+export const dynamic = "force-dynamic";
+
+const LEGAL_REFERENCE_TOPICS = new Set<string>(Object.values(LegalReferenceTopic));
+const LEGAL_REFERENCE_TYPES = new Set<string>(Object.values(LegalReferenceType));
+const LEGAL_REFERENCE_STATUSES = new Set<string>(Object.values(LegalReferenceStatus));
 
 const statusBadgeClass: Record<string, string> = {
   draft: 'status-chip status-chip-draft',
@@ -27,79 +23,6 @@ const statusBadgeClass: Record<string, string> = {
 
 type Props = { searchParams?: Promise<{ topic?: string; referenceType?: string; status?: string }> };
 
-async function requireActor(permission: string) {
-  const { requireStaffSession } = await import('@/server/auth/requireStaffSession');
-  const session = await requireStaffSession();
-  await requirePermission(permission as never);
-  const actorId = String(session.user.staffUserId ?? '').trim();
-  if (!actorId) throw new Error('Missing authenticated staff actor id');
-  return {
-    actorId,
-    actorName: session.user.name?.trim() || session.user.email?.trim() || actorId,
-    actorRole: resolveActorRole(session.user.roles ?? []),
-    actorStaffUserId: actorId,
-    actorRoles: (session.user.roles ?? []) as RoleKey[],
-  };
-}
-
-export async function runMutationAction(formData: FormData) {
-  'use server';
-  const action = String(formData.get('action') ?? '');
-  const reason = String(formData.get('reason') ?? '').trim();
-  const legalReferenceId = String(formData.get('legalReferenceId') ?? '').trim();
-
-  if (action === 'create_legal_reference') {
-    await createLegalReference({
-      actor: await requireActor(PERMISSIONS.MANAGE_LEGAL_REFERENCE),
-      reason,
-      referenceType: String(formData.get('referenceType') ?? '') as (typeof LEGAL_REFERENCE_TYPES)[number],
-      jurisdiction: String(formData.get('jurisdiction') ?? ''),
-      actName: String(formData.get('actName') ?? ''),
-      regulationName: String(formData.get('regulationName') ?? ''),
-      instrumentName: String(formData.get('instrumentName') ?? ''),
-      sectionOrSchedule: String(formData.get('sectionOrSchedule') ?? ''),
-      topic: String(formData.get('topic') ?? '') as (typeof LEGAL_REFERENCE_TOPICS)[number],
-      summary: String(formData.get('summary') ?? ''),
-      operationalNotes: String(formData.get('operationalNotes') ?? ''),
-      riskTriggerNotes: String(formData.get('riskTriggerNotes') ?? ''),
-      sourceUrl: String(formData.get('sourceUrl') ?? ''),
-      legendComReference: String(formData.get('legendComReference') ?? ''),
-      sourceDate: String(formData.get('sourceDate') ?? ''),
-    });
-    return;
-  }
-
-  if (!legalReferenceId) return;
-
-  if (action === 'update_legal_reference') {
-    await updateLegalReference({
-      actor: await requireActor(PERMISSIONS.MANAGE_LEGAL_REFERENCE),
-      legalReferenceId,
-      reason,
-      data: {
-        referenceType: String(formData.get('referenceType') ?? '') as (typeof LEGAL_REFERENCE_TYPES)[number],
-        jurisdiction: String(formData.get('jurisdiction') ?? ''),
-        actName: String(formData.get('actName') ?? ''),
-        regulationName: String(formData.get('regulationName') ?? ''),
-        instrumentName: String(formData.get('instrumentName') ?? ''),
-        sectionOrSchedule: String(formData.get('sectionOrSchedule') ?? ''),
-        topic: String(formData.get('topic') ?? '') as (typeof LEGAL_REFERENCE_TOPICS)[number],
-        summary: String(formData.get('summary') ?? ''),
-        operationalNotes: String(formData.get('operationalNotes') ?? ''),
-        riskTriggerNotes: String(formData.get('riskTriggerNotes') ?? ''),
-        sourceUrl: String(formData.get('sourceUrl') ?? ''),
-        legendComReference: String(formData.get('legendComReference') ?? ''),
-        sourceDate: String(formData.get('sourceDate') ?? ''),
-      },
-    });
-  }
-
-  if (action === 'mark_reviewed') await markLegalReferenceReviewed({ actor: await requireActor(PERMISSIONS.REVIEW_LEGAL_REFERENCE), legalReferenceId, reason });
-  if (action === 'approve') await approveLegalReference({ actor: await requireActor(PERMISSIONS.APPROVE_LEGAL_REFERENCE), legalReferenceId, reason });
-  if (action === 'mark_stale') await markLegalReferenceStale({ actor: await requireActor(PERMISSIONS.MANAGE_LEGAL_REFERENCE), legalReferenceId, reason });
-  if (action === 'archive') await archiveLegalReference({ actor: await requireActor(PERMISSIONS.MANAGE_LEGAL_REFERENCE), legalReferenceId, reason });
-}
-
 export default async function LegalReferencesPage({ searchParams }: Props) {
   await requirePermission(PERMISSIONS.VIEW_LEGAL_REFERENCE);
   const session = await auth();
@@ -109,9 +32,9 @@ export default async function LegalReferencesPage({ searchParams }: Props) {
   const canApprove = hasPermission(roles, PERMISSIONS.APPROVE_LEGAL_REFERENCE);
 
   const filters = (await searchParams) ?? {};
-  const topic = LEGAL_REFERENCE_TOPICS.includes(filters.topic as (typeof LEGAL_REFERENCE_TOPICS)[number]) ? filters.topic : undefined;
-  const referenceType = LEGAL_REFERENCE_TYPES.includes(filters.referenceType as (typeof LEGAL_REFERENCE_TYPES)[number]) ? filters.referenceType : undefined;
-  const status = LEGAL_REFERENCE_STATUSES.includes(filters.status as (typeof LEGAL_REFERENCE_STATUSES)[number]) ? filters.status : undefined;
+  const topic = filters.topic && LEGAL_REFERENCE_TOPICS.has(filters.topic) ? filters.topic as LegalReferenceTopic : undefined;
+  const referenceType = filters.referenceType && LEGAL_REFERENCE_TYPES.has(filters.referenceType) ? filters.referenceType as LegalReferenceType : undefined;
+  const status = filters.status && LEGAL_REFERENCE_STATUSES.has(filters.status) ? filters.status as LegalReferenceStatus : undefined;
   const references = await db.legalReference.findMany({
     where: {
       ...(topic ? { topic } : {}),

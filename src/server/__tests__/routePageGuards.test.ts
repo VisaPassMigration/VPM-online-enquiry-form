@@ -54,7 +54,7 @@ describe('protected staff page entry guards', () => {
 
     const page = (await import('@/app/dashboard/page')).default;
 
-    await expect(page()).rejects.toThrow('blocked');
+    await expect(page({})).rejects.toThrow('blocked');
     expect(requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.VIEW_DASHBOARD);
     expect(dashboardFindMany).not.toHaveBeenCalled();
   });

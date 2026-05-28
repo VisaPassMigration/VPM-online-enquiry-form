@@ -44,7 +44,7 @@ describe('POST /api/intakes/[submissionId]/submit', () => {
     vi.clearAllMocks();
     mocks.findUniqueMock.mockResolvedValue({ id: 'sub-1', status: 'draft', payload: { email: 'a@b.com', firstName: 'A', lastName: 'B' } });
     mocks.parsePayloadMock.mockReturnValue({ payload: { email: 'a@b.com', firstName: 'A', lastName: 'B' }, errors: [] });
-    mocks.prepareStatusTransitionMock.mockReturnValue({ fromStatus: 'draft', toStatus: 'submitted', internalNote: 'note' });
+    mocks.prepareStatusTransitionMock.mockReturnValue({ from: 'draft', to: 'submitted', validatedAt: '2026-01-01T00:00:00.000Z' });
     mocks.preparePointsSnapshotMock.mockReturnValue({ estimatedTotal: 65, potentialRange: { min: 60, max: 70 }, missingItems: [] });
     mocks.computeRiskFlagsMock.mockReturnValue([{ key: 'r1', severity: 'low' }]);
     mocks.updateMock.mockResolvedValue({ id: 'sub-1', status: 'submitted', submittedAt: new Date('2026-01-01T00:00:00.000Z') });
@@ -63,10 +63,9 @@ describe('POST /api/intakes/[submissionId]/submit', () => {
     expect(response.status).toBe(200);
     const calls = mocks.recordAuditEventMock.mock.calls.map((c) => c[0]);
     expect(calls.some((c) => c.tx && c.eventType === 'submission_submitted')).toBe(true);
-    expect(calls.some((c) => c.tx && c.eventType === 'status_transition_requested')).toBe(true);
-    expect(calls.some((c) => c.tx && c.eventType === 'status_transition_applied')).toBe(true);
+    expect(calls.some((c) => c.tx && c.eventType === 'status_transition_executed')).toBe(true);
     expect(calls.some((c) => c.tx && c.eventType === 'points_snapshot_generated')).toBe(true);
-    expect(calls.some((c) => c.tx && c.eventType === 'risk_flags_computed')).toBe(true);
+    expect(calls.some((c) => c.tx && c.eventType === 'risk_flag_created')).toBe(true);
     expect(calls.some((c) => !c.tx && c.eventType === 'submission_updated' && c.eventSource === 'intake_api')).toBe(true);
   });
 });

@@ -59,6 +59,21 @@ interface IntakeFormData {
 
 const DRAFT_KEY = 'vpm-intake-draft-v1';
 const initialData: IntakeFormData = { fullName: '', dateOfBirth: '', nationality: '', residenceCountry: '', address: '', email: '', phone: '', contactMethod: 'Email', interestedCountry: 'Australia', mainGoal: 'Not sure', timeframe: '', maritalStatus: 'Single', dependants: '', migrateWithFamily: 'No', partnerFullName: '', partnerNationality: '', highestQualification: '', fieldOfStudy: '', institution: '', studyCountry: '', completionYear: '', currentOccupation: '', migrationOccupation: '', workExperienceYears: '', currentEmployer: '', dutiesSummary: '', englishTestCompleted: 'No', englishTestType: '', englishTestDate: '', englishScoreSummary: '', previousRefusal: 'No', refusalDetails: '', previousCancellation: 'No', overstayRemoval: 'No', criminalHistory: 'No', healthCondition: 'No', cancellationOverstayDetails: '', criminalDetails: '', healthDetails: '', ageBracket: '25-32', englishLevel: 'Competent', overseasSkilledEmploymentYears: '0-2', australianSkilledEmploymentYears: '0', highestQualificationLevel: 'Bachelor/Masters', australianStudyRequirementCompleted: 'No', regionalStudyCompleted: 'No', specialistEducationalQualification: 'No', professionalYearCompleted: 'No', naatiCredential: 'No', partnerPointsCategory: 'Not applicable', nominationType: 'None', passportBioPage: '', resume: '', qualificationsDoc: '', transcripts: '', englishResultDoc: '', skillsAssessmentDoc: '', refusalDocs: '', otherSupportingDocs: '' };
+
+const splitName = (fullName: string) => {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const firstName = parts.shift() ?? '';
+  const lastName = parts.join(' ');
+  return { firstName, lastName };
+};
+
+const toEnglishOverallBand = (scoreSummary: string) => {
+  const match = scoreSummary.match(/\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : undefined;
+};
+
+const toYesNoUnknown = (value: YesNo): 'yes' | 'no' | 'unknown' => (value === 'Yes' ? 'yes' : 'no');
+
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const documentUploadConfig: FileUploadConfig[] = [
   { key: 'passportBioPage', label: 'Passport bio page', acceptedTypes: '.pdf,.jpg,.jpeg,.png', required: true },

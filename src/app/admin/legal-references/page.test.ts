@@ -85,7 +85,7 @@ describe('legal references admin page', () => {
   });
 
   it('create action calls createLegalReference', async () => {
-    const { runMutationAction } = await import('./page');
+    const { runMutationAction } = await import('./actions');
     const form = new FormData();
     form.set('action', 'create_legal_reference');
     form.set('reason', 'internal reason');
@@ -95,7 +95,7 @@ describe('legal references admin page', () => {
   });
 
   it('update action calls updateLegalReference', async () => {
-    const { runMutationAction } = await import('./page');
+    const { runMutationAction } = await import('./actions');
     const form = new FormData();
     form.set('action', 'update_legal_reference'); form.set('legalReferenceId', 'l1'); form.set('reason', 'internal reason');
     form.set('referenceType', 'act_section'); form.set('jurisdiction', 'AU'); form.set('sectionOrSchedule', 's48'); form.set('topic', 'section_48_bar'); form.set('summary', 'summary');
@@ -104,7 +104,7 @@ describe('legal references admin page', () => {
   });
 
   it('review/approve/stale/archive actions call corresponding services', async () => {
-    const { runMutationAction } = await import('./page');
+    const { runMutationAction } = await import('./actions');
     for (const action of ['mark_reviewed', 'approve', 'mark_stale', 'archive']) {
       const form = new FormData();
       form.set('action', action); form.set('legalReferenceId', 'l1'); form.set('reason', 'internal reason');
@@ -118,7 +118,7 @@ describe('legal references admin page', () => {
 
   it('missing internal reason is blocked', async () => {
     mocks.createLegalReference.mockRejectedValueOnce(new Error('Internal note/reason is required.'));
-    const { runMutationAction } = await import('./page');
+    const { runMutationAction } = await import('./actions');
     const form = new FormData();
     form.set('action', 'create_legal_reference');
     form.set('referenceType', 'act_section'); form.set('jurisdiction', 'AU'); form.set('sectionOrSchedule', 's48'); form.set('topic', 'section_48_bar'); form.set('summary', 'summary');
