@@ -6,6 +6,8 @@ import Link from 'next/link';
 
 import { db } from '@/server/db';
 
+export const dynamic = "force-dynamic";
+
 const displayDateTime = (dateTime: Date) =>
   new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(dateTime);
 

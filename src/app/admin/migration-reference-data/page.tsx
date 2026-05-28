@@ -7,6 +7,8 @@ import { requirePermission } from '@/server/auth/requirePermission';
 import { db } from '@/server/db';
 import { runMutationAction } from './actions';
 
+export const dynamic = "force-dynamic";
+
 const statusBadgeClass: Record<string, string> = {
   draft: 'status-chip status-chip-draft',
   reviewed: 'status-chip status-chip-reviewed',

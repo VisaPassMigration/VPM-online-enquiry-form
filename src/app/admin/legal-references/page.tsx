@@ -7,6 +7,8 @@ import { requirePermission } from '@/server/auth/requirePermission';
 import { db } from '@/server/db';
 import { runMutationAction } from './actions';
 
+export const dynamic = "force-dynamic";
+
 const LEGAL_REFERENCE_TOPICS = new Set<string>(Object.values(LegalReferenceTopic));
 const LEGAL_REFERENCE_TYPES = new Set<string>(Object.values(LegalReferenceType));
 const LEGAL_REFERENCE_STATUSES = new Set<string>(Object.values(LegalReferenceStatus));

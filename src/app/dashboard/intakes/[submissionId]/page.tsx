@@ -7,6 +7,7 @@ import { LeadRating, Prisma, RiskResolutionStatus } from '@prisma/client';
 
 import { db } from '@/server/db';
 import {
+
   runClearWorkflowAction,
   runClientCommunicationAction,
   runConsultationBookingAction,
@@ -18,6 +19,8 @@ import {
   runReleaseRequestMoreInformationAction,
   updateClearReportNotesAction,
 } from './actions';
+
+export const dynamic = "force-dynamic";
 
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
@@ -116,7 +119,6 @@ const renderClearPreviewSection = (title: string, value: unknown) => {
     </section>
   );
 };
-
 
 const INTAKE_TABS = ['overview', 'intake-details', 'documents', 'lead-rating', 'clear', 'communications', 'consultation', 'staff-tasks', 'audit-trail'] as const;
 type IntakeTab = typeof INTAKE_TABS[number];
@@ -256,7 +258,6 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           </div>
         </form>
       </section> : null}
-
 
       {activeTab === 'clear' ? <section className="section review-section">
         <h3>C.L.E.A.R</h3>
@@ -429,7 +430,6 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           })}
         </div>}
       </section> : null}
-
 
       {activeTab === 'communications' ? <section className="section review-section">
         <h3>Staff-Controlled Client Communications</h3>

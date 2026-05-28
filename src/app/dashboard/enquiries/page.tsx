@@ -5,6 +5,8 @@ import { PERMISSIONS } from '@/server/auth/permissions';
 import { db } from '@/server/db';
 import { runCreateEnquiryAction, runDraftFaqAction, runSendFaqAction } from './actions';
 
+export const dynamic = "force-dynamic";
+
 const TEMPLATE_OPTIONS: Array<{ value: EnquiryCommunicationType; label: string }> = [
   { value: 'faq_general_migration', label: 'General migration enquiry' },
   { value: 'faq_skilled_migration', label: 'Skilled migration enquiry' },

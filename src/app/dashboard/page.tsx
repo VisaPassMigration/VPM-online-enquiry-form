@@ -6,6 +6,7 @@ import { LeadRating, Prisma, RiskSeverity, RiskResolutionStatus, SubmissionStatu
 
 import { db } from '@/server/db';
 import {
+
   getCancellationsThisWeek,
   getCompletedToCsaIssuedConversion,
   getConsultsBookedThisWeek,
@@ -18,6 +19,8 @@ import {
   getUpcomingConsultations,
 } from '@/server/consultationKpis';
 import { auth } from '@/auth';
+
+export const dynamic = "force-dynamic";
 
 type DashboardStatus =
   | 'Awaiting review'
