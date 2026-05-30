@@ -16,6 +16,8 @@ const TEMPLATE_OPTIONS: Array<{ value: EnquiryCommunicationType; label: string }
   { value: 'faq_insufficient_information', label: 'Not enough information / please complete questionnaire' },
 ];
 
+const isIntakeUrlConfigured = Boolean(process.env.NEXT_PUBLIC_INTAKE_FORM_URL?.trim());
+
 const formatStaffDate = (dateTime: Date) =>
   new Intl.DateTimeFormat('en-AU', {
     day: '2-digit',
@@ -27,22 +29,53 @@ const formatStaffDate = (dateTime: Date) =>
     timeZone: 'Australia/Perth',
   }).format(dateTime).replace(/\s(am|pm)$/i, (match) => match.toUpperCase());
 
-const statusPillClass = (status: string | undefined) => {
-  if (!status) return 'pill pill--placeholder';
-  if (status.includes('sent') || status.includes('linked') || status === 'submitted') return 'pill pill--ok';
-  if (status.includes('failed')) return 'pill pill--danger';
-  return 'pill pill--warning';
+const faqStatusLabel = (status: string | undefined) => {
+  if (!status) return 'Not prepared';
+  if (status === 'drafted_internal' || status === 'pending_staff_release') return 'Draft prepared';
+  if (status === 'sent') return 'Sent';
+  if (status === 'failed') return 'Failed';
+  if (status === 'cancelled') return 'Cancelled';
+  return status.replaceAll('_', ' ');
 };
 
-export default async function EnquiriesPage() {
+const statusPillClass = (status: string | undefined) => {
+  if (!status) return 'status-badge status-badge--muted';
+  if (status === 'sent') return 'status-badge status-badge--success';
+  if (status === 'failed') return 'status-badge status-badge--danger';
+  return 'status-badge status-badge--warning';
+};
+
+const intakeStatusFor = (hasIntakeSubmission: boolean, intakeStatus: string | undefined, latestStatus: string | undefined) => {
+  if (hasIntakeSubmission) return { label: `Intake submitted: ${intakeStatus ?? 'status pending'}`, className: 'status-badge status-badge--success' };
+  if (!isIntakeUrlConfigured) return { label: 'Intake URL not configured', className: 'status-badge status-badge--warning' };
+  if (latestStatus === 'sent') return { label: 'Link sent', className: 'status-badge status-badge--success' };
+  if (latestStatus === 'drafted_internal' || latestStatus === 'pending_staff_release') return { label: 'Link ready in draft', className: 'status-badge status-badge--warning' };
+  return { label: 'Not linked', className: 'status-badge status-badge--muted' };
+};
+
+const getParam = (params: Record<string, string | string[] | undefined>, key: string) => {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] : value;
+};
+
+export default async function EnquiriesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requirePermission(PERMISSIONS.VIEW_DASHBOARD);
-  const enquiries = await db.enquiry.findMany({
-    include: {
-      intakeSubmission: { select: { id: true, status: true } },
-      communications: { orderBy: { createdAt: 'desc' }, take: 1 },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const duplicateEnquiryId = getParam(resolvedSearchParams, 'duplicateEnquiryId');
+  const [enquiries, duplicateEnquiry] = await Promise.all([
+    db.enquiry.findMany({
+      include: {
+        intakeSubmission: { select: { id: true, status: true } },
+        communications: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    duplicateEnquiryId ? db.enquiry.findUnique({ where: { id: duplicateEnquiryId } }) : Promise.resolve(null),
+  ]);
 
   return (
     <main className="staff-page">
@@ -60,15 +93,26 @@ export default async function EnquiriesPage() {
       <section className="callout-grid" aria-label="Enquiry operating notes">
         <article className="callout-card callout-card--info">
           <strong>FAQ / Pre-Intake emails are staff-controlled information emails only.</strong>
-          <p>They do not confirm any migration outcome or send consultation links.</p>
+          <p>Drafting prepares an internal draft. Sending only happens when staff explicitly use the send action with an internal reason.</p>
         </article>
-        {!process.env.NEXT_PUBLIC_INTAKE_FORM_URL ? (
+        {!isIntakeUrlConfigured ? (
           <article className="callout-card callout-card--warning">
-            <strong>Intake link configuration:</strong>
-            <p>NEXT_PUBLIC_INTAKE_FORM_URL not set. Placeholder [INTAKE_FORM_LINK] is used in drafts until configured.</p>
+            <strong>Configuration issue, not a client issue:</strong>
+            <p>NEXT_PUBLIC_INTAKE_FORM_URL is not set. Drafts safely keep the placeholder [INTAKE_FORM_LINK] until the intake URL is configured.</p>
           </article>
         ) : null}
       </section>
+
+      {duplicateEnquiry ? (
+        <section className="callout-card callout-card--warning duplicate-warning" role="alert">
+          <strong>Possible duplicate: this email or phone already exists in enquiry records.</strong>
+          <p>
+            Existing enquiry: {`${duplicateEnquiry.firstName ?? ''} ${duplicateEnquiry.lastName ?? ''}`.trim() || duplicateEnquiry.email} · {duplicateEnquiry.email}
+            {duplicateEnquiry.phone ? ` · ${duplicateEnquiry.phone}` : ''} · created {formatStaffDate(duplicateEnquiry.createdAt)}.
+          </p>
+          <p className="section-helper">Review the existing record below. If this is a legitimate new enquiry, tick “Create anyway after duplicate review” before submitting again.</p>
+        </section>
+      ) : null}
 
       <section className="section staff-section">
         <div className="section-heading-row section-heading-row--stacked">
@@ -76,7 +120,7 @@ export default async function EnquiriesPage() {
             <p className="eyebrow">Lead capture</p>
             <h2>Create enquiry</h2>
           </div>
-          <p className="section-helper">Add the minimum details needed to track an early lead and prepare staff-controlled follow-up.</p>
+          <p className="section-helper">Add the minimum details needed to track an early lead and prepare staff-controlled follow-up. Email is normalised to lowercase before duplicate checks.</p>
         </div>
         <form action={runCreateEnquiryAction} className="staff-form-grid">
           <label className="field"><span>First name</span><input name="firstName" placeholder="First name" /></label>
@@ -86,6 +130,7 @@ export default async function EnquiriesPage() {
           <label className="field"><span>Enquiry source</span><input name="enquirySource" placeholder="Website, referral, phone, event" /></label>
           <label className="field"><span>Intended pathway</span><input name="intendedPathway" placeholder="Skilled, student, partner/family…" /></label>
           <label className="field"><span>Country of residence</span><input name="countryOfResidence" placeholder="Country of residence" /></label>
+          <label className="duplicate-confirm"><input type="checkbox" name="allowDuplicate" /> Create anyway after duplicate review</label>
           <div className="form-actions"><button type="submit" className="primary-btn">Create enquiry</button></div>
         </form>
       </section>
@@ -98,46 +143,46 @@ export default async function EnquiriesPage() {
           </div>
           <p className="section-helper">{enquiries.length} record{enquiries.length === 1 ? '' : 's'} shown</p>
         </div>
-        <div className="table-wrap staff-table-wrap">
-          <table className="dashboard-table staff-table">
+        <div className="table-wrap staff-table-wrap enquiries-table-wrap">
+          <table className="dashboard-table staff-table enquiries-table">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Enquiry source</th>
                 <th>Intended pathway</th>
-                <th>Country of residence</th>
                 <th>Created</th>
-                <th>Latest FAQ/pre-intake email status</th>
-                <th>Intake link/status</th>
+                <th>FAQ status</th>
+                <th>Intake status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {enquiries.length === 0 ? (
-                <tr><td colSpan={10} className="empty-table-cell">No enquiries yet. Create an enquiry above when an early lead needs staff follow-up.</td></tr>
+                <tr><td colSpan={8} className="empty-table-cell">No enquiries yet. Create an enquiry above when an early lead needs staff follow-up.</td></tr>
               ) : enquiries.map((enq) => {
                 const latest = enq.communications[0];
                 const displayName = `${enq.firstName ?? ''} ${enq.lastName ?? ''}`.trim() || 'Not provided';
+                const intakeStatus = intakeStatusFor(Boolean(enq.intakeSubmission), enq.intakeSubmission?.status, latest?.status);
                 return (
                   <tr key={enq.id}>
-                    <td><strong>{displayName}</strong></td>
+                    <td>
+                      <strong>{displayName}</strong>
+                      <span className="cell-secondary">Source: {enq.enquirySource || 'Not provided'} · Residence: {enq.countryOfResidence || 'Not provided'}</span>
+                    </td>
                     <td>{enq.email}</td>
                     <td>{enq.phone || 'Not provided'}</td>
-                    <td>{enq.enquirySource || 'Not provided'}</td>
                     <td>{enq.intendedPathway || 'Not provided'}</td>
-                    <td>{enq.countryOfResidence || 'Not provided'}</td>
                     <td>{formatStaffDate(enq.createdAt)}</td>
                     <td>
-                      {latest ? (
-                        <span className={statusPillClass(latest.status)}>{latest.status} ({latest.type})</span>
-                      ) : <span className="pill pill--placeholder">No FAQ/pre-intake email yet</span>}
+                      <span className={statusPillClass(latest?.status)}>{faqStatusLabel(latest?.status)}</span>
+                      <span className="cell-secondary">{latest ? latest.type.replaceAll('_', ' ') : 'Draft before sending.'}</span>
                     </td>
                     <td>
                       {enq.intakeSubmission ? (
-                        <Link href={`/dashboard/intakes/${enq.intakeSubmission.id}`} className="secondary-btn">Linked intake: {enq.intakeSubmission.status}</Link>
-                      ) : <span className="pill pill--placeholder">Not linked</span>}
+                        <Link href={`/dashboard/intakes/${enq.intakeSubmission.id}`} className={intakeStatus.className}>{intakeStatus.label}</Link>
+                      ) : <span className={intakeStatus.className}>{intakeStatus.label}</span>}
+                      <span className="cell-secondary">Not linked means no completed intake submission is attached yet.</span>
                     </td>
                     <td>
                       <div className="table-actions">

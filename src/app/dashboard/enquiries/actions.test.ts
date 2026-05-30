@@ -7,12 +7,14 @@ const mocks = vi.hoisted(() => ({
   draftEnquiryFaqEmail: vi.fn(),
   sendEnquiryFaqEmail: vi.fn(),
   findMany: vi.fn(),
+  redirect: vi.fn((url: string) => { throw new Error(`NEXT_REDIRECT:${url}`); }),
 }));
 
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermission }));
 vi.mock('@/auth', () => ({ auth: mocks.auth }));
 vi.mock('@/server/enquiryCommunications', () => ({ createEnquiry: mocks.createEnquiry, draftEnquiryFaqEmail: mocks.draftEnquiryFaqEmail, sendEnquiryFaqEmail: mocks.sendEnquiryFaqEmail }));
 vi.mock('@/server/db', () => ({ db: { enquiry: { findMany: mocks.findMany } } }));
+vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 
 describe('enquiry actions', () => {
   beforeEach(() => {
@@ -21,11 +23,33 @@ describe('enquiry actions', () => {
     mocks.findMany.mockResolvedValue([]);
   });
 
-  it('create enquiry action works', async () => {
+  it('create enquiry action works and normalizes email/phone before create', async () => {
     const { runCreateEnquiryAction } = await import('./actions');
-    const fd = new FormData(); fd.set('email', 'x@y.com');
+    const fd = new FormData(); fd.set('email', '  X@Y.COM  '); fd.set('phone', '  +61 400 000 000  ');
     await runCreateEnquiryAction(fd);
-    expect(mocks.createEnquiry).toHaveBeenCalledWith(expect.objectContaining({ email: 'x@y.com' }));
+    expect(mocks.createEnquiry).toHaveBeenCalledWith(expect.objectContaining({ email: 'x@y.com', phone: '+61 400 000 000' }));
+  });
+
+  it('redirects with a clear duplicate warning when email already exists', async () => {
+    mocks.findMany.mockResolvedValue([{ id: 'existing-1', email: 'x@y.com', phone: null }]);
+    const { runCreateEnquiryAction } = await import('./actions');
+    const fd = new FormData(); fd.set('email', ' X@Y.COM ');
+
+    await expect(runCreateEnquiryAction(fd)).rejects.toThrow('NEXT_REDIRECT:/dashboard/enquiries?duplicateEnquiryId=existing-1');
+    expect(mocks.createEnquiry).not.toHaveBeenCalled();
+  });
+
+  it('detects conservative digit-only phone duplicates and allows intentional duplicate override', async () => {
+    mocks.findMany.mockResolvedValue([{ id: 'existing-phone', email: 'other@example.com', phone: '+61 400 000 000' }]);
+    const { runCreateEnquiryAction } = await import('./actions');
+    const blocked = new FormData(); blocked.set('email', 'new@example.com'); blocked.set('phone', '61 400 000 000');
+
+    await expect(runCreateEnquiryAction(blocked)).rejects.toThrow('NEXT_REDIRECT:/dashboard/enquiries?duplicateEnquiryId=existing-phone');
+    expect(mocks.createEnquiry).not.toHaveBeenCalled();
+
+    const allowed = new FormData(); allowed.set('email', 'new@example.com'); allowed.set('phone', '61 400 000 000'); allowed.set('allowDuplicate', 'on');
+    await runCreateEnquiryAction(allowed);
+    expect(mocks.createEnquiry).toHaveBeenCalledWith(expect.objectContaining({ email: 'new@example.com', phone: '61 400 000 000' }));
   });
 
   it('draft FAQ email action works', async () => {
