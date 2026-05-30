@@ -143,6 +143,16 @@ const isDueThisWeek = (dueDate: Date | null, now: Date) => {
   return dueDate >= weekStart && dueDate < weekEnd;
 };
 const priorityRank: Record<TaskPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+type StaffTaskDelegate = { findMany: (args: object) => Promise<Array<Record<string, unknown>>> };
+
+const hasStaffTaskDelegate = (client: unknown): client is { staffTask: StaffTaskDelegate } => {
+  const staffTask = (client as { staffTask?: unknown }).staffTask;
+  return Boolean(
+    staffTask &&
+    typeof staffTask === 'object' &&
+    typeof (staffTask as { findMany?: unknown }).findMany === 'function',
+  );
+};
 
 type IntakePayload = Prisma.JsonObject & {
   firstName?: string;
@@ -153,7 +163,15 @@ type IntakePayload = Prisma.JsonObject & {
 };
 
 const displayDate = (dateTime: Date) =>
-  new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(dateTime);
+  new Intl.DateTimeFormat('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Australia/Perth',
+  }).format(dateTime).replace(/\s(am|pm)$/i, (match) => match.toUpperCase());
 
 const isTodayUtc = (dateTime: Date) => {
   const today = new Date();
@@ -238,11 +256,11 @@ export default async function DashboardPage({
     },
     orderBy: { submittedAt: 'desc' },
   });
-  const rawStaffTasks = await (db as unknown as {
-    staffTask: { findMany: (args: object) => Promise<Array<Record<string, unknown>>> };
-  }).staffTask.findMany({
-    include: { submission: { select: { id: true, payload: true, leadRating: true } } },
-  });
+  const rawStaffTasks = hasStaffTaskDelegate(db)
+    ? await db.staffTask.findMany({
+        include: { submission: { select: { id: true, payload: true, leadRating: true } } },
+      })
+    : [];
 
   const rows: DashboardRow[] = submittedIntakes.map((submission) => {
     const payload = submission.payload;
@@ -368,29 +386,39 @@ export default async function DashboardPage({
 
   return (
     <>
-      <section className="hero">
-        <h1>Staff Dashboard Overview</h1>
-        <p><Link href="/dashboard/enquiries">Go to Enquiries</Link></p>
-        <p>Internal management view for intake enquiries and workflow progression.</p>
-      </section>
-
-      <section className="section dashboard-note" role="note" aria-label="Internal dashboard note">
-        <strong>Important:</strong> This dashboard is for internal preliminary review and workflow tracking only. No client
-        outcome should be released without human review.
-      </section>
-
-      <section className="section dashboard-note" role="note" aria-label="Consultation KPI tracking note">
-        <strong>Note:</strong> Consultation KPIs are for internal operations tracking only. Status and outcome updates remain
-        staff-controlled.
-      </section>
-
-      <section className="section">
-        <div className="section-heading-row">
-          <h3>Staff Task Operations</h3>
+      <section className="staff-hero">
+        <div>
+          <p className="eyebrow">Staff workspace</p>
+          <h1>Staff Dashboard Overview</h1>
+          <p>Internal management view for intake enquiries, workflow progression, staff tasks, and consultation capacity.</p>
         </div>
-        <p>Staff tasks are internal operational reminders. They do not send client communications or create calendar events.</p>
-        <p><strong>Note:</strong> Task ownership and workload visibility are for internal operational management only.</p>
-        <div className="dashboard-filters">
+        <Link href="/dashboard/enquiries" className="primary-btn">Go to Enquiries</Link>
+      </section>
+
+      <section className="callout-grid" aria-label="Dashboard operating notes">
+        <article className="callout-card callout-card--info" role="note" aria-label="Internal dashboard note">
+          <strong>Important:</strong>
+          <p>This dashboard is for internal preliminary review and workflow tracking only. No client outcome should be released without human review.</p>
+        </article>
+        <article className="callout-card callout-card--info" role="note" aria-label="Consultation KPI tracking note">
+          <strong>Consultation KPI tracking</strong>
+          <p>Consultation KPIs are for internal operations tracking only. Status and outcome updates remain staff-controlled.</p>
+        </article>
+      </section>
+
+      <section className="section staff-section staff-task-panel">
+        <div className="section-heading-row section-heading-row--stacked">
+          <div>
+            <p className="eyebrow">Operations</p>
+            <h3>Staff Task Operations</h3>
+          </div>
+          <p className="section-helper">Staff tasks are internal operational reminders. They do not send client communications or create calendar events.</p>
+        </div>
+        <div className="callout-card callout-card--neutral">
+          <strong>Task ownership note</strong>
+          <p>Task ownership and workload visibility are for internal operational management only.</p>
+        </div>
+        <div className="filter-panel" aria-label="Staff task filters">
           {[
             ['taskView', taskViewFilter, ['all', 'my']],
             ['taskStatus', taskStatusFilter, taskStatusFilters],
@@ -400,7 +428,7 @@ export default async function DashboardPage({
             ['taskLeadRating', taskLeadRatingFilter, leadRatingFilters],
             ['taskAssignee', taskAssigneeFilter, ['all', 'unassigned', ...availableAssignees]],
           ].map(([key, active, values]) => (
-            <div key={String(key)} className="dashboard-filters">
+            <div key={String(key)} className="filter-chip-group">
               {(values as string[]).map((value) => {
                 const params = new URLSearchParams();
                 if (leadRatingFilter !== 'all') params.set('leadRating', leadRatingFilter);
@@ -425,12 +453,12 @@ export default async function DashboardPage({
           ))}
           <Link href={leadRatingFilter === 'all' ? '/dashboard' : `/dashboard?leadRating=${leadRatingFilter}`} className="secondary-btn">Clear Task Filters</Link>
         </div>
-        <p>
+        <p className="active-filter-summary">
           Active task filters: status={taskStatusFilter}, priority={taskPriorityFilter}, due={taskDueScopeFilter}, type={taskTypeFilter}, lead
           rating={taskLeadRatingFilter}, assignee={taskAssigneeFilter}, view={taskViewFilter}
         </p>
         {taskViewFilter === 'my' && !sessionStaffUserId && (
-          <p>My Tasks view is unavailable because your staff session ID could not be resolved. Showing all tasks for safety.</p>
+          <p className="callout-card callout-card--warning">My Tasks view is unavailable because your staff session ID could not be resolved. Showing all tasks for safety.</p>
         )}
         <div className="dashboard-kpi-grid">
           {[
@@ -472,9 +500,9 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="section">
+      <section className="section staff-section">
         <div className="section-heading-row">
-          <h3>Intake KPI snapshot</h3>
+          <div><p className="eyebrow">Pipeline health</p><h3>Intake KPI snapshot</h3></div>
         </div>
         <div className="dashboard-kpi-grid">
           {kpis.map((kpi) => (
@@ -486,9 +514,9 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="section">
+      <section className="section staff-section">
         <div className="section-heading-row">
-          <h3>Consultation KPI snapshot</h3>
+          <div><p className="eyebrow">Consultations</p><h3>Consultation KPI snapshot</h3></div>
         </div>
         <div className="dashboard-kpi-grid">
           {[
@@ -515,9 +543,9 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="section">
+      <section className="section staff-section">
         <div className="section-heading-row">
-          <h3>Senior Staff Capacity</h3>
+          <div><p className="eyebrow">Capacity</p><h3>Senior Staff Capacity</h3></div>
         </div>
         {seniorStaffCapacityRows.length === 0 ? (
           <div className="card">
@@ -551,9 +579,9 @@ export default async function DashboardPage({
         )}
       </section>
 
-      <section className="section">
+      <section className="section staff-section">
         <div className="section-heading-row">
-          <h3>Upcoming Consultations</h3>
+          <div><p className="eyebrow">Calendar</p><h3>Upcoming Consultations</h3></div>
         </div>
         {upcomingConsultations.length === 0 ? (
           <div className="card">
@@ -566,7 +594,7 @@ export default async function DashboardPage({
                 <tr>
                   <th>Client</th>
                   <th>Senior staff</th>
-                  <th>Date/time (UTC)</th>
+                  <th>Date/time (Australia/Perth)</th>
                   <th>Timezone</th>
                   <th>Status</th>
                 </tr>
@@ -587,9 +615,9 @@ export default async function DashboardPage({
         )}
       </section>
 
-      <section className="section">
+      <section className="section staff-section">
         <div className="section-heading-row">
-          <h3>Filters</h3>
+          <div><p className="eyebrow">Submitted enquiry filters</p><h3>Filters</h3></div>
         </div>
         <div className="dashboard-filters">
           <label className="field" htmlFor="lead-rating-filter">
@@ -618,9 +646,9 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="section">
+      <section className="section staff-section">
         <div className="section-heading-row">
-          <h3>Submitted enquiries</h3>
+          <div><p className="eyebrow">Review queue</p><h3>Submitted enquiries</h3></div>
         </div>
         <p>Active filter: {leadRatingFilterSummary(leadRatingFilter)}</p>
         <p>Lead ratings are internal triage classifications and are not client outcomes.</p>
