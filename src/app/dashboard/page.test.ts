@@ -231,6 +231,23 @@ describe('dashboard lead rating UI', () => {
     expect(unassigned).not.toContain('Urgent overdue escalate');
   });
 
+  it('renders dashboard without crashing when generated Prisma client has no staffTask delegate', async () => {
+    const { db } = await import('@/server/db');
+    const originalStaffTask = (db as { staffTask?: unknown }).staffTask;
+    delete (db as { staffTask?: unknown }).staffTask;
+
+    try {
+      const page = (await import('./page')).default;
+      const markup = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) })));
+
+      expect(mocks.staffTaskFindMany).not.toHaveBeenCalled();
+      expect(markup).toContain('Staff Task Operations');
+      expect(markup).toContain('No staff tasks match the selected filters.');
+    } finally {
+      (db as { staffTask?: unknown }).staffTask = originalStaffTask;
+    }
+  });
+
   it('clear task filters resets task list and keeps communications internal-only', async () => {
     const page = (await import('./page')).default;
     const filtered = taskSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({ taskStatus: 'completed' }) })));
