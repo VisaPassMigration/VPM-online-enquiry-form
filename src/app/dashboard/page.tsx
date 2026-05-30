@@ -143,6 +143,16 @@ const isDueThisWeek = (dueDate: Date | null, now: Date) => {
   return dueDate >= weekStart && dueDate < weekEnd;
 };
 const priorityRank: Record<TaskPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+type StaffTaskDelegate = { findMany: (args: object) => Promise<Array<Record<string, unknown>>> };
+
+const hasStaffTaskDelegate = (client: unknown): client is { staffTask: StaffTaskDelegate } => {
+  const staffTask = (client as { staffTask?: unknown }).staffTask;
+  return Boolean(
+    staffTask &&
+    typeof staffTask === 'object' &&
+    typeof (staffTask as { findMany?: unknown }).findMany === 'function',
+  );
+};
 
 type IntakePayload = Prisma.JsonObject & {
   firstName?: string;
@@ -238,11 +248,11 @@ export default async function DashboardPage({
     },
     orderBy: { submittedAt: 'desc' },
   });
-  const rawStaffTasks = await (db as unknown as {
-    staffTask: { findMany: (args: object) => Promise<Array<Record<string, unknown>>> };
-  }).staffTask.findMany({
-    include: { submission: { select: { id: true, payload: true, leadRating: true } } },
-  });
+  const rawStaffTasks = hasStaffTaskDelegate(db)
+    ? await db.staffTask.findMany({
+        include: { submission: { select: { id: true, payload: true, leadRating: true } } },
+      })
+    : [];
 
   const rows: DashboardRow[] = submittedIntakes.map((submission) => {
     const payload = submission.payload;
