@@ -383,6 +383,15 @@ export default async function DashboardPage({
     if (aDue !== bDue) return aDue - bDue;
     return b.createdAt.getTime() - a.createdAt.getTime();
   });
+  const taskFilterGroups = [
+    { key: 'taskView', label: 'View', active: taskViewFilter, values: ['all', 'my'] },
+    { key: 'taskStatus', label: 'Status', active: taskStatusFilter, values: taskStatusFilters },
+    { key: 'taskPriority', label: 'Priority', active: taskPriorityFilter, values: taskPriorityFilters },
+    { key: 'taskDueScope', label: 'Due', active: taskDueScopeFilter, values: taskDueScopeFilters },
+    { key: 'taskType', label: 'Type', active: taskTypeFilter, values: ['all', ...availableTaskTypes] },
+    { key: 'taskLeadRating', label: 'Lead rating', active: taskLeadRatingFilter, values: leadRatingFilters },
+    { key: 'taskAssignee', label: 'Assignee', active: taskAssigneeFilter, values: ['all', 'unassigned', ...availableAssignees] },
+  ];
 
   return (
     <>
@@ -419,44 +428,42 @@ export default async function DashboardPage({
           <p>Task ownership and workload visibility are for internal operational management only.</p>
         </div>
         <div className="filter-panel" aria-label="Staff task filters">
-          {[
-            ['taskView', taskViewFilter, ['all', 'my']],
-            ['taskStatus', taskStatusFilter, taskStatusFilters],
-            ['taskPriority', taskPriorityFilter, taskPriorityFilters],
-            ['taskDueScope', taskDueScopeFilter, taskDueScopeFilters],
-            ['taskType', taskTypeFilter, ['all', ...availableTaskTypes]],
-            ['taskLeadRating', taskLeadRatingFilter, leadRatingFilters],
-            ['taskAssignee', taskAssigneeFilter, ['all', 'unassigned', ...availableAssignees]],
-          ].map(([key, active, values]) => (
-            <div key={String(key)} className="filter-chip-group">
-              {(values as string[]).map((value) => {
-                const params = new URLSearchParams();
-                if (leadRatingFilter !== 'all') params.set('leadRating', leadRatingFilter);
-                const entries: Array<[string, string]> = [
-                  ['taskStatus', taskStatusFilter],
-                  ['taskPriority', taskPriorityFilter],
-                  ['taskDueScope', taskDueScopeFilter],
-                  ['taskType', taskTypeFilter],
-                  ['taskLeadRating', taskLeadRatingFilter],
-                  ['taskAssignee', taskAssigneeFilter],
-                  ['taskView', taskViewFilter],
-                ];
-                entries.forEach(([k, v]) => {
-                  const nextValue = k === key ? value : v;
-                  if (nextValue !== 'all') params.set(k, nextValue);
-                });
-                const href = params.toString() ? `/dashboard?${params.toString()}` : '/dashboard';
-                const label = value === 'not_rated' ? 'not rated' : value.replaceAll('_', ' ');
-                return <Link key={`${key}-${value}`} href={href} className={active === value ? 'secondary-btn' : 'primary-btn'}>{label}</Link>;
-              })}
+          <div className="filter-panel__header">
+            <p className="active-filter-summary">
+              Active filters: status={taskStatusFilter}, priority={taskPriorityFilter}, due={taskDueScopeFilter}, type={taskTypeFilter}, lead
+              rating={taskLeadRatingFilter}, assignee={taskAssigneeFilter}, view={taskViewFilter}
+            </p>
+            <Link href={leadRatingFilter === 'all' ? '/dashboard' : `/dashboard?leadRating=${leadRatingFilter}`} className="filter-clear">Clear Task Filters</Link>
+          </div>
+          {taskFilterGroups.map(({ key, label: groupLabel, active, values }) => (
+            <div key={String(key)} className="filter-row">
+              <span className="filter-row__label">{groupLabel}</span>
+              <div className="filter-chip-group">
+                {(values as readonly string[]).map((value) => {
+                  const params = new URLSearchParams();
+                  if (leadRatingFilter !== 'all') params.set('leadRating', leadRatingFilter);
+                  const entries: Array<[string, string]> = [
+                    ['taskStatus', taskStatusFilter],
+                    ['taskPriority', taskPriorityFilter],
+                    ['taskDueScope', taskDueScopeFilter],
+                    ['taskType', taskTypeFilter],
+                    ['taskLeadRating', taskLeadRatingFilter],
+                    ['taskAssignee', taskAssigneeFilter],
+                    ['taskView', taskViewFilter],
+                  ];
+                  entries.forEach(([k, v]) => {
+                    const nextValue = k === key ? value : v;
+                    if (nextValue !== 'all') params.set(k, nextValue);
+                  });
+                  const href = params.toString() ? `/dashboard?${params.toString()}` : '/dashboard';
+                  const label = value === 'not_rated' ? 'not rated' : value.replaceAll('_', ' ');
+                  const isActive = active === value;
+                  return <Link key={`${key}-${value}`} href={href} className={isActive ? 'filter-chip filter-chip--active' : 'filter-chip'}>{label}</Link>;
+                })}
+              </div>
             </div>
           ))}
-          <Link href={leadRatingFilter === 'all' ? '/dashboard' : `/dashboard?leadRating=${leadRatingFilter}`} className="secondary-btn">Clear Task Filters</Link>
         </div>
-        <p className="active-filter-summary">
-          Active task filters: status={taskStatusFilter}, priority={taskPriorityFilter}, due={taskDueScopeFilter}, type={taskTypeFilter}, lead
-          rating={taskLeadRatingFilter}, assignee={taskAssigneeFilter}, view={taskViewFilter}
-        </p>
         {taskViewFilter === 'my' && !sessionStaffUserId && (
           <p className="callout-card callout-card--warning">My Tasks view is unavailable because your staff session ID could not be resolved. Showing all tasks for safety.</p>
         )}
@@ -638,7 +645,7 @@ export default async function DashboardPage({
             const href = filterValue === 'all' ? '/dashboard' : `/dashboard?leadRating=${filterValue}`;
             const isActive = leadRatingFilter === filterValue;
             return (
-              <Link key={filterValue} href={href} className={isActive ? 'secondary-btn' : 'primary-btn'}>
+              <Link key={filterValue} href={href} className={isActive ? 'filter-chip filter-chip--active' : 'filter-chip'}>
                 {filterValue === 'all' ? 'All' : filterValue === 'not_rated' ? 'Not rated' : leadRatingLabel(filterValue)}
               </Link>
             );
