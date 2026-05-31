@@ -1,5 +1,27 @@
 :root {
   color-scheme: light;
+  --vpm-royal: #1d4ed8;
+  --vpm-royal-dark: #1e3a8a;
+  --vpm-royal-soft: #dbeafe;
+  --vpm-navy: #0f172a;
+  --vpm-navy-muted: #334155;
+  --vpm-gold: #d99a18;
+  --vpm-gold-soft: #fffbeb;
+  --vpm-bg: #f6f8fc;
+  --vpm-surface: #ffffff;
+  --vpm-surface-soft: #f8fafc;
+  --vpm-border: #e2e8f0;
+  --vpm-border-strong: #cbd5e1;
+  --vpm-muted: #64748b;
+  --vpm-info-bg: #eff6ff;
+  --vpm-success-bg: #ecfdf5;
+  --vpm-success-text: #166534;
+  --vpm-warning-bg: #fffbeb;
+  --vpm-warning-text: #92400e;
+  --vpm-danger-bg: #fef2f2;
+  --vpm-danger-text: #991b1b;
+  --vpm-shadow-sm: 0 10px 24px rgba(15, 23, 42, 0.05);
+  --vpm-shadow-md: 0 20px 50px rgba(15, 23, 42, 0.08);
 }
 
 * {
@@ -1338,4 +1360,239 @@ button[type='submit']:not(.secondary-btn):hover {
 .landing-section__heading--centered,
 .landing-disclaimer--centered p {
   max-width: 820px;
+}
+
+/* VPM brand theme refinements */
+body {
+  color: var(--vpm-navy-muted);
+  background:
+    radial-gradient(circle at top left, rgba(219, 234, 254, 0.45), transparent 28rem),
+    var(--vpm-bg);
+}
+
+.site-header {
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom-color: var(--vpm-border);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(14px);
+}
+
+.site-nav a {
+  border-color: transparent;
+  color: var(--vpm-navy-muted);
+  font-weight: 700;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.site-nav a:hover {
+  border-color: var(--vpm-royal-soft);
+  background: var(--vpm-info-bg);
+  color: var(--vpm-royal-dark);
+}
+
+.site-nav a[href='/intake'] {
+  border-color: rgba(29, 78, 216, 0.18);
+  background: rgba(219, 234, 254, 0.42);
+  color: var(--vpm-royal-dark);
+}
+
+.hero,
+.card,
+.section,
+.staff-section,
+.landing-section,
+.landing-feature-card,
+.landing-hero__panel,
+.landing-copy-card {
+  border-color: var(--vpm-border);
+  background-color: var(--vpm-surface);
+  box-shadow: var(--vpm-shadow-sm);
+}
+
+.staff-hero,
+.landing-hero {
+  border-color: var(--vpm-royal-soft);
+  background:
+    radial-gradient(circle at top left, rgba(219, 234, 254, 0.9), rgba(255, 255, 255, 0.58) 40%),
+    linear-gradient(135deg, var(--vpm-surface) 0%, var(--vpm-surface-soft) 100%);
+  box-shadow: var(--vpm-shadow-md);
+}
+
+.eyebrow {
+  color: var(--vpm-royal);
+}
+
+.primary-btn,
+button.primary-btn,
+button[type='submit']:not(.secondary-btn) {
+  border-color: var(--vpm-royal);
+  background: var(--vpm-royal);
+  box-shadow: 0 10px 22px rgba(29, 78, 216, 0.16);
+}
+
+.primary-btn:hover,
+button.primary-btn:hover,
+button[type='submit']:not(.secondary-btn):hover {
+  border-color: var(--vpm-royal-dark);
+  background: var(--vpm-royal-dark);
+}
+
+.secondary-btn,
+.filter-clear {
+  border-color: var(--vpm-border-strong);
+  background: var(--vpm-surface);
+  color: var(--vpm-navy-muted);
+}
+
+.secondary-btn:hover,
+.filter-clear:hover {
+  border-color: var(--vpm-royal-soft);
+  background: var(--vpm-surface-soft);
+  color: var(--vpm-royal-dark);
+}
+
+.filter-panel,
+.submitted-filter-bar,
+.inline-staff-form {
+  border-color: var(--vpm-border);
+  background: linear-gradient(180deg, var(--vpm-surface) 0%, var(--vpm-surface-soft) 100%);
+}
+
+.filter-chip {
+  border-color: var(--vpm-border);
+  background: var(--vpm-surface);
+  color: var(--vpm-navy-muted);
+}
+
+.filter-chip:hover {
+  border-color: var(--vpm-border-strong);
+  background: var(--vpm-surface-soft);
+  color: var(--vpm-royal-dark);
+}
+
+.filter-chip--active {
+  border-color: var(--vpm-royal);
+  background: var(--vpm-info-bg);
+  color: var(--vpm-royal-dark);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.08);
+}
+
+.callout-card {
+  border-color: var(--vpm-border);
+  background: var(--vpm-surface);
+  color: var(--vpm-navy-muted);
+}
+
+.callout-card--info {
+  border-color: var(--vpm-royal-soft);
+  background: var(--vpm-info-bg);
+}
+
+.callout-card--warning,
+.disclaimer,
+.landing-disclaimer {
+  border-color: rgba(217, 154, 24, 0.45);
+  background: var(--vpm-gold-soft);
+}
+
+.callout-card--neutral {
+  background: var(--vpm-surface-soft);
+}
+
+.dashboard-kpi-grid .kpi-card,
+.kpi-card {
+  border-color: var(--vpm-border);
+  background: var(--vpm-surface);
+}
+
+.dashboard-kpi-grid .kpi-card::before {
+  background: var(--vpm-royal-soft);
+  box-shadow: 0 0 0 5px rgba(219, 234, 254, 0.7);
+}
+
+.dashboard-kpi-grid .kpi-card:nth-child(4n + 2)::before {
+  background: var(--vpm-success-bg);
+  box-shadow: 0 0 0 5px rgba(236, 253, 245, 0.9);
+}
+
+.dashboard-kpi-grid .kpi-card:nth-child(4n + 3)::before {
+  background: var(--vpm-warning-bg);
+  box-shadow: 0 0 0 5px rgba(255, 251, 235, 0.95);
+}
+
+.dashboard-kpi-grid .kpi-card:nth-child(4n + 4)::before {
+  background: var(--vpm-danger-bg);
+  box-shadow: 0 0 0 5px rgba(254, 242, 242, 0.85);
+}
+
+.status-badge,
+.badge {
+  border-color: var(--vpm-border);
+  background: var(--vpm-surface-soft);
+  color: var(--vpm-navy-muted);
+}
+
+.status-badge--muted,
+.badge--muted {
+  border-color: var(--vpm-border);
+  background: var(--vpm-surface-soft);
+  color: var(--vpm-muted);
+}
+
+.status-badge--warning,
+.badge--warning {
+  border-color: rgba(217, 154, 24, 0.45);
+  background: var(--vpm-warning-bg);
+  color: var(--vpm-warning-text);
+}
+
+.status-badge--success,
+.badge--success {
+  border-color: rgba(22, 101, 52, 0.2);
+  background: var(--vpm-success-bg);
+  color: var(--vpm-success-text);
+}
+
+.status-badge--danger,
+.badge--danger {
+  border-color: rgba(153, 27, 27, 0.18);
+  background: var(--vpm-danger-bg);
+  color: var(--vpm-danger-text);
+}
+
+.dashboard-table th,
+.staff-table th {
+  background: var(--vpm-surface-soft);
+  color: var(--vpm-muted);
+}
+
+.dashboard-table td,
+.staff-table td {
+  background: var(--vpm-surface);
+}
+
+.dashboard-table tbody tr:hover td,
+.staff-table tbody tr:hover td {
+  background: #fbfdff;
+}
+
+.empty-table-cell,
+.empty-state {
+  border-color: var(--vpm-border-strong);
+  background: #fbfdff !important;
+  color: var(--vpm-muted);
+}
+
+.landing-feature-card__accent {
+  background: linear-gradient(90deg, var(--vpm-royal), var(--vpm-gold));
+}
+
+.landing-hero__panel li {
+  border-color: var(--vpm-border);
+  background: var(--vpm-surface-soft);
+}
+
+.landing-hero__panel li::before {
+  background: var(--vpm-royal);
+  color: #ffffff;
 }
