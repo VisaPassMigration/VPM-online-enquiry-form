@@ -11,9 +11,14 @@ describe('public home page', () => {
     expect(markup).toContain('Start your migration journey with a structured VPM registration.');
     expect(markup).toContain('href="/intake"');
     expect(markup).toContain('Start Registration');
-    expect(markup).toContain('href="#how-it-works"');
+    expect(markup).toContain('href="/#book-consultation"');
+    expect(markup).toContain('Book a Consultation');
     expect(markup).toContain('id="book-consultation"');
-    expect(markup).toContain('Learn How It Works');
+    expect(markup).toContain('Consultations');
+    expect(markup).toContain('Book a consultation after your preliminary registration.');
+    expect(markup).toContain('Complete Registration First');
+    expect(markup).toContain('href="/intake"');
+    expect(markup).not.toContain('Learn How It Works');
     expect(markup).toContain('Complete the Registration Form');
     expect(markup).toContain('VPM completes a preliminary review');
     expect(markup).toContain('Receive clear next steps');
@@ -25,5 +30,6 @@ describe('public home page', () => {
     expect(markup).not.toContain('Public Home Page Content');
     expect(markup).not.toContain('securely uploaded');
     expect(markup).not.toContain('guaranteed migration outcomes');
+    expect(markup).not.toContain('Calendly');
   });
 });

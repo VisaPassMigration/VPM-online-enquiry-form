@@ -2138,3 +2138,23 @@ button[type='submit']:not(.secondary-btn):hover {
     line-height: 1.06;
   }
 }
+
+.landing-consultation {
+  border-color: rgba(255, 239, 202, 0.9);
+  background:
+    radial-gradient(circle at top right, rgba(255, 239, 202, 0.55), rgba(255, 255, 255, 0.78) 44%),
+    var(--vpm-surface);
+}
+
+.landing-consultation-card {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 0.9rem;
+  border-color: rgba(115, 55, 23, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.landing-consultation-card .primary-btn {
+  width: fit-content;
+}

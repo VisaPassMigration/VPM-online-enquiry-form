@@ -33,7 +33,7 @@ export default function HomePage() {
           </p>
           <div className="landing-actions">
             <Link href="/intake" className="primary-btn">Start Registration</Link>
-            <Link href="#how-it-works" className="secondary-btn">Learn How It Works</Link>
+            <Link href="/#book-consultation" className="secondary-btn">Book a Consultation</Link>
           </div>
         </div>
         <aside id="how-it-works" className="landing-hero__panel" aria-label="How the registration works">
@@ -63,7 +63,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="book-consultation" className="landing-section landing-section--centered" aria-labelledby="next-steps-title">
+      <section className="landing-section landing-section--centered" aria-labelledby="next-steps-title">
         <div className="landing-section__heading landing-section__heading--centered">
           <p className="eyebrow">What to expect</p>
           <h2 id="next-steps-title">Preliminary review, then guided follow-up.</h2>
@@ -71,6 +71,21 @@ export default function HomePage() {
             The registration form helps VPM understand your situation before a detailed discussion. It supports migration guidance and workflow
             tracking, but it does not replace a professional review by VPM staff.
           </p>
+        </div>
+      </section>
+
+      <section id="book-consultation" className="landing-section landing-section--split landing-consultation" aria-labelledby="consultation-title">
+        <div className="landing-section__heading">
+          <p className="eyebrow">Consultations</p>
+          <h2 id="consultation-title">Book a consultation after your preliminary registration.</h2>
+          <p>
+            Consultations are most effective after VPM has reviewed your background, goals, and intended migration pathway. Please complete the
+            Registration Form first so our team can understand your circumstances and guide the appropriate next step.
+          </p>
+        </div>
+        <div className="landing-copy-card landing-consultation-card">
+          <p>If VPM has already reviewed your information, our team may provide a booking link or next-step instructions directly.</p>
+          <Link href="/intake" className="primary-btn">Complete Registration First</Link>
         </div>
       </section>
 
