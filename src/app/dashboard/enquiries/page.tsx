@@ -49,7 +49,7 @@ const intakeStatusFor = (hasIntakeSubmission: boolean, intakeStatus: string | un
   if (hasIntakeSubmission) return { label: `Intake submitted: ${intakeStatus ?? 'status pending'}`, className: 'status-badge status-badge--success' };
   if (!isIntakeUrlConfigured) return { label: 'Intake URL not configured', className: 'status-badge status-badge--warning' };
   if (latestStatus === 'sent') return { label: 'Link sent', className: 'status-badge status-badge--success' };
-  if (latestStatus === 'drafted_internal' || latestStatus === 'pending_staff_release') return { label: 'Link ready in draft', className: 'status-badge status-badge--warning' };
+  if (latestStatus === 'drafted_internal' || latestStatus === 'pending_staff_release') return { label: 'Link ready', className: 'status-badge status-badge--warning' };
   return { label: 'Not linked', className: 'status-badge status-badge--muted' };
 };
 

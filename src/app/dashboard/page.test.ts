@@ -86,6 +86,9 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('Next Action Hint');
     expect(markup).toContain('Hot');
     expect(markup).toContain('Clear filters');
+    expect(markup).toContain('/dashboard?leadRating=hot#lead-rating-filters');
+    expect(markup).toContain('/dashboard#lead-rating-filters');
+    expect(markup).not.toContain('id="lead-rating-filter"');
     expect(markup).toContain('Active filter: All lead ratings');
     expect(markup).toContain('Lead ratings are internal triage classifications and are not client outcomes.');
     expect(markup).toContain('Lead rating and next-action hints are internal workflow aids only. They are not client outcomes.');

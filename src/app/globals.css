@@ -1078,3 +1078,25 @@ button[type='submit']:not(.secondary-btn):hover {
   font-size: 0.88rem;
   font-weight: 700;
 }
+
+.submitted-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.submitted-filter-bar .filter-chip-group {
+  flex: 1;
+}
+
+@media (max-width: 780px) {
+  .submitted-filter-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

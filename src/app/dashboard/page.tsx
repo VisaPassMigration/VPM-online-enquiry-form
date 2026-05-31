@@ -622,38 +622,28 @@ export default async function DashboardPage({
         )}
       </section>
 
-      <section className="section staff-section">
-        <div className="section-heading-row">
-          <div><p className="eyebrow">Submitted enquiry filters</p><h3>Filters</h3></div>
+      <section className="section staff-section" id="lead-rating-filters">
+        <div className="section-heading-row section-heading-row--stacked">
+          <div><p className="eyebrow">Submitted enquiry filters</p><h3>Lead rating filters</h3></div>
+          <p className="section-helper">Use these chips to filter the submitted enquiries table below. Links keep staff near this section after filtering.</p>
         </div>
-        <div className="dashboard-filters">
-          <label className="field" htmlFor="lead-rating-filter">
-            <span>Lead Rating</span>
-            <select id="lead-rating-filter" value={leadRatingFilter} disabled aria-readonly="true">
-              <option value="all">All lead ratings</option>
-              <option value="hot">Hot</option>
-              <option value="warm">Warm</option>
-              <option value="cold">Cold</option>
-              <option value="escalate">Escalate</option>
-              <option value="not_rated">Not rated</option>
-            </select>
-          </label>
-          <Link href="/dashboard" className="secondary-btn">Clear filters</Link>
-        </div>
-        <div className="dashboard-filters">
-          {leadRatingFilters.map((filterValue) => {
-            const href = filterValue === 'all' ? '/dashboard' : `/dashboard?leadRating=${filterValue}`;
-            const isActive = leadRatingFilter === filterValue;
-            return (
-              <Link key={filterValue} href={href} className={isActive ? 'filter-chip filter-chip--active' : 'filter-chip'}>
-                {filterValue === 'all' ? 'All' : filterValue === 'not_rated' ? 'Not rated' : leadRatingLabel(filterValue)}
-              </Link>
-            );
-          })}
+        <div className="submitted-filter-bar" aria-label="Lead rating filter controls">
+          <div className="filter-chip-group">
+            {leadRatingFilters.map((filterValue) => {
+              const href = filterValue === 'all' ? '/dashboard#lead-rating-filters' : `/dashboard?leadRating=${filterValue}#lead-rating-filters`;
+              const isActive = leadRatingFilter === filterValue;
+              return (
+                <Link key={filterValue} href={href} className={isActive ? 'filter-chip filter-chip--active' : 'filter-chip'}>
+                  {filterValue === 'all' ? 'All' : filterValue === 'not_rated' ? 'Not rated' : leadRatingLabel(filterValue)}
+                </Link>
+              );
+            })}
+          </div>
+          <Link href="/dashboard#lead-rating-filters" className="filter-clear">Clear filters</Link>
         </div>
       </section>
 
-      <section className="section staff-section">
+      <section className="section staff-section" id="submitted-enquiries">
         <div className="section-heading-row">
           <div><p className="eyebrow">Review queue</p><h3>Submitted enquiries</h3></div>
         </div>
