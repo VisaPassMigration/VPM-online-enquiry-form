@@ -40,11 +40,11 @@ export type IntakeFormPayloadSource = {
   cancellationOverstayDetails: string;
   criminalDetails: string;
   healthDetails: string;
-  ageBracket: IntakeSubmissionInput['ageBracket'];
-  englishLevel: IntakeSubmissionInput['englishLevel'];
+  ageBracket: IntakeSubmissionInput['ageBracket'] | 'Not selected';
+  englishLevel: IntakeSubmissionInput['englishLevel'] | 'Not selected';
   overseasSkilledEmploymentYears: IntakeSubmissionInput['overseasSkilledEmploymentYears'];
   australianSkilledEmploymentYears: IntakeSubmissionInput['australianSkilledEmploymentYears'];
-  highestQualificationLevel: IntakeSubmissionInput['highestQualificationLevel'];
+  highestQualificationLevel: IntakeSubmissionInput['highestQualificationLevel'] | 'Not selected';
   australianStudyRequirementCompleted: IntakeSubmissionInput['australianStudyRequirementCompleted'];
   regionalStudyCompleted: IntakeSubmissionInput['regionalStudyCompleted'];
   specialistEducationalQualification: IntakeSubmissionInput['specialistEducationalQualification'];
@@ -55,6 +55,7 @@ export type IntakeFormPayloadSource = {
 };
 
 const toYesNoUnknown = (value: boolean): 'yes' | 'no' | 'unknown' => (value ? 'yes' : 'no');
+const selectedOrUndefined = <T extends string>(value: T | 'Not selected' | undefined): T | undefined => (value && value !== 'Not selected' ? value as T : undefined);
 const toEnglishOverallBand = (summary: string): number | undefined => {
   const match = summary.match(/(\d(?:\.\d)?)/);
   if (!match) return undefined;
@@ -129,11 +130,11 @@ export function buildCanonicalIntakePayload(formData: IntakeFormPayloadSource, p
       healthDetails: formData.healthDetails || undefined,
     },
     riskDetails,
-    ageBracket: formData.ageBracket,
-    englishLevel: formData.englishLevel,
+    ageBracket: selectedOrUndefined<NonNullable<IntakeSubmissionInput['ageBracket']>>(formData.ageBracket),
+    englishLevel: selectedOrUndefined<NonNullable<IntakeSubmissionInput['englishLevel']>>(formData.englishLevel),
     overseasSkilledEmploymentYears: formData.overseasSkilledEmploymentYears,
     australianSkilledEmploymentYears: formData.australianSkilledEmploymentYears,
-    highestQualificationLevel: formData.highestQualificationLevel,
+    highestQualificationLevel: selectedOrUndefined<NonNullable<IntakeSubmissionInput['highestQualificationLevel']>>(formData.highestQualificationLevel),
     australianStudyRequirementCompleted: formData.australianStudyRequirementCompleted,
     regionalStudyCompleted: formData.regionalStudyCompleted,
     specialistEducationalQualification: formData.specialistEducationalQualification,

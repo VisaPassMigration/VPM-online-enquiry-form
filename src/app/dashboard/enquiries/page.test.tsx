@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   requirePermission: vi.fn(),
   auth: vi.fn(),
   findMany: vi.fn(),
+  findUnique: vi.fn(),
   createEnquiry: vi.fn(),
   draftEnquiryFaqEmail: vi.fn(),
   sendEnquiryFaqEmail: vi.fn(),
@@ -12,13 +13,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermission }));
 vi.mock('@/auth', () => ({ auth: mocks.auth }));
-vi.mock('@/server/db', () => ({ db: { enquiry: { findMany: mocks.findMany } } }));
+vi.mock('@/server/db', () => ({ db: { enquiry: { findMany: mocks.findMany, findUnique: mocks.findUnique } } }));
 vi.mock('@/server/enquiryCommunications', () => ({ createEnquiry: mocks.createEnquiry, draftEnquiryFaqEmail: mocks.draftEnquiryFaqEmail, sendEnquiryFaqEmail: mocks.sendEnquiryFaqEmail }));
 
 describe('dashboard enquiries page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.mockResolvedValue({ user: { id: 'u1', staffUserId: 's1', roles: ['senior_staff'] } });
+    mocks.findUnique.mockResolvedValue(null);
     mocks.findMany.mockResolvedValue([{ id: 'e1', firstName: 'Ann', lastName: 'Lee', email: 'a@b.com', phone: '1', enquirySource: 'Web', intendedPathway: 'Skilled', countryOfResidence: 'Kenya', createdAt: new Date('2026-05-19T00:00:00Z'), intakeSubmission: { id: 'sub1', status: 'submitted' }, communications: [{ id: 'c1', status: 'drafted_internal', type: 'faq_general_migration' }] }]);
   });
 
@@ -26,9 +28,28 @@ describe('dashboard enquiries page', () => {
     const page = (await import('./page')).default;
     const markup = renderToStaticMarkup(await page());
     expect(markup).toContain('Enquiries');
-    expect(markup).toContain('Latest FAQ/pre-intake email status');
+    expect(markup).toContain('FAQ status');
     expect(markup).toContain('FAQ / Pre-Intake emails are staff-controlled information emails only.');
     expect(markup).toContain('/dashboard/intakes/sub1');
+  });
+
+
+  it('prioritizes table columns, maps draft status clearly, and shows secondary details compactly', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+    expect(markup).toContain('<th>Name</th><th>Email</th><th>Phone</th><th>Intended pathway</th><th>Created</th><th>FAQ status</th><th>Intake status</th><th>Actions</th>');
+    expect(markup).toContain('Draft prepared');
+    expect(markup).toContain('Source: Web');
+    expect(markup).toContain('Residence: Kenya');
+    expect(markup).toContain('Intake submitted: submitted');
+  });
+
+  it('shows duplicate warning details when duplicate redirect param is present', async () => {
+    mocks.findUnique.mockResolvedValue({ id: 'e1', firstName: 'Ann', lastName: 'Lee', email: 'a@b.com', phone: '1', createdAt: new Date('2026-05-19T00:00:00Z') });
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({ duplicateEnquiryId: 'e1' }) }));
+    expect(markup).toContain('Possible duplicate: this email or phone already exists in enquiry records.');
+    expect(markup).toContain('Create anyway after duplicate review');
   });
 
   it('template selector includes all six templates', async () => {

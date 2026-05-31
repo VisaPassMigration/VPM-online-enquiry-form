@@ -100,9 +100,11 @@ describe('protected staff page entry guards', () => {
     expect(legalReferenceFindMany).not.toHaveBeenCalled();
   });
 
-  it('/intake remains public in route access rules', () => {
+  it('/intake remains public in route access rules while dashboard stays protected', () => {
     expect(canAccessPath('/intake', false, [])).toBe(true);
     expect(canAccessPath('/intake', true, ['read_only_reviewer'])).toBe(true);
+    expect(canAccessPath('/dashboard', false, [])).toBe(false);
+    expect(canAccessPath('/dashboard', true, ['read_only_reviewer'])).toBe(true);
   });
 
   it('protected namespace defaults stay protected for unknown sub-routes', () => {
