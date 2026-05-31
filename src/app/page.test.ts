@@ -12,6 +12,7 @@ describe('public home page', () => {
     expect(markup).toContain('href="/intake"');
     expect(markup).toContain('Start Registration');
     expect(markup).toContain('href="#how-it-works"');
+    expect(markup).toContain('id="book-consultation"');
     expect(markup).toContain('Learn How It Works');
     expect(markup).toContain('Complete the Registration Form');
     expect(markup).toContain('VPM completes a preliminary review');

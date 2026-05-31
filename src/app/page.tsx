@@ -63,7 +63,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="landing-section landing-section--centered" aria-labelledby="next-steps-title">
+      <section id="book-consultation" className="landing-section landing-section--centered" aria-labelledby="next-steps-title">
         <div className="landing-section__heading landing-section__heading--centered">
           <p className="eyebrow">What to expect</p>
           <h2 id="next-steps-title">Preliminary review, then guided follow-up.</h2>

@@ -1619,3 +1619,26 @@ button[type='submit']:not(.secondary-btn):hover {
   background: var(--vpm-dark-blue);
   color: var(--vpm-white);
 }
+
+.site-nav .site-nav__consultation {
+  border-color: rgba(115, 55, 23, 0.16);
+  background: var(--vpm-surface);
+  color: var(--vpm-copper);
+}
+
+.site-nav .site-nav__staff-login {
+  border-color: var(--vpm-dark-blue);
+  background: var(--vpm-dark-blue);
+  color: var(--vpm-white);
+}
+
+.site-nav .site-nav__staff-login:hover {
+  border-color: var(--vpm-deep-navy);
+  background: var(--vpm-deep-navy);
+  color: var(--vpm-white);
+}
+
+.site-nav .site-nav__sign-out {
+  border-color: rgba(115, 55, 23, 0.18);
+  color: var(--vpm-copper);
+}

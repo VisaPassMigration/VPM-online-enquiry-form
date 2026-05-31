@@ -20,6 +20,10 @@ describe('navigation visibility', () => {
     expect(markup).toContain('Home');
     expect(markup).toContain('Registration Form');
     expect(markup).toContain('href="/intake"');
+    expect(markup).toContain('Book a Consultation');
+    expect(markup).toContain('href="/#book-consultation"');
+    expect(markup).toContain('Staff Login');
+    expect(markup).toContain('href="/api/auth/signin"');
     expect(markup).not.toContain('Dashboard');
     expect(markup).not.toContain('Enquiries');
     expect(markup).not.toContain('Admin');
@@ -29,9 +33,11 @@ describe('navigation visibility', () => {
     mocks.usePathname.mockReturnValue('/dashboard');
     const markup = renderToStaticMarkup(React.createElement(Nav));
 
-    expect(markup).toContain('Registration Form');
     expect(markup).toContain('Dashboard');
     expect(markup).toContain('Enquiries');
+    expect(markup).toContain('Sign out');
+    expect(markup).toContain('href="/api/auth/signout"');
+    expect(markup).not.toContain('Staff Login');
     expect(markup).not.toContain('Admin');
   });
 });
