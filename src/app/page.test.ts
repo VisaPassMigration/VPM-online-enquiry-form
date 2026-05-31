@@ -22,6 +22,7 @@ describe('public home page', () => {
     expect(markup).toContain('Complete the Registration Form');
     expect(markup).toContain('VPM completes a preliminary review');
     expect(markup).toContain('Receive clear next steps');
+    expect(markup).toContain('VPM’s registration platform is designed to make the initial information-gathering process easier for clients to complete, easier for VPM to review, and easier for our team to follow up on.');
     expect(markup).toContain('Guided client registration');
     expect(markup).toContain('Preliminary pathway review');
     expect(markup).toContain('Client progress tracking');

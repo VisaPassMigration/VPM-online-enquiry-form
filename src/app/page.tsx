@@ -50,7 +50,7 @@ export default function HomePage() {
         <div className="landing-section__heading">
           <p className="eyebrow">Built for clarity</p>
           <h2 id="landing-features-title">A more organised first step for our clients.</h2>
-          <p>VPM’s registration platform is designed to make early information gathering easier to complete, easier to review, and easier to act on.</p>
+          <p>VPM’s registration platform is designed to make the initial information-gathering process easier for clients to complete, easier for VPM to review, and easier for our team to follow up on.</p>
         </div>
         <div className="landing-feature-grid">
           {features.map((feature) => (
