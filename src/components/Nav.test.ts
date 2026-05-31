@@ -23,7 +23,7 @@ describe('navigation visibility', () => {
     expect(markup).toContain('Book a Consultation');
     expect(markup).toContain('href="/#book-consultation"');
     expect(markup).toContain('Staff Login');
-    expect(markup).toContain('href="/api/auth/signin"');
+    expect(markup).toContain('href="/dashboard"');
     expect(markup).not.toContain('Dashboard');
     expect(markup).not.toContain('Enquiries');
     expect(markup).not.toContain('Admin');

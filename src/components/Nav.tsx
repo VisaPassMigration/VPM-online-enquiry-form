@@ -10,7 +10,7 @@ const publicNavItems: NavItem[] = [
   { href: '/', label: 'Home' },
   { href: '/intake', label: 'Registration Form' },
   { href: '/#book-consultation', label: 'Book a Consultation', className: 'site-nav__consultation' },
-  { href: '/api/auth/signin', label: 'Staff Login', className: 'site-nav__staff-login' },
+  { href: '/dashboard', label: 'Staff Login', className: 'site-nav__staff-login' },
 ];
 
 const staffNavItems: NavItem[] = [
