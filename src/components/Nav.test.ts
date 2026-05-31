@@ -13,7 +13,7 @@ describe('navigation visibility', () => {
     mocks.usePathname.mockReset();
   });
 
-  it('shows only public links on public pages', () => {
+  it('shows public links on the Home page after sign-out returns to /', () => {
     mocks.usePathname.mockReturnValue('/');
     const markup = renderToStaticMarkup(React.createElement(Nav));
 
@@ -36,7 +36,7 @@ describe('navigation visibility', () => {
     expect(markup).toContain('Dashboard');
     expect(markup).toContain('Enquiries');
     expect(markup).toContain('Sign out');
-    expect(markup).toContain('href="/api/auth/signout"');
+    expect(markup).toContain('href="/api/auth/signout?callbackUrl=%2F"');
     expect(markup).not.toContain('Staff Login');
     expect(markup).not.toContain('Admin');
   });

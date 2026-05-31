@@ -16,7 +16,7 @@ const publicNavItems: NavItem[] = [
 const staffNavItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/dashboard/enquiries', label: 'Enquiries' },
-  { href: '/api/auth/signout', label: 'Sign out', className: 'site-nav__sign-out' },
+  { href: '/api/auth/signout?callbackUrl=%2F', label: 'Sign out', className: 'site-nav__sign-out' },
 ];
 
 export function Nav() {
