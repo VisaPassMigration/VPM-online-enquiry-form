@@ -109,7 +109,7 @@ interface IntakeFormData {
 }
 
 const DRAFT_KEY = 'vpm-intake-draft-v1';
-const SUCCESS_MESSAGE = 'Thank you. Your registration has been received by Visa Pass Migration and is pending preliminary review.';
+const SUCCESS_MESSAGE = 'Thank you. Your registration has been submitted to Visa Pass Migration for preliminary review. Our team will review the information provided and contact you if further details or documents are required.';
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 const initialData: IntakeFormData = {
@@ -454,7 +454,7 @@ export default function IntakePage() {
       }
 
       setSubmitState('success');
-      setSubmitMessage('Registration submitted.');
+      setSubmitMessage('Registration submitted to VPM for preliminary review.');
     } catch {
       setSubmitState('error');
       setSubmitMessage('Something went wrong. Please try again or contact VPM.');
@@ -490,7 +490,7 @@ export default function IntakePage() {
       </section>
 
       <section className="intake-layout">
-        <form key={formResetKey} className="intake-form" onSubmit={onSubmit}>
+        <form id="client-registration-form" key={formResetKey} className="intake-form" onSubmit={onSubmit}>
           <SectionCard id="client-details" title="Client details" helper="Start with your personal and contact information. Required fields are marked clearly.">
             <Input required label="Full name" value={formData.fullName} error={shouldShowError('fullName') ? validationErrors.fullName : undefined} onBlur={() => onBlur('fullName')} onChange={(v) => onChange('fullName', v)} />
             <Input required label="Date of birth" type="date" value={formData.dateOfBirth} error={shouldShowError('dateOfBirth') ? validationErrors.dateOfBirth : undefined} onBlur={() => onBlur('dateOfBirth')} onChange={(v) => onChange('dateOfBirth', v)} />
@@ -555,7 +555,7 @@ export default function IntakePage() {
             {requiresHealthDetails ? <Input required label="Health details" value={formData.healthDetails} error={shouldShowError('healthDetails') ? validationErrors.healthDetails : undefined} onBlur={() => onBlur('healthDetails')} onChange={(v) => onChange('healthDetails', v)} /> : null}
           </SectionCard>
 
-          <SectionCard id="documents" title="Document preparation" helper="Document upload selection is currently for preliminary review preparation only. Please do not rely on this page as final secure document lodgement unless VPM has confirmed upload instructions.">
+          <SectionCard id="documents" title="Document preparation" helper="Document upload selection is currently for preliminary review preparation only. VPM may request documents again through a confirmed secure channel if required.">
             {documentUploadConfig.map((doc) => (
               <label key={doc.key} className="field file-field">
                 <span>{doc.label} {doc.required ? <em className="required-indicator" aria-label="required">*</em> : null}</span>
@@ -584,7 +584,7 @@ export default function IntakePage() {
           <div className="form-submit-bar card">
             <button type="button" className="secondary-btn" onClick={clearSavedDraft}>Clear saved draft</button>
             {firstMissingSection ? <button type="button" className="secondary-btn" onClick={() => jumpToSection(firstMissingSection.id)}>Jump to first missing section</button> : null}
-            <button type="submit" className="primary-btn" disabled={submitState === 'submitting'}>{submitState === 'submitting' ? 'Submitting…' : 'Submit registration'}</button>
+            <button type="submit" className="primary-btn" disabled={submitState === 'submitting'}>{submitState === 'submitting' ? 'Submitting…' : 'Submit Registration'}</button>
             <p className="draft-status" role="status">{submitMessage || draftStatus}{lastSavedAt ? ` Last saved ${new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.` : ''}</p>
             {submitState === 'success' ? <p className="draft-status">{SUCCESS_MESSAGE}</p> : null}
           </div>
@@ -615,7 +615,7 @@ export default function IntakePage() {
               ))}
             </dl>
             <p><strong>Items that may affect this estimate:</strong> {pointsEstimate.missingItems.length ? pointsEstimate.missingItems.join(', ') : 'None identified from entered data.'}</p>
-            <p className="disclaimer">Preliminary estimate only. Your final points position must be reviewed by VPM against current migration rules and evidence.</p>
+            <p className="disclaimer">Preliminary estimate only. Your final points position must be reviewed by VPM against current migration rules and supporting evidence.</p>
           </div>
 
           <div className="summary-mini-card">
@@ -632,6 +632,23 @@ export default function IntakePage() {
             <p>{formData.workExperienceYears ? `${formData.workExperienceYears} year(s) declared.` : 'Work experience years not yet declared.'}</p>
           </div>
         </aside>
+      </section>
+
+      <section className="final-submit-card card" aria-labelledby="final-submit-title">
+        <div>
+          <p className="eyebrow">Final step</p>
+          <h2 id="final-submit-title">Submit your registration to VPM</h2>
+          <p>When the information above is ready, submit your Registration Form so VPM can begin preliminary review.</p>
+          <p className="success-message" hidden>{SUCCESS_MESSAGE}</p>
+          {submitState === 'success' ? <p className="success-message" role="status">{SUCCESS_MESSAGE}</p> : null}
+          {submitState === 'validation' ? <p className="field-error" role="alert">Please complete the required sections before submitting. Use “Jump to first missing section” if you need help finding the next item.</p> : null}
+        </div>
+        <div className="final-submit-card__actions">
+          {firstMissingSection ? <button type="button" className="secondary-btn" onClick={() => jumpToSection(firstMissingSection.id)}>Jump to first missing section</button> : null}
+          <button type="submit" form="client-registration-form" className="primary-btn final-submit-button" disabled={submitState === 'submitting'}>
+            {submitState === 'submitting' ? 'Submitting…' : 'Submit Registration'}
+          </button>
+        </div>
       </section>
     </section>
   );

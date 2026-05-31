@@ -1898,3 +1898,63 @@ button[type='submit']:not(.secondary-btn):hover {
     order: -1;
   }
 }
+
+.final-submit-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-color: var(--vpm-border-strong);
+  background:
+    linear-gradient(135deg, var(--vpm-surface) 0%, var(--vpm-surface-soft) 100%);
+  box-shadow: var(--vpm-shadow-sm);
+}
+
+.final-submit-card h2 {
+  margin: 0;
+  color: var(--vpm-deep-navy);
+  letter-spacing: -0.025em;
+}
+
+.final-submit-card p:not(.eyebrow) {
+  max-width: 740px;
+  margin: 0.35rem 0 0;
+  color: var(--vpm-navy-muted);
+  line-height: 1.55;
+}
+
+.final-submit-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.final-submit-button {
+  min-width: 190px;
+  padding: 0.72rem 1.1rem;
+}
+
+.success-message {
+  margin-top: 0.75rem !important;
+  padding: 0.85rem;
+  border: 1px solid rgba(47, 93, 58, 0.18);
+  border-radius: 14px;
+  background: var(--vpm-success-bg);
+  color: var(--vpm-success-text) !important;
+  font-weight: 700;
+}
+
+@media (max-width: 780px) {
+  .final-submit-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .final-submit-card__actions,
+  .final-submit-card__actions .primary-btn,
+  .final-submit-card__actions .secondary-btn {
+    width: 100%;
+  }
+}
