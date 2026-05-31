@@ -15,11 +15,11 @@ type MigrationGoal =
   | 'Not sure';
 type MaritalStatus = 'Single' | 'Married' | 'De facto' | 'Separated' | 'Divorced' | 'Widowed';
 type YesNo = 'Yes' | 'No';
-type EnglishLevel = 'Competent' | 'Proficient' | 'Superior';
-type AgeBracket = '18-24' | '25-32' | '33-39' | '40-44' | '45+';
+type EnglishLevel = 'Not selected' | 'Competent' | 'Proficient' | 'Superior';
+type AgeBracket = 'Not selected' | '18-24' | '25-32' | '33-39' | '40-44' | '45+';
 type OverseasExperience = '0-2' | '3-4' | '5-7' | '8+';
 type AustralianExperience = '0' | '1-2' | '3-4' | '5-7' | '8+';
-type QualificationLevel = 'Doctorate' | 'Bachelor/Masters' | 'Diploma/Trade' | 'No recognised qualification';
+type QualificationLevel = 'Not selected' | 'Doctorate' | 'Bachelor/Masters' | 'Diploma/Trade' | 'No recognised qualification';
 type PartnerPointsCategory = 'Not applicable' | 'Single or partner is AU citizen/PR' | 'Partner has competent English only' | 'Partner has skills + competent English';
 type NominationType = 'None' | 'State nomination (190)' | 'Regional nomination (491)';
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error' | 'validation';
@@ -123,7 +123,7 @@ const initialData: IntakeFormData = {
   contactMethod: 'Email',
   interestedCountry: 'Australia',
   mainGoal: 'Not sure',
-  timeframe: '',
+  timeframe: 'Not sure yet',
   maritalStatus: 'Single',
   dependants: '',
   migrateWithFamily: 'No',
@@ -152,11 +152,11 @@ const initialData: IntakeFormData = {
   cancellationOverstayDetails: '',
   criminalDetails: '',
   healthDetails: '',
-  ageBracket: '25-32',
-  englishLevel: 'Competent',
+  ageBracket: 'Not selected',
+  englishLevel: 'Not selected',
   overseasSkilledEmploymentYears: '0-2',
   australianSkilledEmploymentYears: '0',
-  highestQualificationLevel: 'Bachelor/Masters',
+  highestQualificationLevel: 'Not selected',
   australianStudyRequirementCompleted: 'No',
   regionalStudyCompleted: 'No',
   specialistEducationalQualification: 'No',
@@ -309,21 +309,20 @@ export default function IntakePage() {
     if (formData.overstayRemoval === 'Yes') flags.push('Overstay/removal history declared');
     if (formData.criminalHistory === 'Yes') flags.push('Character history declared');
     if (formData.healthCondition === 'Yes') flags.push('Health condition declared');
-    if (pointsEstimate.estimatedTotalPoints < 65) flags.push('Preliminary points may need pathway strategy');
     return flags;
-  }, [formData, pointsEstimate.estimatedTotalPoints]);
+  }, [formData]);
 
   const missingKeyItems = keyItems.filter((item) => !formData[item].trim());
   const missingRequiredDocuments = documentUploadConfig
     .filter((doc) => doc.required && !selectedFiles[doc.key]?.file)
     .map((doc) => doc.label);
 
-  const readinessStatus = riskFlags.length > 0
-    ? 'Needs VPM review'
-    : pointsEstimate.estimatedTotalPoints < 65
-      ? 'Pathway strategy may be needed'
-      : missingKeyItems.length > 0
-        ? 'In progress'
+  const readinessStatus = missingKeyItems.length > 0
+    ? 'In progress'
+    : riskFlags.length > 0
+      ? 'Needs VPM review'
+      : pointsEstimate.estimatedTotalPoints > 0 && pointsEstimate.estimatedTotalPoints < 65
+        ? 'Pathway strategy may be needed'
         : 'Ready for preliminary review';
 
   const sectionCompletion = useMemo(() => {
@@ -346,6 +345,12 @@ export default function IntakePage() {
   const firstMissingSection = sectionCompletion.find((section) => !section.complete && !section.optional);
   const completeCount = sectionCompletion.filter((section) => section.complete).length;
   const hasRiskDisclosure = riskFlags.some((flag) => flag.includes('declared'));
+  const indicativeRangeDisplay = pointsEstimate.estimatedTotalPoints > 0 ? pointsEstimate.potentialRange : 'Not enough information yet';
+  const finalMissingSummary = firstMissingSection
+    ? sectionMissingHints[firstMissingSection.id]
+    : missingKeyItems.length
+      ? `${missingKeyItems.length} key item(s) still need attention.`
+      : 'No required sections missing.';
 
   const validate = (data: IntakeFormData) => {
     const errors: Partial<Record<keyof IntakeFormData, string>> = {};
@@ -464,11 +469,23 @@ export default function IntakePage() {
   return (
     <section className="intake-page">
       <div className="intake-hero">
-        <p className="eyebrow">Client Registration Form</p>
-        <h1>Visa Pass Migration: Client Registration Form</h1>
-        <p>
-          Please complete the sections below so Visa Pass Migration can complete a preliminary review of your background, goals, and possible migration pathway.
-        </p>
+        <div className="intake-hero__content">
+          <p className="eyebrow">Client Registration Form</p>
+          <h1>Visa Pass Migration: Client Registration Form</h1>
+          <p>
+            Please complete the sections below so Visa Pass Migration can complete a preliminary review of your background, goals, and possible migration pathway.
+          </p>
+        </div>
+        <aside className="intake-hero__aside" aria-label="Before you start">
+          <div className="hero-support-card">
+            <p className="eyebrow">Before you start</p>
+            <ul className="hero-support-list">
+              <li>Takes around 10–15 minutes</li>
+              <li>You can save progress on this device</li>
+              <li>VPM will complete a preliminary review after submission</li>
+            </ul>
+          </div>
+        </aside>
       </div>
 
       <section className="section progress-card" aria-labelledby="progress-title">
@@ -505,7 +522,7 @@ export default function IntakePage() {
           <SectionCard id="migration-goal" title="Migration goal" helper="Tell us what pathway or outcome you would like VPM to consider first.">
             <Select required label="Interested country" value={formData.interestedCountry} options={['Australia', 'New Zealand', 'Both']} onChange={(v) => onChange('interestedCountry', v)} />
             <Select required label="Main goal" value={formData.mainGoal} options={['Permanent residency', 'Employer sponsorship', 'Study pathway', 'Visitor visa', 'Partner/family visa', 'Not sure']} error={shouldShowError('mainGoal') ? validationErrors.mainGoal : undefined} onBlur={() => onBlur('mainGoal')} onChange={(v) => onChange('mainGoal', v)} />
-            <Input required label="Preferred timeframe" value={formData.timeframe} error={shouldShowError('timeframe') ? validationErrors.timeframe : undefined} onBlur={() => onBlur('timeframe')} onChange={(v) => onChange('timeframe', v)} />
+            <Select required label="When would you like to start or progress this migration pathway?" value={formData.timeframe} options={['Not sure yet', 'As soon as possible', 'I am ready to start now, but not urgent', 'Within the next 3–6 months', 'Within the next 6–12 months', 'I am planning for the future']} error={shouldShowError('timeframe') ? validationErrors.timeframe : undefined} onBlur={() => onBlur('timeframe')} onChange={(v) => onChange('timeframe', v)} />
           </SectionCard>
 
           <SectionCard id="family" title="Family / partner" helper="Household details can affect options, evidence, and points.">
@@ -567,11 +584,11 @@ export default function IntakePage() {
           </SectionCard>
 
           <SectionCard id="points-estimator" title="Preliminary skilled migration points estimate" helper="This estimate is a guide only and must be reviewed by VPM against current migration rules and evidence.">
-            <Select label="Age bracket" value={formData.ageBracket} options={['18-24', '25-32', '33-39', '40-44', '45+']} onChange={(v) => onChange('ageBracket', v)} />
-            <Select label="English level" value={formData.englishLevel} options={['Competent', 'Proficient', 'Superior']} onChange={(v) => onChange('englishLevel', v)} />
+            <Select label="Age bracket" value={formData.ageBracket} options={['Not selected', '18-24', '25-32', '33-39', '40-44', '45+']} onChange={(v) => onChange('ageBracket', v)} />
+            <Select label="English level" value={formData.englishLevel} options={['Not selected', 'Competent', 'Proficient', 'Superior']} onChange={(v) => onChange('englishLevel', v)} />
             <Select label="Overseas skilled employment years" value={formData.overseasSkilledEmploymentYears} options={['0-2', '3-4', '5-7', '8+']} onChange={(v) => onChange('overseasSkilledEmploymentYears', v)} />
             <Select label="Australian skilled employment years" value={formData.australianSkilledEmploymentYears} options={['0', '1-2', '3-4', '5-7', '8+']} onChange={(v) => onChange('australianSkilledEmploymentYears', v)} />
-            <Select label="Highest qualification level" value={formData.highestQualificationLevel} options={['Doctorate', 'Bachelor/Masters', 'Diploma/Trade', 'No recognised qualification']} onChange={(v) => onChange('highestQualificationLevel', v)} />
+            <Select label="Highest qualification level" value={formData.highestQualificationLevel} options={['Not selected', 'Doctorate', 'Bachelor/Masters', 'Diploma/Trade', 'No recognised qualification']} onChange={(v) => onChange('highestQualificationLevel', v)} />
             <Select label="Australian study completed" value={formData.australianStudyRequirementCompleted} options={['Yes', 'No']} onChange={(v) => onChange('australianStudyRequirementCompleted', v)} />
             <Select label="Regional study completed" value={formData.regionalStudyCompleted} options={['Yes', 'No']} onChange={(v) => onChange('regionalStudyCompleted', v)} />
             <Select label="Specialist education completed" value={formData.specialistEducationalQualification} options={['Yes', 'No']} onChange={(v) => onChange('specialistEducationalQualification', v)} />
@@ -605,7 +622,7 @@ export default function IntakePage() {
           <div className="points-summary">
             <h3>Preliminary points estimate</h3>
             <p className="points-total">{pointsEstimate.estimatedTotalPoints}</p>
-            <p><strong>Indicative range:</strong> {pointsEstimate.potentialRange}</p>
+            <p><strong>Indicative range:</strong> {indicativeRangeDisplay}</p>
             <dl className="points-breakdown-list">
               {Object.entries(pointsEstimate.breakdown).map(([key, value]) => (
                 <div key={key}>
@@ -635,10 +652,25 @@ export default function IntakePage() {
       </section>
 
       <section className="final-submit-card card" aria-labelledby="final-submit-title">
-        <div>
+        <div className="final-submit-card__content">
           <p className="eyebrow">Final step</p>
           <h2 id="final-submit-title">Submit your registration to VPM</h2>
           <p>When the information above is ready, submit your Registration Form so VPM can begin preliminary review.</p>
+          <dl className="final-submit-card__summary" aria-label="Final registration summary">
+            <div>
+              <dt>Preliminary points estimate</dt>
+              <dd>{pointsEstimate.estimatedTotalPoints}</dd>
+            </div>
+            <div>
+              <dt>Registration readiness</dt>
+              <dd>{readinessStatus}</dd>
+            </div>
+            <div>
+              <dt>Missing sections/items</dt>
+              <dd>{finalMissingSummary}</dd>
+            </div>
+          </dl>
+          <p className="final-submit-card__note">Current preliminary points estimate: {pointsEstimate.estimatedTotalPoints}. This is indicative only and requires VPM review.</p>
           <p className="success-message" hidden>{SUCCESS_MESSAGE}</p>
           {submitState === 'success' ? <p className="success-message" role="status">{SUCCESS_MESSAGE}</p> : null}
           {submitState === 'validation' ? <p className="field-error" role="alert">Please complete the required sections before submitting. Use “Jump to first missing section” if you need help finding the next item.</p> : null}

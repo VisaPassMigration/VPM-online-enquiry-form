@@ -52,4 +52,52 @@ describe('public registration form page', () => {
     expect(markup).not.toContain('australianEmployment:');
     expect(markup).not.toContain('specialistQualification:');
   });
+  it('balances the hero and keeps progress cards linked to sections', () => {
+    const markup = renderToStaticMarkup(React.createElement(IntakePage));
+
+    expect(markup).toContain('Before you start');
+    expect(markup).toContain('Takes around 10–15 minutes');
+    expect(markup).toContain('You can save progress on this device');
+    expect(markup).toContain('href="#client-details"');
+    expect(markup).toContain('href="#migration-goal"');
+    expect(markup).toContain('href="#risk-screening"');
+    expect(markup).toContain('sections look complete or okay for now');
+  });
+
+  it('uses clearer migration timeframe options', () => {
+    const markup = renderToStaticMarkup(React.createElement(IntakePage));
+
+    expect(markup).toContain('When would you like to start or progress this migration pathway?');
+    expect(markup).toContain('Not sure yet');
+    expect(markup).toContain('As soon as possible');
+    expect(markup).toContain('I am ready to start now, but not urgent');
+    expect(markup).toContain('Within the next 3–6 months');
+    expect(markup).toContain('Within the next 6–12 months');
+    expect(markup).toContain('I am planning for the future');
+    expect(markup).not.toContain('Preferred timeframe');
+  });
+
+  it('starts fresh registrations with neutral non-scoring points defaults', () => {
+    const markup = renderToStaticMarkup(React.createElement(IntakePage));
+
+    expect(markup).toContain('<p class="points-total">0</p>');
+    expect(markup).toContain('Indicative range:</strong> Not enough information yet');
+    expect(markup).toContain('<option value="Not selected" selected="">Not selected</option>');
+    expect(markup).toContain('Age bracket');
+    expect(markup).toContain('Highest qualification level');
+    expect(markup).not.toContain('<p class="points-total">45</p>');
+  });
+
+  it('presents a spaced final submit summary with primary and secondary actions', () => {
+    const markup = renderToStaticMarkup(React.createElement(IntakePage));
+
+    expect(markup).toContain('Final registration summary');
+    expect(markup).toContain('Registration readiness');
+    expect(markup).toContain('Missing sections/items');
+    expect(markup).toContain('Current preliminary points estimate:');
+    expect(markup).toContain('class="primary-btn final-submit-button"');
+    expect(markup).toContain('Submit Registration');
+    expect(markup).toContain('Jump to first missing section');
+  });
+
 });
