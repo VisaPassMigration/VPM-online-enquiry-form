@@ -315,8 +315,8 @@ export default async function DashboardPage({
     { label: 'Cold leads', value: rows.filter((row) => row.leadRating === 'cold').length },
     { label: 'Escalate leads', value: rows.filter((row) => row.leadRating === 'escalate').length },
     { label: 'Not Rated leads', value: rows.filter((row) => row.leadRating === null).length },
-    { label: 'Average time from submission to first review', value: 'Placeholder' },
-    { label: 'Consultation conversion', value: 'Placeholder' },
+    { label: 'Average time from submission to first review', value: 'Not enough data yet' },
+    { label: 'Consultation conversion', value: 'No conversion data yet' },
   ];
   const staffTasks = rawStaffTasks.map((task) => {
     const submission = (task.submission ?? null) as ({ id: string; payload: Prisma.JsonValue; leadRating: LeadRating | null } | null);
@@ -415,7 +415,7 @@ export default async function DashboardPage({
         </article>
       </section>
 
-      <section className="section staff-section staff-task-panel">
+      <section className="section staff-section staff-task-panel" id="staff-task-operations">
         <div className="section-heading-row section-heading-row--stacked">
           <div>
             <p className="eyebrow">Operations</p>
@@ -433,7 +433,7 @@ export default async function DashboardPage({
               Active filters: status={taskStatusFilter}, priority={taskPriorityFilter}, due={taskDueScopeFilter}, type={taskTypeFilter}, lead
               rating={taskLeadRatingFilter}, assignee={taskAssigneeFilter}, view={taskViewFilter}
             </p>
-            <Link href={leadRatingFilter === 'all' ? '/dashboard' : `/dashboard?leadRating=${leadRatingFilter}`} className="filter-clear">Clear Task Filters</Link>
+            <Link href={leadRatingFilter === 'all' ? '/dashboard#staff-task-operations' : `/dashboard?leadRating=${leadRatingFilter}#staff-task-operations`} className="filter-clear">Clear Task Filters</Link>
           </div>
           {taskFilterGroups.map(({ key, label: groupLabel, active, values }) => (
             <div key={String(key)} className="filter-row">
@@ -455,7 +455,7 @@ export default async function DashboardPage({
                     const nextValue = k === key ? value : v;
                     if (nextValue !== 'all') params.set(k, nextValue);
                   });
-                  const href = params.toString() ? `/dashboard?${params.toString()}` : '/dashboard';
+                  const href = params.toString() ? `/dashboard?${params.toString()}#staff-task-operations` : '/dashboard#staff-task-operations';
                   const label = value === 'not_rated' ? 'not rated' : value.replaceAll('_', ' ');
                   const isActive = active === value;
                   return <Link key={`${key}-${value}`} href={href} className={isActive ? 'filter-chip filter-chip--active' : 'filter-chip'}>{label}</Link>;

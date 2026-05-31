@@ -72,7 +72,7 @@ describe('dashboard lead rating UI', () => {
     vi.useRealTimers();
   });
 
-  it('shows rating counts, filter placeholder, and table column', async () => {
+  it('shows rating counts, filter chips, and staff-friendly KPI placeholders', async () => {
     const page = (await import('./page')).default;
     const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
 
@@ -81,6 +81,8 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('Cold leads');
     expect(markup).toContain('Escalate leads');
     expect(markup).toContain('Not Rated leads');
+    expect(markup).toContain('Not enough data yet');
+    expect(markup).toContain('No conversion data yet');
     expect(markup).toContain('Lead Rating');
     expect(markup).toContain('Lead Rating Reason');
     expect(markup).toContain('Next Action Hint');
@@ -160,6 +162,9 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('HOT LEAD');
     expect(markup).toContain('ESCALATE LEAD');
     expect(markup).toContain('They do not send client communications or create calendar events.');
+    expect(markup).toContain('id="staff-task-operations"');
+    expect(markup).toContain('/dashboard?taskStatus=open#staff-task-operations');
+    expect(markup).toContain('/dashboard#staff-task-operations');
   });
   it('renders staff workload summary table and counts by staff', async () => {
     const page = (await import('./page')).default;
