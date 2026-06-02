@@ -1,0 +1,42 @@
+import { describe, expect, it } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+import HomePage from './page';
+
+describe('public home page', () => {
+  it('presents a premium VPM registration landing page without guaranteed outcome claims', () => {
+    const markup = renderToStaticMarkup(HomePage());
+
+    expect(markup).toContain('Visa Pass Migration Registration Platform');
+    expect(markup).toContain('Start your migration journey with a structured VPM registration.');
+    expect(markup).toContain('href="/intake"');
+    expect(markup).toContain('Start Registration');
+    expect(markup).toContain('href="/#book-consultation"');
+    expect(markup).toContain('Book a Consultation');
+    expect(markup).toContain('id="book-consultation"');
+    expect(markup).toContain('Consultations');
+    expect(markup).toContain('The right consultation starts with the right information.');
+    expect(markup).toContain('Before booking a consultation, please complete the Registration Form');
+    expect(markup).toContain('Complete Registration First');
+    expect(markup).toContain('Pathway to consultation');
+    expect(markup).toContain('Share your details through the structured registration form.');
+    expect(markup).toContain('Our team reviews your information and identifies the appropriate next-step pathway.');
+    expect(markup).toContain('Receive consultation or next-step guidance');
+    expect(markup).toContain('If a consultation is appropriate, VPM may provide a booking link or further instructions directly.');
+    expect(markup).toContain('href="/intake"');
+    expect(markup).not.toContain('Learn How It Works');
+    expect(markup).toContain('Complete the Registration Form');
+    expect(markup).toContain('VPM completes a preliminary review');
+    expect(markup).toContain('Receive clear next steps');
+    expect(markup).toContain('VPM’s registration platform is designed to make the initial information-gathering process easier for clients to complete, easier for VPM to review, and easier for our team to follow up on.');
+    expect(markup).toContain('Guided client registration');
+    expect(markup).toContain('Preliminary pathway review');
+    expect(markup).toContain('Client progress tracking');
+    expect(markup).toContain('Supporting information readiness');
+    expect(markup).toContain('Completing the registration form does not guarantee a visa outcome');
+    expect(markup).not.toContain('Public Home Page Content');
+    expect(markup).not.toContain('securely uploaded');
+    expect(markup).not.toContain('guaranteed migration outcomes');
+    expect(markup).not.toContain('Calendly');
+  });
+});

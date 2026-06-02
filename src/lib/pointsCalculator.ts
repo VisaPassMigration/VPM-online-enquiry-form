@@ -1,8 +1,8 @@
-export type AgeBracket = '18-24' | '25-32' | '33-39' | '40-44' | '45+';
+export type AgeBracket = 'Not selected' | '18-24' | '25-32' | '33-39' | '40-44' | '45+';
 export type OverseasExperience = '0-2' | '3-4' | '5-7' | '8+';
 export type AustralianExperience = '0' | '1-2' | '3-4' | '5-7' | '8+';
-export type QualificationLevel = 'Doctorate' | 'Bachelor/Masters' | 'Diploma/Trade' | 'No recognised qualification';
-export type EnglishLevel = 'Competent' | 'Proficient' | 'Superior';
+export type QualificationLevel = 'Not selected' | 'Doctorate' | 'Bachelor/Masters' | 'Diploma/Trade' | 'No recognised qualification';
+export type EnglishLevel = 'Not selected' | 'Competent' | 'Proficient' | 'Superior';
 export type YesNo = 'Yes' | 'No';
 export type PartnerPointsCategory = 'Not applicable' | 'Single or partner is AU citizen/PR' | 'Partner has competent English only' | 'Partner has skills + competent English';
 export type NominationType = 'None' | 'State nomination (190)' | 'Regional nomination (491)';
@@ -30,11 +30,11 @@ export type PointsBreakdown = Record<string, number>;
 
 export function calculateEstimatedSkilledMigrationPoints(data: PointsCalculatorInput) {
   const breakdown: PointsBreakdown = {
-    age: { '18-24': 25, '25-32': 30, '33-39': 25, '40-44': 15, '45+': 0 }[data.ageBracket],
-    english: { Competent: 0, Proficient: 10, Superior: 20 }[data.englishLevel],
+    age: { 'Not selected': 0, '18-24': 25, '25-32': 30, '33-39': 25, '40-44': 15, '45+': 0 }[data.ageBracket],
+    english: { 'Not selected': 0, Competent: 0, Proficient: 10, Superior: 20 }[data.englishLevel],
     overseasEmployment: { '0-2': 0, '3-4': 5, '5-7': 10, '8+': 15 }[data.overseasSkilledEmploymentYears],
     australianEmployment: { '0': 0, '1-2': 5, '3-4': 10, '5-7': 15, '8+': 20 }[data.australianSkilledEmploymentYears],
-    qualification: { Doctorate: 20, 'Bachelor/Masters': 15, 'Diploma/Trade': 10, 'No recognised qualification': 0 }[data.highestQualificationLevel],
+    qualification: { 'Not selected': 0, Doctorate: 20, 'Bachelor/Masters': 15, 'Diploma/Trade': 10, 'No recognised qualification': 0 }[data.highestQualificationLevel],
     australianStudy: data.australianStudyRequirementCompleted === 'Yes' ? 5 : 0,
     regionalStudy: data.regionalStudyCompleted === 'Yes' ? 5 : 0,
     specialistQualification: data.specialistEducationalQualification === 'Yes' ? 10 : 0,

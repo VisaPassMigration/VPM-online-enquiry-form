@@ -38,17 +38,17 @@ export function toPointsInput(payload: IntakeSubmissionInput): PointsCalculatorI
   if (!payload.partnerPointsCategory) unknownFactors.push('partnerPointsCategory');
   if (!payload.nominationType) unknownFactors.push('nominationType');
   return {
-    ageBracket: payload.ageBracket ?? '25-32',
-    englishLevel: payload.englishLevel ?? (payload.englishOverallBand && payload.englishOverallBand >= 8 ? 'Superior' : payload.englishOverallBand && payload.englishOverallBand >= 7 ? 'Proficient' : 'Competent'),
+    ageBracket: payload.ageBracket ?? 'Not selected',
+    englishLevel: payload.englishLevel ?? (payload.englishOverallBand && payload.englishOverallBand >= 8 ? 'Superior' : payload.englishOverallBand && payload.englishOverallBand >= 7 ? 'Proficient' : 'Not selected'),
     overseasSkilledEmploymentYears: payload.overseasSkilledEmploymentYears ?? '0-2',
     australianSkilledEmploymentYears: payload.australianSkilledEmploymentYears ?? '0',
-    highestQualificationLevel: payload.highestQualificationLevel ?? 'Bachelor/Masters',
+    highestQualificationLevel: payload.highestQualificationLevel ?? 'Not selected',
     australianStudyRequirementCompleted: payload.australianStudyRequirementCompleted ?? 'No',
     regionalStudyCompleted: payload.regionalStudyCompleted ?? 'No',
     specialistEducationalQualification: payload.specialistEducationalQualification ?? 'No',
     professionalYearCompleted: payload.professionalYearCompleted ?? 'No',
     naatiCredential: payload.naatiCredential ?? 'No',
-    partnerPointsCategory: payload.partnerPointsCategory ?? (payload.hasPartner ? 'Partner has competent English only' : 'Single or partner is AU citizen/PR'),
+    partnerPointsCategory: payload.partnerPointsCategory ?? 'Not applicable',
     nominationType: payload.nominationType ?? 'None',
     englishTestCompleted: payload.englishTestTaken ? 'Yes' : 'No',
     migrationOccupation: payload.migrationOccupation ?? '',

@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'VPM Intake Platform',
-  description: 'Secure client intake platform foundation for Visa Pass Migration.',
+  description: 'Structured client registration platform for Visa Pass Migration.',
 };
 
 export default function RootLayout({
