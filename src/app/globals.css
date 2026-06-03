@@ -2210,3 +2210,54 @@ button[type='submit']:not(.secondary-btn):hover {
 .landing-consultation-card .primary-btn {
   width: fit-content;
 }
+
+.review-brief {
+  background:
+    linear-gradient(135deg, rgba(255, 239, 202, 0.58), rgba(255, 255, 255, 0.92) 42%),
+    var(--vpm-surface);
+  border-color: var(--vpm-border-strong);
+}
+
+.review-brief__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.review-brief__item {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.review-brief__item p,
+.review-brief__item span {
+  margin: 0;
+}
+
+.review-brief__item p {
+  color: var(--vpm-navy-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.review-brief__item strong {
+  color: var(--vpm-deep-navy);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1;
+}
+
+.review-brief__item span {
+  color: var(--vpm-muted);
+  font-size: 0.9rem;
+}
+
+.review-brief__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}

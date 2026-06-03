@@ -57,8 +57,8 @@ describe('dashboard lead rating UI', () => {
       { id: 'sub-cold', submittedAt: new Date('2026-05-19T01:00:00.000Z'), createdAt: now, payload: { firstName: 'Cold', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'cold', leadRatingReason: null },
       { id: 'sub-none', submittedAt: new Date('2026-05-19T02:00:00.000Z'), createdAt: now, payload: { firstName: 'Not', lastName: 'Rated' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: null, leadRatingReason: 'AI suggestion pending staff confirmation' },
       { id: 'sub-warm', submittedAt: new Date('2026-05-19T03:00:00.000Z'), createdAt: now, payload: { firstName: 'Warm', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'warm', leadRatingReason: 'Some supporting docs missing' },
-      { id: 'sub-hot', submittedAt: new Date('2026-05-19T04:00:00.000Z'), createdAt: now, payload: { firstName: 'Hot', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'hot', leadRatingReason: 'High points and complete profile' },
-      { id: 'sub-escalate', submittedAt: new Date('2026-05-19T05:00:00.000Z'), createdAt: now, payload: { firstName: 'Escalate', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'escalate', leadRatingReason: 'Risk flag requires senior decision' },
+      { id: 'sub-hot', submittedAt: new Date('2026-05-19T04:00:00.000Z'), createdAt: now, payload: { firstName: 'Hot', lastName: 'Lead' }, pointsSnapshots: [{ totalPoints: 85 }], riskFlags: [], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'hot', leadRatingReason: 'High points and complete profile' },
+      { id: 'sub-escalate', submittedAt: new Date('2026-05-19T05:00:00.000Z'), createdAt: now, payload: { firstName: 'Escalate', lastName: 'Lead' }, pointsSnapshots: [], riskFlags: [{ riskCode: 'visa_refusal_history', severity: 'high' }], status: 'submitted', currentReviewState: null, updatedAt: now, leadRating: 'escalate', leadRatingReason: 'Risk flag requires senior decision' },
     ]);
     mocks.staffTaskFindMany.mockResolvedValue([
       { id: 'task-1', title: 'Urgent overdue escalate', taskType: 'risk_review', priority: 'urgent', status: 'open', dueDate: new Date('2026-05-18T00:00:00.000Z'), assignedStaffName: 'A', assignedStaffUserId: 'staff-a', createdAt: new Date('2026-05-19T10:00:00.000Z'), submission: { id: 'sub-escalate', payload: { firstName: 'Escalate', lastName: 'Lead' }, leadRating: 'escalate' } },
@@ -70,6 +70,31 @@ describe('dashboard lead rating UI', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('renders the staff review brief with current registration counts and review actions', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+
+    expect(markup).toContain('Staff Review Brief');
+    expect(markup).toContain('Current review priorities');
+    expect(markup).toContain('New registrations submitted today</p><strong>5</strong>');
+    expect(markup).toContain('Awaiting VPM review</p><strong>4</strong>');
+    expect(markup).toContain('Not yet rated</p><strong>1</strong>');
+    expect(markup).toContain('Risk escalated items</p><strong>1</strong>');
+    expect(markup).toContain('High estimated points submissions</p><strong>1</strong>');
+    expect(markup).toContain('Review submitted registrations');
+    expect(markup).toContain('href="/dashboard#submitted-enquiries"');
+    expect(markup).toContain('View not rated registrations');
+    expect(markup).toContain('href="/dashboard?leadRating=not_rated#lead-rating-filters"');
+    expect(markup).toContain('View risk escalated items');
+  });
+
+  it('preserves dashboard auth and RBAC gate for the review brief', async () => {
+    const page = (await import('./page')).default;
+    await page({ searchParams: Promise.resolve({}) });
+
+    expect(mocks.requirePermission).toHaveBeenCalledWith('view_dashboard');
   });
 
   it('shows rating counts, filter chips, and staff-friendly KPI placeholders', async () => {
