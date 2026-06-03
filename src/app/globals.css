@@ -2166,6 +2166,10 @@ button[type='submit']:not(.secondary-btn):hover {
   line-height: 1.65;
 }
 
+.landing-consultation__intro .primary-btn {
+  margin-top: 0.1rem;
+}
+
 .landing-consultation__note {
   padding-left: 0.85rem;
   border-left: 3px solid var(--vpm-cream);

@@ -14,6 +14,8 @@ describe('public home page', () => {
     expect(markup).toContain('href="/#book-consultation"');
     expect(markup).toContain('Book a Consultation');
     expect(markup).toContain('id="book-consultation"');
+    expect(markup).toContain('class="landing-section landing-consultation"');
+    expect(markup).toContain('aria-describedby="consultation-summary"');
     expect(markup).toContain('Consultations');
     expect(markup).toContain('The right consultation starts with the right information.');
     expect(markup).toContain('Before booking a consultation, please complete the Registration Form');
@@ -33,6 +35,7 @@ describe('public home page', () => {
     expect(markup).toContain('Preliminary pathway review');
     expect(markup).toContain('Client progress tracking');
     expect(markup).toContain('Supporting information readiness');
+    expect(markup).toContain('class="landing-disclaimer landing-disclaimer--centered"');
     expect(markup).toContain('Completing the registration form does not guarantee a visa outcome');
     expect(markup).not.toContain('Public Home Page Content');
     expect(markup).not.toContain('securely uploaded');

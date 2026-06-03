@@ -74,11 +74,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="book-consultation" className="landing-section landing-consultation" aria-labelledby="consultation-title">
+      <section id="book-consultation" className="landing-section landing-consultation" aria-labelledby="consultation-title" aria-describedby="consultation-summary">
         <div className="landing-consultation__intro">
           <p className="eyebrow">Consultations</p>
           <h2 id="consultation-title">The right consultation starts with the right information.</h2>
-          <p>
+          <p id="consultation-summary">
             Before booking a consultation, please complete the Registration Form so VPM can understand your background, goals, and intended
             migration pathway.
           </p>
