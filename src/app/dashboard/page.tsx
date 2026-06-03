@@ -121,6 +121,7 @@ const nextActionHintFor = (rating: LeadRating | null) => {
 };
 const leadRatingReasonPreview = (reason: string | null) =>
   reason && reason.trim() ? reason.trim().slice(0, 80) : '—';
+const HIGH_ESTIMATED_POINTS_THRESHOLD = 80;
 const utcDayBounds = (source: Date) => {
   const start = new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), source.getUTCDate()));
   const end = new Date(start);
@@ -288,6 +289,11 @@ export default async function DashboardPage({
   });
 
   const countByStatus = (status: DashboardStatus) => rows.filter((row) => row.status === status).length;
+  const newRegistrationsToday = rows.filter((row) => isTodayUtc(row.submittedDate)).length;
+  const awaitingReviewCount = countByStatus('Awaiting review');
+  const riskEscalatedCount = countByStatus('Risk escalated');
+  const notRatedCount = rows.filter((row) => row.leadRating === null).length;
+  const highEstimatedPointsCount = rows.filter((row) => (row.estimatedPoints ?? 0) >= HIGH_ESTIMATED_POINTS_THRESHOLD).length;
   const filteredRows = rows
     .filter((row) => {
       if (leadRatingFilter === 'all') return true;
@@ -303,18 +309,18 @@ export default async function DashboardPage({
 
   const kpis = [
     { label: 'Total submitted enquiries', value: rows.length },
-    { label: 'New enquiries today', value: rows.filter((row) => isTodayUtc(row.submittedDate)).length },
-    { label: 'Awaiting review', value: countByStatus('Awaiting review') },
+    { label: 'New enquiries today', value: newRegistrationsToday },
+    { label: 'Awaiting review', value: awaitingReviewCount },
     { label: 'Under staff review', value: countByStatus('Under staff review') },
     { label: 'More information requested', value: countByStatus('More information requested') },
-    { label: 'Risk escalated', value: countByStatus('Risk escalated') },
+    { label: 'Risk escalated', value: riskEscalatedCount },
     { label: 'Progressing to consultation', value: countByStatus('Progressing to consultation') },
     { label: 'Not progressing', value: countByStatus('Not progressing') },
     { label: 'Hot leads', value: rows.filter((row) => row.leadRating === 'hot').length },
     { label: 'Warm leads', value: rows.filter((row) => row.leadRating === 'warm').length },
     { label: 'Cold leads', value: rows.filter((row) => row.leadRating === 'cold').length },
     { label: 'Escalate leads', value: rows.filter((row) => row.leadRating === 'escalate').length },
-    { label: 'Not Rated leads', value: rows.filter((row) => row.leadRating === null).length },
+    { label: 'Not Rated leads', value: notRatedCount },
     { label: 'Average time from submission to first review', value: 'Not enough data yet' },
     { label: 'Consultation conversion', value: 'No conversion data yet' },
   ];
@@ -413,6 +419,48 @@ export default async function DashboardPage({
           <strong>Consultation KPI tracking</strong>
           <p>Consultation KPIs are for internal operations tracking only. Status and outcome updates remain staff-controlled.</p>
         </article>
+      </section>
+
+      <section className="section staff-section review-brief" aria-labelledby="staff-review-brief-heading">
+        <div className="section-heading-row section-heading-row--stacked">
+          <div>
+            <p className="eyebrow">Today’s activity</p>
+            <h3 id="staff-review-brief-heading">Staff Review Brief</h3>
+          </div>
+          <p className="section-helper">Current review priorities for submitted registrations. Use these prompts to jump directly to the review queue and lead rating filters.</p>
+        </div>
+        <div className="review-brief__summary" aria-label="Current review priorities">
+          <article className="card review-brief__item">
+            <p>New registrations submitted today</p>
+            <strong>{newRegistrationsToday}</strong>
+            <span>Today’s activity ready for staff triage.</span>
+          </article>
+          <article className="card review-brief__item">
+            <p>Awaiting VPM review</p>
+            <strong>{awaitingReviewCount}</strong>
+            <span>Review queue ready.</span>
+          </article>
+          <article className="card review-brief__item">
+            <p>Not yet rated</p>
+            <strong>{notRatedCount}</strong>
+            <span>Generate or confirm internal lead rating.</span>
+          </article>
+          <article className="card review-brief__item">
+            <p>Risk escalated items</p>
+            <strong>{riskEscalatedCount}</strong>
+            <span>Open or under-review risk flags requiring senior attention.</span>
+          </article>
+          <article className="card review-brief__item">
+            <p>High estimated points submissions</p>
+            <strong>{highEstimatedPointsCount}</strong>
+            <span>Latest preliminary points snapshots at {HIGH_ESTIMATED_POINTS_THRESHOLD}+ points, where available.</span>
+          </article>
+        </div>
+        <div className="review-brief__actions" aria-label="Review brief actions">
+          <Link href="/dashboard#submitted-enquiries" className="primary-btn">Review submitted registrations</Link>
+          <Link href="/dashboard?leadRating=not_rated#lead-rating-filters" className="secondary-btn">View not rated registrations</Link>
+          <Link href="/dashboard#submitted-enquiries" className="secondary-btn">View risk escalated items</Link>
+        </div>
       </section>
 
       <section className="section staff-section staff-task-panel" id="staff-task-operations">
