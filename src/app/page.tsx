@@ -77,14 +77,18 @@ export default function HomePage() {
       <section id="book-consultation" className="landing-section landing-section--split landing-consultation" aria-labelledby="consultation-title">
         <div className="landing-section__heading">
           <p className="eyebrow">Consultations</p>
-          <h2 id="consultation-title">Book a consultation after your preliminary registration.</h2>
+          <h2 id="consultation-title">The right consultation starts with the right information.</h2>
           <p>
-            Consultations are most effective after VPM has reviewed your background, goals, and intended migration pathway. Please complete the
+            Consultations are most effective after VPM has reviewed your background, goals, and intended migration pathway. Complete the
             Registration Form first so our team can understand your circumstances and guide the appropriate next step.
           </p>
         </div>
-        <div className="landing-copy-card landing-consultation-card">
-          <p>If VPM has already reviewed your information, our team may provide a booking link or next-step instructions directly.</p>
+        <div className="landing-copy-card landing-consultation-card" aria-label="Consultation pathway">
+          <ol className="landing-consultation-steps">
+            <li><strong>Complete the Registration Form</strong><span>Share your background and migration goals through the guided VPM registration.</span></li>
+            <li><strong>VPM completes a preliminary review</strong><span>Our team checks the information provided before recommending the most suitable next conversation.</span></li>
+            <li><strong>Receive consultation or next-step guidance</strong><span>VPM will guide whether a consultation or another next step is appropriate after review.</span></li>
+          </ol>
           <Link href="/intake" className="primary-btn">Complete Registration First</Link>
         </div>
       </section>

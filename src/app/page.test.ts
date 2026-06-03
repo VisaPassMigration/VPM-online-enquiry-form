@@ -15,13 +15,14 @@ describe('public home page', () => {
     expect(markup).toContain('Book a Consultation');
     expect(markup).toContain('id="book-consultation"');
     expect(markup).toContain('Consultations');
-    expect(markup).toContain('Book a consultation after your preliminary registration.');
+    expect(markup).toContain('The right consultation starts with the right information.');
     expect(markup).toContain('Complete Registration First');
     expect(markup).toContain('href="/intake"');
     expect(markup).not.toContain('Learn How It Works');
     expect(markup).toContain('Complete the Registration Form');
     expect(markup).toContain('VPM completes a preliminary review');
     expect(markup).toContain('Receive clear next steps');
+    expect(markup).toContain('Receive consultation or next-step guidance');
     expect(markup).toContain('VPM’s registration platform is designed to make the initial information-gathering process easier for clients to complete, easier for VPM to review, and easier for our team to follow up on.');
     expect(markup).toContain('Guided client registration');
     expect(markup).toContain('Preliminary pathway review');
