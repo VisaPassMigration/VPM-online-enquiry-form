@@ -869,6 +869,17 @@ button[type='submit']:not(.secondary-btn):hover {
   }
 }
 
+.dashboard-back-to-top {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.25rem 0 0.75rem;
+}
+
+.dashboard-back-to-top .secondary-btn {
+  font-size: 0.86rem;
+  padding: 0.38rem 0.68rem;
+}
+
 /* Premium staff dashboard refinements */
 .staff-section {
   border-color: var(--vpm-border);

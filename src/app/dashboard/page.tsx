@@ -401,7 +401,7 @@ export default async function DashboardPage({
 
   return (
     <>
-      <section className="staff-hero">
+      <section className="staff-hero" id="dashboard-top">
         <div>
           <p className="eyebrow">Staff workspace</p>
           <h1>Staff Dashboard Overview</h1>
@@ -756,6 +756,10 @@ export default async function DashboardPage({
           </div>
         )}
       </section>
+
+      <div className="dashboard-back-to-top" aria-label="Dashboard page navigation">
+        <Link href="#dashboard-top" className="secondary-btn">↑ Back to top</Link>
+      </div>
     </>
   );
 }

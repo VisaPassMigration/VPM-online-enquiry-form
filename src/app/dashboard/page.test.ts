@@ -90,6 +90,16 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('View risk escalated items');
   });
 
+  it('renders a dashboard top anchor and subtle back to top link', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+
+    expect(markup).toContain('id="dashboard-top"');
+    expect(markup).toContain('href="#dashboard-top"');
+    expect(markup).toContain('↑ Back to top');
+    expect(markup.indexOf('↑ Back to top')).toBeGreaterThan(markup.indexOf('<h3>Submitted enquiries</h3>'));
+  });
+
   it('preserves dashboard auth and RBAC gate for the review brief', async () => {
     const page = (await import('./page')).default;
     await page({ searchParams: Promise.resolve({}) });
