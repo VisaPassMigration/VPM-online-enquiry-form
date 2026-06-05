@@ -480,9 +480,10 @@ export default function IntakePage() {
           <div className="hero-support-card">
             <p className="eyebrow">Before you start</p>
             <ul className="hero-support-list">
-              <li>Takes around 10–15 minutes</li>
-              <li>You can save progress on this device</li>
-              <li>VPM will complete a preliminary review after submission</li>
+              <li>Allow around 10–15 minutes to complete the form</li>
+              <li>Progress is saved in this browser while you complete it</li>
+              <li>Submit your registration for VPM’s preliminary review</li>
+              <li>VPM will contact you with the appropriate next steps, which may include a consultation booking link</li>
             </ul>
           </div>
         </aside>

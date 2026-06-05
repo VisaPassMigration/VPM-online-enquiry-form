@@ -56,8 +56,12 @@ describe('public registration form page', () => {
     const markup = renderToStaticMarkup(React.createElement(IntakePage));
 
     expect(markup).toContain('Before you start');
-    expect(markup).toContain('Takes around 10–15 minutes');
-    expect(markup).toContain('You can save progress on this device');
+    expect(markup).toContain('Allow around 10–15 minutes to complete the form');
+    expect(markup).toContain('Progress is saved in this browser while you complete it');
+    expect(markup).toContain('Submit your registration for VPM’s preliminary review');
+    expect(markup).toContain('VPM will contact you with the appropriate next steps, which may include a consultation booking link');
+    expect(markup).not.toContain('Save progress');
+    expect(markup).not.toContain('consultation is guaranteed');
     expect(markup).toContain('href="#client-details"');
     expect(markup).toContain('href="#migration-goal"');
     expect(markup).toContain('href="#risk-screening"');
