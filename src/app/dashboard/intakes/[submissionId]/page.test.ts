@@ -1,3 +1,4 @@
+import React from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PERMISSIONS } from '@/server/auth/permissions';
@@ -43,7 +44,7 @@ vi.mock('@/server/auth/requireStaffSession', () => ({ requireStaffSession: mocks
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermissionMock }));
 vi.mock('@/server/db', () => ({ db: { $transaction: mocks.transactionMock, intakeSubmission: { findUnique: mocks.findUniqueMock } } }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePathMock }));
-vi.mock('next/link', () => ({ default: ({ children }: { children: string }) => children }));
+vi.mock('next/link', () => ({ default: ({ children, href, className }: { children: string; href?: string; className?: string }) => React.createElement('a', { href, className }, children) }));
 
 vi.mock('@/server/consultationBookings', () => ({
   createConsultationBooking: mocks.createConsultationBookingMock,
@@ -711,6 +712,38 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Consultation');
     expect(html).toContain('Staff Tasks');
     expect(html).toContain('Audit Trail');
+    expect(html).toContain('?tab=clear#client-review-clear');
+    expect(html).toContain('id="client-review-top"');
     expect(html).toContain('Internal review actions');
+  });
+
+  it('renders preset reasons and reset success feedback on internal action forms', async () => {
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Strong points and low risk');
+    expect(html).toContain('form-success-feedback');
+    expect(html).toContain('Stage-change actions update internal workflow only and do not send client communication.');
+  });
+
+  it('communications tab omits overexplaining audit helper text', async () => {
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'communications' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Missing employment reference');
+    expect(html).not.toContain('Communication history is used for audit');
+  });
+
+  it('audit trail humanises event actor and notes', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', payload: {}, status: 'submitted', leadRating: null, leadRatingSuggested: null, leadRatingReason: null, leadRatingConfirmedAt: null, leadRatingConfirmedBy: null, leadRatingSuggestedAt: null,
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], clearReports: [],
+      auditEvents: [{ id: 'audit-1', eventType: 'status_transition_executed', eventAt: new Date('2026-01-01T00:00:00Z'), actorName: 'Jane Reviewer', actorRole: 'senior_staff', relatedEntityType: 'staff_review', relatedEntityId: 'review-1', fromValue: null, toValue: null, internalNote: 'Ready for consultation review', reason: null, metadata: { raw: true } }],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'audit-trail' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Status Transition Executed');
+    expect(html).toContain('Jane Reviewer');
+    expect(html).toContain('senior_staff');
+    expect(html).toContain('Ready for consultation review');
+    expect(html).toContain('Technical details');
   });
 });
