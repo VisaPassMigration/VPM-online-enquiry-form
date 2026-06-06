@@ -470,16 +470,87 @@ describe('intake dashboard actions', () => {
     });
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }) });
     const html = renderToStaticMarkup(jsx);
-    expect(html).toContain('lead_rating_suggested');
-    expect(html).toContain('lead_rating_confirmed');
-    expect(html).toContain('lead_rating_changed');
+    expect(html).toContain('Lead rating suggested');
+    expect(html).toContain('Lead rating confirmed');
+    expect(html).toContain('Lead rating changed');
+    expect(html).not.toContain('lead_rating_changed');
     expect(html).toContain('Actor name');
     expect(html).toContain('From rating');
     expect(html).toContain('To rating');
-    expect(html).toContain('Lead rating history is shown for internal accountability and triage review.');
+    expect(html).toContain('Internal use only:');
     expect(html).not.toContain('Edit');
     expect(html).not.toContain('Delete');
     expect(html).not.toContain('assessment outcome for client');
+  });
+
+
+  it('renders client review workspace header, workflow snapshot, case quality snapshot, and spaced tab chips', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1',
+      submittedAt: new Date('2026-06-03T10:53:00.000Z'),
+      createdAt: new Date('2026-06-03T10:53:00.000Z'),
+      payload: { firstName: 'Testing', currentOccupation: 'Mechanical Engineer', email: 'client@example.com' },
+      status: 'ready_for_client_summary',
+      leadRatingSuggested: 'hot', leadRatingSuggestedAt: new Date('2026-06-03T11:00:00.000Z'), leadRating: 'hot', leadRatingConfirmedAt: new Date('2026-06-03T11:05:00.000Z'), leadRatingConfirmedBy: 'Jane Reviewer', leadRatingReason: 'Strong profile',
+      pointsSnapshots: [{ totalPoints: 85, missingItems: [], pointsBreakdown: { age: 30, english: 20 }, generatedAt: new Date('2026-06-03T10:54:00.000Z'), calculatorVersion: 'v1', generatedBy: 'system', preliminaryLabel: 'Preliminary only; subject to human review.' }],
+      riskFlags: [], documents: [], currentReviewState: { currentStage: 'client_summary_ready', lastDecision: 'manual_hold', mandatoryStagesComplete: false, releaseChecklistSigned: false, seniorSignOffBy: null, seniorSignOffAt: null, updatedAt: new Date('2026-06-03T11:10:00.000Z') }, clientCommunications: [], consultationBookings: [], clearReports: [], auditEvents: [],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Client Review Workspace');
+    expect(html).toContain('Testing — Mechanical Engineer');
+    expect(html).toContain('Submitted: 3 June 2026, 6:53 pm');
+    expect(html).toContain('Progressing to consultation');
+    expect(html).toContain('Workflow Stage Snapshot');
+    expect(html).toContain('Current stage: Consultation invite');
+    expect(html).toContain('Upcoming / not started');
+    expect(html).toContain('Case Quality Snapshot');
+    expect(html).toContain('Strong indicators');
+    expect(html).toContain('Recommended next staff action');
+    expect(html).toContain('review-tab-list');
+    expect(html).toContain('Overview');
+  });
+
+  it('lead rating history is human-readable, hides raw JSON metadata, and preserves from/to rating values', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', submittedAt: new Date('2026-01-01T00:00:00.000Z'), createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      payload: {}, status: 'submitted', leadRatingSuggested: 'hot', leadRatingSuggestedAt: null, leadRating: 'hot', leadRatingConfirmedAt: null, leadRatingConfirmedBy: 'Jane', leadRatingReason: 'Manual decision',
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], clearReports: [],
+      auditEvents: [{ id: 'a1', eventType: 'lead_rating_changed', eventAt: new Date('2026-01-01T01:00:00.000Z'), actorName: 'Jane', actorRole: 'senior_staff', fromValue: { rating: null }, toValue: { rating: 'hot' }, internalNote: 'Decision note', reason: null, metadata: { internalOnly: true, triageClassification: true } }],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'lead-rating' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Lead rating changed');
+    expect(html).toContain('Internal only');
+    expect(html).toContain('Triage classification');
+    expect(html).toContain('<dt>From rating</dt><dd>Not rated</dd>');
+    expect(html).toContain('<dt>To rating</dt><dd>Hot</dd>');
+    expect(html).not.toContain('{&quot;internalOnly&quot;:true');
+    expect(html).not.toContain('lead_rating_changed');
+    expect(html).toContain('Internal use only:');
+    expect(html).toContain('This note is internal only and is used for audit history. It is not sent to the client.');
+  });
+
+  it('renders action feedback, useful points labels, and humanised review states without auth changes', async () => {
+    const permissionCallsBefore = mocks.requirePermissionMock.mock.calls.length;
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', submittedAt: new Date('2026-01-01T00:00:00.000Z'), createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      payload: {}, status: 'ready_for_client_summary', leadRatingSuggested: null, leadRatingSuggestedAt: null, leadRating: null, leadRatingConfirmedAt: null, leadRatingConfirmedBy: null, leadRatingReason: null,
+      pointsSnapshots: [{ totalPoints: 70, missingItems: ['english_test'], pointsBreakdown: { age: 25, qualification: 15 }, generatedAt: new Date('2026-01-01T01:00:00.000Z'), calculatorVersion: 'v1', generatedBy: 'system', preliminaryLabel: 'Preliminary only; subject to human review.' }],
+      riskFlags: [], documents: [], currentReviewState: { currentStage: 'client_summary_ready', lastDecision: 'manual_hold', mandatoryStagesComplete: true, releaseChecklistSigned: false, seniorSignOffBy: null, seniorSignOffAt: null, updatedAt: new Date('2026-01-01T02:00:00.000Z') }, clientCommunications: [], consultationBookings: [], clearReports: [],
+      auditEvents: [{ id: 'a1', eventType: 'status_transition_executed', eventAt: new Date('2026-01-01T02:00:00.000Z'), eventSource: 'staff_review_action', relatedEntityType: 'staff_review', actorName: 'Jane', actorRole: 'senior_staff', fromValue: null, toValue: null, internalNote: 'done', reason: 'done', metadata: { internalOnly: true } }],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Status updated: Progressing to consultation.');
+    expect(html).toContain('Internal review state updated successfully.');
+    expect(html).toContain('Total preliminary points');
+    expect(html).toContain('Key points contributors / breakdown');
+    expect(html).toContain('Missing items');
+    expect(html).toContain('Preliminary only:');
+    expect(html).toContain('Client summary ready');
+    expect(html).toContain('Manual hold');
+    expect(mocks.requirePermissionMock.mock.calls.length).toBeGreaterThan(permissionCallsBefore);
   });
 
   it('lead rating history empty state renders when no rating history exists', async () => {
@@ -511,7 +582,7 @@ describe('intake dashboard actions', () => {
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('Internal review actions');
     expect(html).toContain('Mark Under Review');
-    expect(html).toContain('Current review state');
+    expect(html).toContain('Current Review State');
   });
 
   it('staff tasks tab renders task controls and excludes internal review action labels', async () => {

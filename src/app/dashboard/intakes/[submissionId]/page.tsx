@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 type IntakePayload = Prisma.JsonObject & Record<string, string | number | boolean | undefined | null>;
 
 const displayDate = (dateTime: Date) =>
-  new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(dateTime);
+  new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Australia/Perth' }).format(dateTime);
 
 const boolText = (value: boolean | undefined) => (value === undefined ? 'Not provided' : value ? 'Yes' : 'No');
 
@@ -33,6 +33,129 @@ const safeText = (value: string | number | undefined | null) => {
   if (value === undefined || value === null) return 'Not provided';
   if (typeof value === 'string' && !value.trim()) return 'Not provided';
   return String(value);
+};
+
+
+const humanizeValue = (value: string | undefined | null) => {
+  if (!value) return 'Not provided';
+  const words = value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((part) => part.toLowerCase());
+  const label = words.join(' ');
+  return label ? label[0].toUpperCase() + label.slice(1) : 'Not provided';
+};
+
+const reviewStatusLabel = (status: string | undefined | null) => {
+  const labels: Record<string, string> = {
+    submitted: 'Registration submitted',
+    intake_triage_in_progress: 'Intake triage in progress',
+    awaiting_client_documents: 'Awaiting information internally',
+    risk_review_in_progress: 'Risk review in progress',
+    ready_for_client_summary: 'Progressing to consultation',
+  };
+  return status ? labels[status] ?? humanizeValue(status) : 'Not provided';
+};
+
+const stageLabel = (stage: string | undefined | null) => {
+  const labels: Record<string, string> = {
+    registration_submitted: 'Registration submitted',
+    intake_triage: 'Intake triage',
+    lead_rating_confirmed: 'Lead rating confirmed',
+    document_completeness_check: 'Document completeness check',
+    risk_assessment: 'Risk assessment',
+    client_summary_ready: 'Client summary ready',
+    clear_preparation: 'CLEAR preparation',
+    senior_review: 'Senior review',
+    consultation_invite: 'Consultation invite',
+    consultation_completed: 'Consultation completed',
+    csa_issued: 'CSA issued',
+    deposit_paid: 'Deposit paid',
+    client_onboarded: 'Client onboarded',
+  };
+  return stage ? labels[stage] ?? humanizeValue(stage) : 'Registration submitted';
+};
+
+const auditEventLabel = (eventType: string) => humanizeValue(eventType);
+
+const ratingFromValue = (value: unknown): LeadRating | null => {
+  if (value && typeof value === 'object' && 'rating' in value) {
+    const rating = (value as { rating?: LeadRating | null }).rating;
+    return rating ?? null;
+  }
+  return null;
+};
+
+const metadataBadges = (metadata: unknown) => {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return [];
+  return Object.entries(metadata as Record<string, unknown>)
+    .filter(([, value]) => value === true)
+    .map(([key]) => humanizeValue(key));
+};
+
+const clientNameFromPayload = (payload: IntakePayload) => {
+  const fullName = [payload.firstName, payload.lastName]
+    .map((part) => typeof part === 'string' ? part.trim() : '')
+    .filter(Boolean)
+    .join(' ');
+  return fullName || safeText(payload.fullName as string | undefined);
+};
+
+const occupationFromPayload = (payload: IntakePayload) => {
+  const occupation = payload.currentOccupation || payload.migrationOccupation || payload.occupation || payload.intendedPathway || payload.mainGoal;
+  return safeText(occupation as string | undefined);
+};
+
+const WORKFLOW_STAGES = [
+  { key: 'registration_submitted', label: 'Registration submitted' },
+  { key: 'intake_triage', label: 'Intake triage' },
+  { key: 'lead_rating_confirmed', label: 'Lead rating confirmed' },
+  { key: 'clear_preparation', label: 'CLEAR preparation' },
+  { key: 'senior_review', label: 'Senior review' },
+  { key: 'consultation_invite', label: 'Consultation invite' },
+  { key: 'consultation_completed', label: 'Consultation completed' },
+  { key: 'csa_issued', label: 'CSA issued' },
+  { key: 'deposit_paid', label: 'Deposit paid' },
+  { key: 'client_onboarded', label: 'Client onboarded' },
+] as const;
+
+const stageRankForSubmission = (submission: {
+  status?: string | null;
+  leadRating?: LeadRating | null;
+  currentReviewState?: { currentStage?: string | null } | null;
+  clearReports: Array<{ status: string }>;
+  consultationBookings: Array<{ status: string; csaIssued?: boolean | null; depositPaid?: boolean | null }>;
+}) => {
+  const stage = submission.currentReviewState?.currentStage;
+  const consultationBookings = submission.consultationBookings ?? [];
+  const clearReports = submission.clearReports ?? [];
+  if (consultationBookings.some((booking) => booking.depositPaid)) return 8;
+  if (consultationBookings.some((booking) => booking.csaIssued)) return 7;
+  if (consultationBookings.some((booking) => booking.status === 'completed')) return 6;
+  if (consultationBookings.length > 0) return 5;
+  if (stage === 'client_summary_ready' || submission.status === 'ready_for_client_summary') return 5;
+  if (clearReports.some((report) => report.status === 'approved_for_consultation')) return 4;
+  if (clearReports.length > 0) return 3;
+  if (submission.leadRating) return 2;
+  if (stage === 'intake_triage' || submission.status === 'intake_triage_in_progress') return 1;
+  return 0;
+};
+
+const indicativePointsRange = (points: number | undefined | null) => {
+  if (typeof points !== 'number') return 'Not available';
+  if (points >= 85) return '85+ high preliminary range';
+  if (points >= 75) return '75–84 strong preliminary range';
+  if (points >= 65) return '65–74 threshold preliminary range';
+  return 'Below 65 preliminary range';
+};
+
+const pointsBreakdownItems = (breakdown: unknown) => {
+  if (!breakdown || typeof breakdown !== 'object' || Array.isArray(breakdown)) return [];
+  return Object.entries(breakdown as Record<string, unknown>)
+    .filter(([, value]) => typeof value === 'number' || typeof value === 'string')
+    .map(([key, value]) => `${humanizeValue(key)}: ${value}`)
+    .slice(0, 6);
 };
 
 const COMM_STATUS_META: Record<string, { label: string; helper: string; pillClass: string }> = {
@@ -170,71 +293,155 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   const activeTab = resolveTab(resolvedSearchParams?.tab);
   const latestPoints = submission.pointsSnapshots[0];
   const leadRatingHistory = submission.auditEvents.filter((event) => LEAD_RATING_HISTORY_EVENT_TYPES.has(String(event.eventType)));
+  const clientName = clientNameFromPayload(payload);
+  const occupation = occupationFromPayload(payload);
+  const workflowStageIndex = stageRankForSubmission(submission);
+  const currentWorkflowStage = WORKFLOW_STAGES[workflowStageIndex];
+  const activeRiskFlagCount = submission.riskFlags.length;
+  const riskLabel = activeRiskFlagCount === 0 ? 'No active flags' : `${activeRiskFlagCount} active ${activeRiskFlagCount === 1 ? 'flag' : 'flags'}`;
+  const missingItems = latestPoints?.missingItems ?? [];
+  const latestStaffAction = submission.auditEvents.find((event) => event.eventSource === 'staff_review_action' || event.relatedEntityType === 'staff_review');
+  const pointsBreakdown = pointsBreakdownItems(latestPoints?.pointsBreakdown);
+  const hasSkilledOccupation = occupation !== 'Not provided';
+  const hasKeyInformation = clientName !== 'Not provided' && (payload.email || payload.phone) && hasSkilledOccupation;
+  const submittedDisplayDate = submission.submittedAt ?? submission.createdAt ?? new Date(0);
 
   return (
     <>
-      <section className="hero">
-        <h1>Intake Review</h1>
-        <p>Submission ID: {submission.id}</p>
-        <p><Link href="/dashboard">← Back to dashboard</Link></p>
+      <section className="hero client-review-hero">
+        <div>
+          <p className="eyebrow">Internal staff workspace</p>
+          <h1>Client Review Workspace</h1>
+          <h2>{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
+          <p className="client-review-hero__secondary">Submission ID: {submission.id}</p>
+          <p>Submitted: {displayDate(submittedDisplayDate)}</p>
+          <p><Link href="/dashboard">← Back to dashboard</Link></p>
+        </div>
+        <dl className="client-review-snapshot" aria-label="Client review snapshot">
+          <div><dt>Status</dt><dd>{reviewStatusLabel(submission.status)}</dd></div>
+          <div><dt>Lead rating</dt><dd><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></dd></div>
+          <div><dt>Points</dt><dd>{latestPoints ? latestPoints.totalPoints : 'Not available'}</dd></div>
+          <div><dt>Risk</dt><dd><span className={`pill ${activeRiskFlagCount === 0 ? 'pill--ok' : 'pill--danger'}`}>{riskLabel}</span></dd></div>
+        </dl>
+      </section>
+      <section className="section review-section workflow-snapshot" aria-labelledby="workflow-stage-snapshot-heading">
+        <div className="section-heading-row">
+          <div>
+            <h3 id="workflow-stage-snapshot-heading">Workflow Stage Snapshot</h3>
+            <p>Internal production-line view only. Future stages are shown for staff planning and are not client outcomes.</p>
+          </div>
+          <span className="pill pill--placeholder">Current stage: {currentWorkflowStage.label}</span>
+        </div>
+        <ol className="workflow-stage-list">
+          {WORKFLOW_STAGES.map((stage, index) => {
+            const state = index < workflowStageIndex ? 'complete' : index === workflowStageIndex ? 'current' : 'upcoming';
+            return <li key={stage.key} className={`workflow-stage workflow-stage--${state}`}>
+              <span className="workflow-stage__number">{index + 1}</span>
+              <span className="workflow-stage__label">{stage.label}</span>
+              <span className="workflow-stage__state">{state === 'complete' ? 'Complete internally' : state === 'current' ? 'Current stage' : 'Upcoming / not started'}</span>
+            </li>;
+          })}
+        </ol>
+      </section>
+      <section className="section review-section case-quality-snapshot" aria-labelledby="case-quality-snapshot-heading">
+        <h3 id="case-quality-snapshot-heading">Case Quality Snapshot</h3>
+        <div className="quality-grid">
+          <article className="quality-card quality-card--positive">
+            <h4>Strong indicators</h4>
+            <ul>
+              {latestPoints && latestPoints.totalPoints >= 75 ? <li>High preliminary points</li> : <li>Preliminary points available for review</li>}
+              {activeRiskFlagCount === 0 ? <li>No active risk flags</li> : null}
+              {hasSkilledOccupation ? <li>Skilled occupation declared</li> : null}
+              {hasKeyInformation ? <li>Key information provided</li> : null}
+            </ul>
+          </article>
+          <article className="quality-card quality-card--warning">
+            <h4>Watch points</h4>
+            <ul>
+              <li>Confirm evidence before advice</li>
+              <li>Confirm English / skills assessment if applicable</li>
+              <li>Confirm age and time sensitivity if relevant</li>
+              {activeRiskFlagCount > 0 ? <li>Active risk flag requires staff review</li> : null}
+            </ul>
+          </article>
+          <article className="quality-card quality-card--missing">
+            <h4>Missing information</h4>
+            {missingItems.length ? <ul>{missingItems.map((item) => <li key={item}>{humanizeValue(item)}</li>)}</ul> : <p>No missing points items recorded in latest snapshot.</p>}
+          </article>
+          <article className="quality-card quality-card--action">
+            <h4>Recommended next staff action</h4>
+            <p>{activeRiskFlagCount > 0 ? 'Resolve or escalate active risk flags before progressing.' : submission.leadRating ? 'Prepare the next internal review step and confirm evidence before any client discussion.' : 'Generate or confirm the internal lead rating before CLEAR preparation.'}</p>
+          </article>
+        </div>
       </section>
       <section className="section review-section">
-        <nav aria-label="Intake review tabs" className="button-row">
-          <Link href={`/dashboard/intakes/${submission.id}?tab=overview`}>Overview</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=intake-details`}>Intake Details</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=documents`}>Documents</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=lead-rating`}>Lead Rating</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=clear`}>C.L.E.A.R</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=communications`}>Communications</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=consultation`}>Consultation</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=staff-tasks`}>Staff Tasks</Link>
-          <Link href={`/dashboard/intakes/${submission.id}?tab=audit-trail`}>Audit Trail</Link>
+        <nav aria-label="Intake review tabs" className="review-tab-list">
+          {[
+            ['overview', 'Overview'],
+            ['intake-details', 'Intake Details'],
+            ['documents', 'Documents'],
+            ['lead-rating', 'Lead Rating'],
+            ['clear', 'C.L.E.A.R'],
+            ['communications', 'Communications'],
+            ['consultation', 'Consultation'],
+            ['staff-tasks', 'Staff Tasks'],
+            ['audit-trail', 'Audit Trail'],
+          ].map(([tab, label]) => <Link key={tab} className={`review-tab ${activeTab === tab ? 'review-tab--active' : ''}`} href={`/dashboard/intakes/${submission.id}?tab=${tab}`}>{label}</Link>)}
         </nav>
       </section>
-      {activeTab === 'overview' && canViewLeadRating ? <section className="section review-section">
-        <h3>Lead Quality Rating</h3>
-        <p><strong>Internal only:</strong> Lead Quality Rating is an internal triage tool only. It is not a client outcome and must not be communicated as an assessment result.</p>
-        <p>Lead rating history is shown for internal accountability and triage review. It must not be shared with clients as an assessment outcome.</p>
+      {(activeTab === 'overview' || activeTab === 'lead-rating') && canViewLeadRating ? <section className="section review-section">
+        <div className="section-heading-row">
+          <div>
+            <h3>Lead Quality Rating</h3>
+            <p><strong>Internal use only:</strong> Lead ratings are staff triage classifications and must not be communicated to clients as assessment outcomes.</p>
+          </div>
+          <span className={`pill lead-rating-feature ${leadRatingPillClass(submission.leadRating)}`}>Confirmed: {leadRatingLabel(submission.leadRating)}</span>
+        </div>
         {renderRows([
           ['System-suggested rating', leadRatingLabel(submission.leadRatingSuggested)],
-          ['Suggested timestamp', submission.leadRatingSuggestedAt ? displayDate(submission.leadRatingSuggestedAt) : 'Not provided'],
           ['Confirmed rating', leadRatingLabel(submission.leadRating)],
-          ['Confirmed timestamp', submission.leadRatingConfirmedAt ? displayDate(submission.leadRatingConfirmedAt) : 'Not provided'],
           ['Confirmed by', submission.leadRatingConfirmedBy],
-          ['Lead rating reason', submission.leadRatingReason],
+          ['Confirmed timestamp', submission.leadRatingConfirmedAt ? displayDate(submission.leadRatingConfirmedAt) : 'Not provided'],
+          ['Rating reason', submission.leadRatingReason],
+          ['Suggested timestamp', submission.leadRatingSuggestedAt ? displayDate(submission.leadRatingSuggestedAt) : 'Not provided'],
         ])}
-        <p><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></p>
-        <h4>Lead rating history</h4>
-        {leadRatingHistory.length === 0 ? <p>No lead rating history recorded yet.</p> : <div className="communication-timeline" aria-label="Lead rating history">
-          {leadRatingHistory.map((event) => (
-            <article key={event.id} className="communication-card">
-              <header className="communication-card__header">
-                <h5>{event.eventType}</h5>
-                <span className="pill pill--placeholder">{displayDate(event.eventAt)}</span>
-              </header>
-              <dl className="communication-card__meta">
-                <div><dt>Actor name</dt><dd>{event.actorName || 'Unknown'}</dd></div>
-                <div><dt>Actor role</dt><dd>{event.actorRole || 'Unknown'}</dd></div>
-                <div><dt>From rating</dt><dd>{leadRatingLabel((event.fromValue as { rating?: LeadRating } | null)?.rating ?? null)}</dd></div>
-                <div><dt>To rating</dt><dd>{leadRatingLabel((event.toValue as { rating?: LeadRating } | null)?.rating ?? null)}</dd></div>
-                <div><dt>Internal note/reason</dt><dd>{event.internalNote || event.reason || 'Not provided'}</dd></div>
-                <div><dt>Metadata</dt><dd>{event.metadata ? JSON.stringify(event.metadata) : 'Not provided'}</dd></div>
-              </dl>
-            </article>
-          ))}
-        </div>}
+        <details className="history-details">
+          <summary>Lead rating history — {leadRatingHistory.length} {leadRatingHistory.length === 1 ? 'event' : 'events'} <span>Show history</span></summary>
+          {leadRatingHistory.length === 0 ? <p>No lead rating history recorded yet.</p> : <div className="communication-timeline" aria-label="Lead rating history">
+            {leadRatingHistory.map((event) => {
+              const badges = metadataBadges(event.metadata);
+              return <article key={event.id} className="communication-card">
+                <header className="communication-card__header">
+                  <h5>{auditEventLabel(String(event.eventType))}</h5>
+                  <span className="pill pill--placeholder">{displayDate(event.eventAt)}</span>
+                </header>
+                <dl className="communication-card__meta">
+                  <div><dt>Timestamp</dt><dd>{displayDate(event.eventAt)}</dd></div>
+                  <div><dt>Actor name</dt><dd>{event.actorName || 'Unknown'}</dd></div>
+                  <div><dt>Actor role</dt><dd>{humanizeValue(event.actorRole || 'unknown')}</dd></div>
+                  <div><dt>From rating</dt><dd>{leadRatingLabel(ratingFromValue(event.fromValue))}</dd></div>
+                  <div><dt>To rating</dt><dd>{leadRatingLabel(ratingFromValue(event.toValue))}</dd></div>
+                  <div><dt>Internal note/reason</dt><dd>{event.internalNote || event.reason || 'Not provided'}</dd></div>
+                </dl>
+                {badges.length ? <div className="metadata-badge-row" aria-label="Lead rating metadata badges">{badges.map((badge) => <span key={badge} className="pill pill--placeholder">{badge}</span>)}</div> : null}
+              </article>;
+            })}
+          </div>}
+        </details>
         <form action={runLeadRatingAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
-          <label><strong>Internal reason/note (required for confirm/change)</strong></label>
+          <label><strong>Internal file note / reason for rating decision</strong></label>
+          <p className="form-helper">This note is internal only and is used for audit history. It is not sent to the client.</p>
           <textarea name="reason" rows={3} />
           <label><strong>Confirmed rating (for confirm/change)</strong></label>
           <select name="rating" defaultValue={submission.leadRatingSuggested ?? submission.leadRating ?? 'warm'}>
             <option value="hot">Hot</option><option value="warm">Warm</option><option value="cold">Cold</option><option value="escalate">Escalate</option>
           </select>
-          <div className="button-row">
-            {canSuggestLeadRating ? <button type="submit" name="action" value="suggest">Generate Suggested Rating</button> : null}
-            {canConfirmLeadRating ? <button type="submit" name="action" value="confirm">Confirm Suggested Rating</button> : null}
-            {canChangeLeadRating ? <button type="submit" name="action" value="change">Change Confirmed Rating</button> : null}
+          <p className="form-helper">Generate Suggested Rating creates or updates a system suggestion only. Confirm Suggested Rating confirms the current suggested internal rating. Change Confirmed Rating manually changes the confirmed internal rating.</p>
+          <div className="button-row action-button-row">
+            {canSuggestLeadRating ? <button className="button-secondary button-small" type="submit" name="action" value="suggest">Generate Suggested Rating</button> : null}
+            {canConfirmLeadRating ? <button className="button-primary button-small" type="submit" name="action" value="confirm">Confirm Suggested Rating</button> : null}
+            {canChangeLeadRating ? <button className="button-secondary button-small" type="submit" name="action" value="change">Change Confirmed Rating</button> : null}
           </div>
         </form>
       </section> : null}
@@ -243,8 +450,12 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <p>These actions update internal workflow only. No client outcome is released from this page.</p>
       </section> : null}
       {activeTab === 'overview' ? <section className="section review-section">
-        <h3>Internal review actions</h3>
-        <p>This action only marks the matter internally as ready for consultation invitation review. It does not send a consultation invitation or confirm any outcome.</p>
+        <h3>Internal Review Actions</h3>
+        <p><strong>Internal workflow only:</strong> Internal review actions update internal workflow status only. They do not send client communications, consultation invitations, or migration advice.</p>
+        {latestStaffAction ? <div className="status-feedback" role="status">
+          <strong>Status updated: {reviewStatusLabel(submission.status)}.</strong>
+          <span> Internal review state updated successfully. Latest action: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</span>
+        </div> : null}
         <form action={runInternalReviewAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
           <label htmlFor="internal-note"><strong>Internal note (required)</strong></label>
@@ -263,6 +474,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <h3>C.L.E.A.R</h3>
         <p><strong>Warning:</strong> C.L.E.A.R is an internal staff-reviewed preliminary strategy report. It must not be shared with clients until reviewed and approved through the authorised workflow.</p>
         <p><strong>Internal only:</strong> C.L.E.A.R workflow actions are internal governance steps only. Approval for consultation does not confirm any visa outcome and does not send the report to the client.</p>
+        {submission.clearReports.length === 0 ? <div className="status-feedback status-feedback--info">CLEAR preparation will be available after internal review is confirmed. No CLEAR is generated or sent automatically from this page.</div> : null}
         <ul>
           <li>Unresolved high/critical risk may require Australia review.</li>
           <li>Escalate rating may require Australia review.</li>
@@ -611,10 +823,12 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         ['Refusal details', payload.refusalDetails as string], ['Cancellation/overstay details', payload.cancellationOverstayDetails as string], ['Criminal details', payload.criminalDetails as string], ['Health details', payload.healthDetails as string], ['General risk details', payload.riskDetails as string],
       ])}</section> : null}
 
-      {activeTab === 'overview' ? <section className="section review-section"><h3>Latest points snapshot</h3>{latestPoints ? renderRows([
-        ['Generated at', displayDate(latestPoints.generatedAt)], ['Total points', latestPoints.totalPoints], ['Calculator version', latestPoints.calculatorVersion], ['Generated by', latestPoints.generatedBy],
-        ['Missing items', latestPoints.missingItems.length ? latestPoints.missingItems.join(', ') : 'None'], ['Preliminary label', latestPoints.preliminaryLabel],
-      ]) : <p>No points snapshot available yet.</p>}</section> : null}
+      {activeTab === 'overview' ? <section className="section review-section"><h3>Latest Points Snapshot</h3>{latestPoints ? <div className="points-snapshot-grid">
+        <article className="points-total-card"><p>Total preliminary points</p><strong>{latestPoints.totalPoints}</strong><span>{indicativePointsRange(latestPoints.totalPoints)}</span></article>
+        <article><h4>Key points contributors / breakdown</h4>{pointsBreakdown.length ? <ul className="review-list">{pointsBreakdown.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No points breakdown recorded.</p>}</article>
+        <article><h4>Missing items</h4>{latestPoints.missingItems.length ? <ul className="review-list">{latestPoints.missingItems.map((item) => <li key={item}>{humanizeValue(item)}</li>)}</ul> : <p>None recorded in latest snapshot.</p>}</article>
+        <article className="dashboard-note"><strong>Preliminary only:</strong> {latestPoints.preliminaryLabel || 'Points are preliminary and subject to human review.'}<details><summary>Technical details</summary>{renderRows([['Generated at', displayDate(latestPoints.generatedAt)], ['Calculator version', latestPoints.calculatorVersion], ['Generated by system', humanizeValue(String(latestPoints.generatedBy))]])}</details></article>
+      </div> : <p>No points snapshot available yet.</p>}</section> : null}
 
       {activeTab === 'overview' ? <section className="section review-section"><h3>Active risk flags</h3>{submission.riskFlags.length === 0 ? <p>No active risk flags.</p> : (
         <ul className="review-list">{submission.riskFlags.map((flag) => <li key={flag.id}><strong>{flag.riskCode}</strong> ({flag.severity}) — {flag.resolutionStatus}</li>)}</ul>
@@ -627,10 +841,13 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         })}</tbody></table></div>
       )}</section> : null}
 
-      {activeTab === 'overview' ? <section className="section review-section"><h3>Current review state</h3>{submission.currentReviewState ? renderRows([
-        ['Current stage', submission.currentReviewState.currentStage], ['Last decision', submission.currentReviewState.lastDecision], ['Mandatory stages complete', boolText(submission.currentReviewState.mandatoryStagesComplete)], ['Release checklist signed', boolText(submission.currentReviewState.releaseChecklistSigned)],
-        ['Senior sign-off by', submission.currentReviewState.seniorSignOffBy], ['Senior sign-off at', submission.currentReviewState.seniorSignOffAt ? displayDate(submission.currentReviewState.seniorSignOffAt) : 'Not provided'], ['Updated at', displayDate(submission.currentReviewState.updatedAt)],
-      ]) : <p>No review state available yet.</p>}</section> : null}
+      {activeTab === 'overview' ? <section className="section review-section"><h3>Current Review State</h3>{submission.currentReviewState ? <div className="review-state-card-grid">
+        <article><p>Current stage</p><strong>{stageLabel(submission.currentReviewState.currentStage)}</strong></article>
+        <article><p>Last decision</p><strong>{humanizeValue(submission.currentReviewState.lastDecision)}</strong></article>
+        <article><p>Mandatory stages complete</p><strong>{boolText(submission.currentReviewState.mandatoryStagesComplete)}</strong></article>
+        <article><p>Senior sign-off status</p><strong>{submission.currentReviewState.seniorSignOffAt ? 'Signed off' : 'Not signed off'}</strong><span>{submission.currentReviewState.seniorSignOffBy || 'No senior reviewer recorded'}</span></article>
+        <article><p>Last updated</p><strong>{displayDate(submission.currentReviewState.updatedAt)}</strong></article>
+      </div> : <p>No review state available yet.</p>}</section> : null}
       {activeTab === 'staff-tasks' ? <section className="section review-section"><h3>Staff task list</h3><p>No active staff tasks are currently displayed for this submission.</p><form className="intake-form"><h4>Create task</h4><input name="title" placeholder="Task title" /><textarea name="description" placeholder="Task description" /><input name="assignee" placeholder="Assignee" /><input name="dueDate" type="date" /><select name="taskType"><option>Task type</option></select><select name="priority"><option>Priority</option></select><select name="status"><option>Status</option></select><div className="button-row"><button type="button">Create task</button><button type="button">Start task</button><button type="button">Complete task</button><button type="button">Cancel task</button><button type="button">Assign task</button><button type="button">Reassign task</button></div></form></section> : null}
 
       {activeTab === 'audit-trail' ? <section className="section review-section"><h3>Audit timeline</h3>{submission.auditEvents.length === 0 ? <p>No audit events available.</p> : (
