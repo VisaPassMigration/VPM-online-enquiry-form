@@ -42,6 +42,18 @@ type ClientCommunicationActorContext = Omit<StaffActorContext, 'actorRole'> & {
   actorRole: ClientCommunicationActorRole;
 };
 
+
+function composeInternalReason(formData: FormData, primaryFieldName: string): string {
+  const presetReason = String(formData.get('presetReason') ?? '').trim();
+  const customReason = String(formData.get('customReason') ?? '').trim();
+  const primaryReason = String(formData.get(primaryFieldName) ?? '').trim();
+  const parts: string[] = [];
+  if (presetReason && presetReason !== 'Other') parts.push(presetReason);
+  if (primaryReason) parts.push(primaryReason);
+  if (customReason) parts.push(customReason);
+  return Array.from(new Set(parts)).join('\n').trim();
+}
+
 function normalizeAuditString(value?: string | null): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -129,7 +141,7 @@ export async function runInternalReviewAction(formData: FormData) {
 
   const submissionId = String(formData.get('submissionId') ?? '');
   const action = String(formData.get('action') ?? '');
-  const note = String(formData.get('internalNote') ?? '').trim();
+  const note = composeInternalReason(formData, 'internalNote');
   const { actorId, actorName, actorRole, actorStaffUserId } = actor;
 
   if (!submissionId || !action || !note || !actorId) return;
@@ -247,7 +259,7 @@ export async function runClientCommunicationAction(formData: FormData) {
   'use server';
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = composeInternalReason(formData, 'internalReason');
   const communicationType = String(formData.get('communicationType') ?? '').trim() as
     | 'request_more_information'
     | 'consultation_invitation'
@@ -279,7 +291,7 @@ export async function runReleaseRequestMoreInformationAction(formData: FormData)
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const communicationId = String(formData.get('communicationId') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = composeInternalReason(formData, 'internalReason');
 
   if (!submissionId || !communicationId || !internalReason) return;
 
@@ -309,7 +321,7 @@ export async function runReleaseConsultationInvitationAction(formData: FormData)
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const communicationId = String(formData.get('communicationId') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = composeInternalReason(formData, 'internalReason');
 
   if (!submissionId || !communicationId || !internalReason) return;
 
@@ -339,7 +351,7 @@ export async function runConsultationBookingAction(formData: FormData) {
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const reason = String(formData.get('internalReason') ?? '').trim();
+  const reason = composeInternalReason(formData, 'internalReason');
   const bookingId = String(formData.get('bookingId') ?? '').trim();
 
   if (!submissionId || !action || !reason) return;
@@ -445,7 +457,7 @@ export async function runDocumentReviewAction(formData: FormData) {
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const documentId = String(formData.get('documentId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const reason = String(formData.get('internalReason') ?? '').trim();
+  const reason = composeInternalReason(formData, 'internalReason');
   const waiverReason = String(formData.get('waiverReason') ?? '').trim();
 
   if (!submissionId) throw new Error('Document review action validation failed: missing submissionId.');
@@ -536,7 +548,7 @@ export async function runLeadRatingAction(formData: FormData) {
   'use server';
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const reason = String(formData.get('reason') ?? '').trim();
+  const reason = composeInternalReason(formData, 'reason');
   const rating = String(formData.get('rating') ?? '').trim() as LeadRating;
   const actor = await requireStaffActorContext();
 
@@ -565,7 +577,7 @@ export async function runGenerateClearReportDraftAction(formData: FormData) {
   await requirePermission(PERMISSIONS.GENERATE_CLEAR_REPORT);
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = composeInternalReason(formData, 'internalReason');
   const overrideNote = String(formData.get('overrideNote') ?? '').trim();
   const actor = await requireStaffActorContext();
   if (!submissionId || !internalReason || !actor.actorId) return;
@@ -585,7 +597,7 @@ export async function runClearWorkflowAction(formData: FormData) {
   const clearReportId = String(formData.get('clearReportId') ?? '').trim();
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = composeInternalReason(formData, 'internalReason');
   const actor = await requireStaffActorContext();
   if (!clearReportId || !submissionId || !action || !internalReason || !actor.actorId) return;
 
@@ -604,7 +616,7 @@ export async function runUpdateClearReportNotesAction(formData: FormData) {
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const staffNotes = String(formData.get('staffNotes') ?? '');
   const clientFacingNotes = String(formData.get('clientFacingNotes') ?? '');
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = composeInternalReason(formData, 'internalReason');
   const actor = await requireStaffActorContext();
   if (!clearReportId || !submissionId || !internalReason || !actor.actorId) return;
 
@@ -619,3 +631,37 @@ export async function runUpdateClearReportNotesAction(formData: FormData) {
 }
 
 export { runUpdateClearReportNotesAction as updateClearReportNotesAction };
+
+export async function runStaffTaskAction(formData: FormData) {
+  'use server';
+  const submissionId = String(formData.get('submissionId') ?? '').trim();
+  const action = String(formData.get('action') ?? '').trim();
+  const taskId = String(formData.get('taskId') ?? '').trim();
+  const reason = composeInternalReason(formData, 'internalReason');
+  const staffTask = (db as unknown as { staffTask?: { create?: (args: object) => Promise<unknown>; update?: (args: object) => Promise<unknown> } }).staffTask;
+
+  if (!submissionId || !action || !staffTask) return;
+  const actor = await requireStaffActorContext(PERMISSIONS.PERFORM_INTERNAL_REVIEW_ACTIONS);
+
+  if (action === 'create_task' && staffTask.create) {
+    const title = String(formData.get('title') ?? '').trim();
+    const description = String(formData.get('description') ?? '').trim();
+    const taskType = String(formData.get('taskType') ?? '').trim() || 'general_review';
+    const priority = String(formData.get('priority') ?? '').trim() || 'normal';
+    const status = String(formData.get('status') ?? '').trim() || 'open';
+    const assignedStaffName = String(formData.get('assignedStaffName') ?? '').trim();
+    const assignedStaffUserId = String(formData.get('assignedStaffUserId') ?? '').trim();
+    const dueDateRaw = String(formData.get('dueDate') ?? '').trim();
+    if (!title || !reason) return;
+    await staffTask.create({ data: { submissionId, title, description, taskType, priority, status, assignedStaffName: assignedStaffName || undefined, assignedStaffUserId: assignedStaffUserId || undefined, dueDate: dueDateRaw ? new Date(dueDateRaw) : undefined, internalOnly: true } });
+    await db.auditEvent.create({ data: { submissionId, eventType: AuditEventType.submission_updated, actorId: actor.actorId, actorName: actor.actorName, actorRole: actor.actorRole, actorStaffUserId: actor.actorStaffUserId, relatedEntityType: 'staff_task', reason, internalNote: reason, metadata: { action, internalOnly: true } } });
+  } else if (taskId && staffTask.update) {
+    const nextStatusByAction: Record<string, string> = { start_task: 'in_progress', complete_task: 'completed', cancel_task: 'cancelled' };
+    const nextStatus = nextStatusByAction[action];
+    if (!nextStatus || !reason) return;
+    await staffTask.update({ where: { id: taskId }, data: { status: nextStatus } });
+    await db.auditEvent.create({ data: { submissionId, eventType: AuditEventType.submission_updated, actorId: actor.actorId, actorName: actor.actorName, actorRole: actor.actorRole, actorStaffUserId: actor.actorStaffUserId, relatedEntityType: 'staff_task', relatedEntityId: taskId, reason, internalNote: reason, metadata: { action, nextStatus, internalOnly: true } } });
+  }
+
+  revalidatePath(`/dashboard/intakes/${submissionId}`);
+}
