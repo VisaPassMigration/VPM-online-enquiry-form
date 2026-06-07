@@ -40,6 +40,14 @@ function assertReason(reason: string, fieldName = 'reason') {
   if (!reason.trim()) throw new Error(`${fieldName} is required.`);
 }
 
+function appendInternalNote(existingNote: string | null | undefined, nextNote: string, actorName?: string) {
+  const trimmedNext = nextNote.trim();
+  if (!trimmedNext) return existingNote ?? undefined;
+
+  const stampedNote = `[${new Date().toISOString()}${actorName ? ` — ${actorName}` : ''}] ${trimmedNext}`;
+  return [existingNote?.trim(), stampedNote].filter(Boolean).join('\n');
+}
+
 async function writeAuditEvent(
   _tx: DbClient,
   input: {
@@ -137,7 +145,7 @@ async function transitionConsultationStatus(
   return db.$transaction(async (tx) => {
     const bookingBeforeUpdate = await tx.consultationBooking.findUnique({
       where: { id: bookingId },
-      select: { status: true },
+      select: { status: true, notesInternal: true },
     });
 
     if (!bookingBeforeUpdate) {
@@ -176,7 +184,7 @@ async function transitionConsultationStatus(
 
     const now = new Date();
     const timestampUpdate: Partial<Prisma.ConsultationBookingUpdateInput> = {
-      notesInternal: context.reason,
+      notesInternal: appendInternalNote(bookingBeforeUpdate.notesInternal, context.reason, context.actorName),
     };
 
     if (toStatus === 'booked') {
@@ -247,12 +255,17 @@ export async function recordConsultationOutcome(input: {
   assertReason(input.reason, 'internal note/reason');
 
   return db.$transaction(async (tx) => {
+    const existingBooking = await tx.consultationBooking.findUnique({
+      where: { id: input.bookingId },
+      select: { notesInternal: true },
+    });
+
     const booking = await tx.consultationBooking.update({
       where: { id: input.bookingId },
       data: {
         consultationOutcome: input.outcome,
         csaRecommended: input.csaRecommended,
-        notesInternal: input.reason,
+        notesInternal: appendInternalNote(existingBooking?.notesInternal, input.reason, input.actorName),
       },
     });
 
@@ -277,12 +290,17 @@ export async function markCsaIssued(input: { bookingId: string; submissionId: st
   assertReason(input.reason, 'internal note/reason');
 
   return db.$transaction(async (tx) => {
+    const existingBooking = await tx.consultationBooking.findUnique({
+      where: { id: input.bookingId },
+      select: { notesInternal: true },
+    });
+
     const booking = await tx.consultationBooking.update({
       where: { id: input.bookingId },
       data: {
         csaIssued: true,
         csaIssuedAt: new Date(),
-        notesInternal: input.reason,
+        notesInternal: appendInternalNote(existingBooking?.notesInternal, input.reason, input.actorName),
       },
     });
 
@@ -307,12 +325,17 @@ export async function markDepositPaid(input: { bookingId: string; submissionId: 
   assertReason(input.reason, 'internal note/reason');
 
   return db.$transaction(async (tx) => {
+    const existingBooking = await tx.consultationBooking.findUnique({
+      where: { id: input.bookingId },
+      select: { notesInternal: true },
+    });
+
     const booking = await tx.consultationBooking.update({
       where: { id: input.bookingId },
       data: {
         depositPaid: true,
         depositPaidAt: new Date(),
-        notesInternal: input.reason,
+        notesInternal: appendInternalNote(existingBooking?.notesInternal, input.reason, input.actorName),
       },
     });
 

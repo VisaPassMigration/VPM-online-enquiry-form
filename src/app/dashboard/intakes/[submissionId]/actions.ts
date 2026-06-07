@@ -130,9 +130,11 @@ export async function runInternalReviewAction(formData: FormData) {
   const submissionId = String(formData.get('submissionId') ?? '');
   const action = String(formData.get('action') ?? '');
   const note = String(formData.get('internalNote') ?? '').trim();
+  const reasonPreset = String(formData.get('reasonPreset') ?? '').trim();
+  const auditNote = [reasonPreset, note].filter(Boolean).join(' — ');
   const { actorId, actorName, actorRole, actorStaffUserId } = actor;
 
-  if (!submissionId || !action || !note || !actorId) return;
+  if (!submissionId || !action || !auditNote || !actorId) return;
 
   await db.$transaction(async (tx) => {
     const submission = await tx.intakeSubmission.findUnique({
@@ -182,7 +184,7 @@ export async function runInternalReviewAction(formData: FormData) {
           fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
           toValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
           reason: 'Risk must be cleared before marking consultation-ready internally.',
-          internalNote: note,
+          internalNote: auditNote,
           metadata: { action, internalOnly: true, blockedByUnresolvedSevereRisk: true, actorStaffUserId },
           eventSource: 'staff_review_action',
         });
@@ -216,7 +218,7 @@ export async function runInternalReviewAction(formData: FormData) {
         submissionId,
         stage: nextStage,
         decision,
-        internalNotes: note,
+        internalNotes: auditNote,
         missingEvidence: [],
         reviewedBy: actorId,
       },
@@ -233,8 +235,8 @@ export async function runInternalReviewAction(formData: FormData) {
       relatedEntityId: staffReview.id,
       fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
       toValue: { status: nextStatus, stage: nextStage },
-      reason: note,
-      internalNote: note,
+      reason: auditNote,
+      internalNote: auditNote,
       metadata: { action, internalOnly: true, requiresHumanReviewBeforeClientCommunication: true, actorStaffUserId },
       eventSource: 'staff_review_action',
     });

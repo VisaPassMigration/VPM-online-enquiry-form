@@ -222,6 +222,23 @@ const previewValue = (value: unknown) => {
   }
 };
 
+const renderPreviewContent = (value: unknown) => {
+  if (!value || typeof value !== 'object') return <p className="clear-preview-text">{previewValue(value)}</p>;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <p className="clear-preview-text">Not provided</p>;
+    return <ul className="review-list clear-preview-list">{value.map((item, index) => {
+      const isTechnicalValue = item !== null && typeof item === 'object';
+      return <li key={index}>{isTechnicalValue ? <details className="technical-details"><summary>Technical details</summary><pre>{previewValue(item)}</pre></details> : previewValue(item)}</li>;
+    })}</ul>;
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) return <p className="clear-preview-text">Not provided</p>;
+  return <dl className="review-grid clear-preview-grid">{entries.map(([key, entryValue]) => {
+    const isTechnicalValue = entryValue !== null && typeof entryValue === 'object';
+    return <div key={key} className="review-grid-row"><dt>{humanizeValue(key)}</dt><dd>{isTechnicalValue ? <details className="technical-details"><summary>Technical details</summary><pre>{previewValue(entryValue)}</pre></details> : previewValue(entryValue)}</dd></div>;
+  })}</dl>;
+};
+
 const renderClearPreviewSection = (title: string, value: unknown) => {
   if (title === 'VPM / C.L.E.A.R header') {
     return (
@@ -230,7 +247,7 @@ const renderClearPreviewSection = (title: string, value: unknown) => {
         <div className="clear-pack-header">
           <img src="/brand/vpm-logo-light.png" alt="Visa Pass Migration" className="clear-pack-header__logo" />
         </div>
-        <pre>{previewValue(value)}</pre>
+        {renderPreviewContent(value)}
       </section>
     );
   }
@@ -238,10 +255,12 @@ const renderClearPreviewSection = (title: string, value: unknown) => {
   return (
     <section className="section review-section" key={title}>
       <h6>{title}</h6>
-      <pre>{previewValue(value)}</pre>
+      {renderPreviewContent(value)}
     </section>
   );
 };
+
+const BACK_TO_TOP_LINK = <p className="review-back-to-top"><a href="#client-review-workspace-top">↑ Back to top</a></p>;
 
 const INTAKE_TABS = ['overview', 'intake-details', 'documents', 'lead-rating', 'clear', 'communications', 'consultation', 'staff-tasks', 'audit-trail'] as const;
 type IntakeTab = typeof INTAKE_TABS[number];
@@ -308,7 +327,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
 
   return (
     <>
-      <section className="hero client-review-hero">
+      <section id="client-review-workspace-top" className="hero client-review-hero">
         <div>
           <p className="eyebrow">Internal staff workspace</p>
           <h1>Client Review Workspace</h1>
@@ -374,7 +393,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           </article>
         </div>
       </section>
-      <section className="section review-section">
+      <section id="review-tabs" className="section review-section">
         <nav aria-label="Intake review tabs" className="review-tab-list">
           {[
             ['overview', 'Overview'],
@@ -386,7 +405,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             ['consultation', 'Consultation'],
             ['staff-tasks', 'Staff Tasks'],
             ['audit-trail', 'Audit Trail'],
-          ].map(([tab, label]) => <Link key={tab} className={`review-tab ${activeTab === tab ? 'review-tab--active' : ''}`} href={`/dashboard/intakes/${submission.id}?tab=${tab}`}>{label}</Link>)}
+          ].map(([tab, label]) => <Link key={tab} className={`review-tab ${activeTab === tab ? 'review-tab--active' : ''}`} href={`/dashboard/intakes/${submission.id}?tab=${tab}#review-tabs`}>{label}</Link>)}
         </nav>
       </section>
       {(activeTab === 'overview' || activeTab === 'lead-rating') && canViewLeadRating ? <section className="section review-section">
@@ -458,8 +477,10 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         </div> : null}
         <form action={runInternalReviewAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
-          <label htmlFor="internal-note"><strong>Internal note (required)</strong></label>
-          <textarea id="internal-note" name="internalNote" required rows={4} />
+          <label htmlFor="internal-reason-preset"><strong>Reason preset</strong></label>
+          <select id="internal-reason-preset" name="reasonPreset" defaultValue="routine_review_update"><option value="routine_review_update">Routine review update</option><option value="client_information_needed">Client information needed</option><option value="risk_review_required">Risk review required</option><option value="consultation_readiness_check">Consultation readiness check</option><option value="internal_file_note">Internal file note</option></select>
+          <label htmlFor="internal-note"><strong>Optional internal note</strong></label>
+          <textarea id="internal-note" name="internalNote" rows={3} placeholder="Add context only when the preset is not enough." />
           <div className="button-row">
             <button type="submit" name="action" value="mark_under_review">Mark Under Review</button>
             <button type="submit" name="action" value="request_more_information">Request More Information</button>
@@ -490,6 +511,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           <textarea name="overrideNote" rows={2} />
           <button type="submit">Generate C.L.E.A.R Draft</button>
         </form> : <p>Draft generation is not available for your role.</p>}
+        {BACK_TO_TOP_LINK}
       </section> : null}
       {activeTab === 'clear' && canViewClear ? <section className="section review-section">
         <h3>C.L.E.A.R reports</h3>
@@ -641,6 +663,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             </article>;
           })}
         </div>}
+        {BACK_TO_TOP_LINK}
       </section> : null}
 
       {activeTab === 'communications' ? <section className="section review-section">
@@ -660,14 +683,6 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
 
       {activeTab === 'communications' ? <section className="section review-section"><h3>Communication records</h3>{submission.clientCommunications.length === 0 ? <p>No communication records available.</p> : (
         <>
-          <div className="communication-status-guide" role="note" aria-label="Communication status guide">
-            <p><strong>Drafted</strong> = prepared internally, not sent.</p>
-            <p><strong>Pending release</strong> = staff has requested release/checks.</p>
-            <p><strong>Released</strong> = sent or officially released.</p>
-            <p><strong>Blocked</strong> = system prevented release due to guardrails.</p>
-            <p><strong>Failed</strong> = release/send was attempted but did not complete.</p>
-          </div>
-          <p className="communication-note">Communication history is used for audit, staff accountability, and follow-up tracking.</p>
           <div className="communication-timeline" aria-label="Client communication timeline">
             {submission.clientCommunications.map((comm) => {
               const statusMeta = COMM_STATUS_META[comm.status] ?? {
@@ -708,8 +723,8 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
       )}</section> : null}
       {activeTab === 'consultation' ? <section className="section review-section">
         <h3>Consultation Booking Management</h3>
-        <p>Consultation booking records are for internal operations and KPI tracking. Client outcomes and calendar events are not created from this section.</p>
-        <form action={runConsultationBookingAction} className="intake-form">
+        <p>Consultation booking records are for internal operations and KPI tracking. Client outcomes and calendar events are not created from this section. Calendar clash detection is intentionally out of scope for this phase.</p>
+        <form action={runConsultationBookingAction} className="intake-form consultation-booking-form">
           <input type="hidden" name="submissionId" value={submission.id} />
           <input type="hidden" name="action" value="create_booking" />
           <h4>Create consultation booking record</h4>
@@ -733,9 +748,9 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             <option value="google_calendar">Google Calendar reference</option>
             <option value="other">Other</option>
           </select>
-                    <label><strong>Internal note/reason (required)</strong></label>
-          <textarea name="internalReason" required rows={3} />
-          <div className="button-row"><button type="submit">Create Booking Record</button></div>
+                    <label><strong>Internal reason preset</strong></label>
+          <select name="internalReason" defaultValue="Booking record created for staff tracking"><option value="Booking record created for staff tracking">Booking record created for staff tracking</option><option value="Client requested consultation follow-up">Client requested consultation follow-up</option><option value="Senior staff assigned for consultation">Senior staff assigned for consultation</option></select>
+          <div className="button-row action-button-row"><button type="submit">Create Booking Record</button></div>
         </form>
         {submission.consultationBookings.length === 0 ? <p>No consultation booking records available.</p> : (
           <div className="communication-timeline" aria-label="Consultation booking records">
@@ -761,10 +776,10 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                   <div><dt>Created</dt><dd>{displayDate(booking.createdAt)}</dd></div>
                   <div><dt>Updated</dt><dd>{displayDate(booking.updatedAt)}</dd></div>
                 </dl>
-                <form action={runConsultationBookingAction} className="inline-release-form">
+                <form action={runConsultationBookingAction} className="inline-release-form consultation-action-row">
                   <input type="hidden" name="submissionId" value={submission.id} />
                   <input type="hidden" name="bookingId" value={booking.id} />
-                                    <input name="internalReason" required placeholder="Internal note/reason" />
+                  <select name="internalReason" defaultValue="Routine consultation status update" aria-label="Internal reason preset"><option value="Routine consultation status update">Routine status update</option><option value="Client confirmed booking status">Client confirmed booking status</option><option value="Staff confirmed follow-up status">Staff confirmed follow-up status</option><option value="CSA/payment milestone updated">CSA/payment milestone updated</option></select>
                   <button type="submit" name="action" value="mark_booked">Mark Booked</button>
                   <button type="submit" name="action" value="mark_completed">Mark Completed</button>
                   <button type="submit" name="action" value="mark_no_show">Mark No-Show</button>
@@ -784,14 +799,15 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                     <option value="false">No</option>
                     <option value="true">Yes</option>
                   </select>
-                                    <label><strong>Internal note/reason (required)</strong></label>
-                  <textarea name="internalReason" required rows={2} />
-                  <button type="submit">Record Consultation Outcome</button>
+                  <label><strong>Internal reason preset</strong></label>
+                  <select name="internalReason" defaultValue="Consultation outcome recorded internally"><option value="Consultation outcome recorded internally">Consultation outcome recorded internally</option><option value="CSA recommendation recorded after consultation">CSA recommendation recorded after consultation</option><option value="Follow-up needed after consultation">Follow-up needed after consultation</option></select>
+                  <div className="button-row action-button-row"><button type="submit">Record Consultation Outcome</button></div>
                 </form>
               </article>
             ))}
           </div>
         )}
+        {BACK_TO_TOP_LINK}
       </section> : null}
 
       {activeTab === 'intake-details' ? <section className="section review-section"><h3>Client details</h3>{renderRows([
@@ -848,11 +864,11 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <article><p>Senior sign-off status</p><strong>{submission.currentReviewState.seniorSignOffAt ? 'Signed off' : 'Not signed off'}</strong><span>{submission.currentReviewState.seniorSignOffBy || 'No senior reviewer recorded'}</span></article>
         <article><p>Last updated</p><strong>{displayDate(submission.currentReviewState.updatedAt)}</strong></article>
       </div> : <p>No review state available yet.</p>}</section> : null}
-      {activeTab === 'staff-tasks' ? <section className="section review-section"><h3>Staff task list</h3><p>No active staff tasks are currently displayed for this submission.</p><form className="intake-form"><h4>Create task</h4><input name="title" placeholder="Task title" /><textarea name="description" placeholder="Task description" /><input name="assignee" placeholder="Assignee" /><input name="dueDate" type="date" /><select name="taskType"><option>Task type</option></select><select name="priority"><option>Priority</option></select><select name="status"><option>Status</option></select><div className="button-row"><button type="button">Create task</button><button type="button">Start task</button><button type="button">Complete task</button><button type="button">Cancel task</button><button type="button">Assign task</button><button type="button">Reassign task</button></div></form></section> : null}
+      {activeTab === 'staff-tasks' ? <section className="section review-section"><h3>Staff task list</h3><p>No active staff tasks are currently displayed for this submission.</p><form className="intake-form"><h4>Create task</h4><input name="title" placeholder="Task title" /><textarea name="description" placeholder="Task description" /><input name="assignee" placeholder="Assignee" /><input name="dueDate" type="date" /><label><strong>Task type</strong><span className="form-helper">Category of work, such as document review, risk follow-up, consultation preparation, or admin follow-up.</span></label><select name="taskType"><option>Task type</option></select><label><strong>Priority</strong><span className="form-helper">Urgency/importance so staff can triage time-sensitive or high-impact work first.</span></label><select name="priority"><option>Priority</option></select><label><strong>Status</strong><span className="form-helper">Lifecycle stage of the task, for example not started, in progress, blocked, completed, or cancelled.</span></label><select name="status"><option>Status</option></select><div className="button-row action-button-row"><button type="button">Create task</button><button type="button">Start task</button><button type="button">Complete task</button><button type="button">Cancel task</button><button type="button">Assign task</button><button type="button">Reassign task</button></div></form>{BACK_TO_TOP_LINK}</section> : null}
 
       {activeTab === 'audit-trail' ? <section className="section review-section"><h3>Audit timeline</h3>{submission.auditEvents.length === 0 ? <p>No audit events available.</p> : (
-        <ul className="review-list">{submission.auditEvents.map((event) => <li key={event.id}><strong>{event.eventType}</strong> at {displayDate(event.eventAt)}{event.reason ? ` — ${event.reason}` : ''}</li>)}</ul>
-      )}</section> : null}
+        <ul className="review-list audit-timeline-list">{submission.auditEvents.map((event) => <li key={event.id}><strong>{event.eventType}</strong> at {displayDate(event.eventAt)}<span className="audit-actor"> — Actor: {event.actorName || event.actorId || 'Unknown'} ({humanizeValue(event.actorRole || 'role not recorded')})</span>{event.reason ? ` — ${event.reason}` : ''}</li>)}</ul>
+      )}{BACK_TO_TOP_LINK}</section> : null}
     </>
   );
 }

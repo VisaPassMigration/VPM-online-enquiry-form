@@ -2539,3 +2539,71 @@ button[type='submit']:not(.secondary-btn):hover {
     display: block;
   }
 }
+
+.review-back-to-top {
+  margin: 1rem 0 0;
+  text-align: right;
+}
+
+.review-back-to-top a {
+  color: #1d4ed8;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.review-back-to-top a:hover,
+.review-tab:hover {
+  text-decoration: underline;
+}
+
+.clear-preview-text {
+  white-space: pre-wrap;
+}
+
+.clear-preview-grid pre,
+.clear-preview-list pre,
+.technical-details pre {
+  max-height: 16rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.technical-details {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.65rem;
+  padding: 0.55rem;
+  background: #f8fafc;
+}
+
+.technical-details summary {
+  cursor: pointer;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.consultation-booking-form {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.consultation-booking-form h4,
+.consultation-booking-form .button-row {
+  grid-column: 1 / -1;
+}
+
+.consultation-action-row {
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.consultation-action-row select {
+  min-width: 220px;
+}
+
+label .form-helper {
+  display: block;
+  font-weight: 500;
+}
+
+.audit-actor {
+  color: #475569;
+}
