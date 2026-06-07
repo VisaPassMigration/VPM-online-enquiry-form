@@ -197,6 +197,43 @@ describe('intake dashboard actions', () => {
     expect(mocks.releaseConsultationInvitationCommunicationMock).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1', actorRole: 'staff', actorStaffUserId: 'staff-1' }));
   });
 
+  it('quick workflow internal movement records preset reason for audit and sends no client communication', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('action', 'mark_senior_review_ready');
+    formData.set('presetReason', 'Ready for senior review');
+    formData.set('internalNote', 'jump queue approved internally');
+
+    await runInternalReviewAction(formData);
+
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.PERFORM_INTERNAL_REVIEW_ACTIONS);
+    expect(mocks.updateSubmissionMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'sub-1' },
+      data: { status: 'senior_review_in_progress' },
+    }));
+    expect(mocks.upsertReviewStateMock).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ currentStage: 'senior_consultant_check' }),
+      create: expect.objectContaining({ currentStage: 'senior_consultant_check' }),
+    }));
+    const auditData = mocks.createAuditEventMock.mock.calls.at(-1)?.[0]?.data;
+    expect(auditData).toEqual(expect.objectContaining({
+      actorName: 'Jane Reviewer',
+      actorRole: 'senior_staff',
+      eventType: 'status_transition_executed',
+      reason: 'Ready for senior review — jump queue approved internally',
+      internalNote: 'Ready for senior review — jump queue approved internally',
+      eventSource: 'staff_review_action',
+    }));
+    expect(auditData.metadata).toEqual(expect.objectContaining({
+      action: 'mark_senior_review_ready',
+      internalOnly: true,
+      requiresHumanReviewBeforeClientCommunication: true,
+    }));
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
   it('read_only_reviewer cannot prepare communication', async () => {
     mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
     const formData = new FormData();
@@ -502,7 +539,14 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Submitted: 3 June 2026, 6:53 pm');
     expect(html).toContain('Progressing to consultation');
     expect(html).toContain('Workflow Stage Snapshot');
+    expect(html).toContain('Quick Workflow Actions');
     expect(html).toContain('Current stage: Consultation invite');
+    expect(html).toContain('Use these internal actions to move the registration through VPM’s review workflow.');
+    expect(html).toContain('Some clients may move through stages faster than others.');
+    expect(html).toContain('Select preset reason');
+    expect(html).toContain('Mark CLEAR Preparation');
+    expect(html).toContain('Create/View Booking Record');
+    expect(html).toContain('Quick workflow actions do not send client communications');
     expect(html).toContain('Upcoming / not started');
     expect(html).toContain('Case Quality Snapshot');
     expect(html).toContain('Strong indicators');
@@ -548,7 +592,7 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Key points contributors / breakdown');
     expect(html).toContain('Missing items');
     expect(html).toContain('Preliminary only:');
-    expect(html).toContain('Client summary ready');
+    expect(html).toContain('Consultation invite');
     expect(html).toContain('Manual hold');
     expect(mocks.requirePermissionMock.mock.calls.length).toBeGreaterThan(permissionCallsBefore);
   });
@@ -596,7 +640,8 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Assign task');
     expect(html).toContain('Reassign task');
     expect(html).not.toContain('Internal review actions');
-    expect(html).not.toContain('Mark Under Review');
+    expect(html).toContain('Quick Workflow Actions');
+    expect(html).toContain('Mark Under Review');
   });
 
 

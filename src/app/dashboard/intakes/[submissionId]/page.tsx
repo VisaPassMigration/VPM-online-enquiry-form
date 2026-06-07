@@ -63,9 +63,11 @@ const stageLabel = (stage: string | undefined | null) => {
     registration_submitted: 'Registration submitted',
     intake_triage: 'Intake triage',
     lead_rating_confirmed: 'Lead rating confirmed',
-    document_completeness_check: 'Document completeness check',
-    risk_assessment: 'Risk assessment',
-    client_summary_ready: 'Client summary ready',
+    document_completeness_check: 'CLEAR preparation',
+    risk_assessment: 'Senior review',
+    preliminary_points_review: 'CLEAR preparation',
+    senior_consultant_check: 'Senior review',
+    client_summary_ready: 'Consultation invite',
     clear_preparation: 'CLEAR preparation',
     senior_review: 'Senior review',
     consultation_invite: 'Consultation invite',
@@ -135,8 +137,8 @@ const stageRankForSubmission = (submission: {
   if (consultationBookings.some((booking) => booking.status === 'completed')) return 6;
   if (consultationBookings.length > 0) return 5;
   if (stage === 'client_summary_ready' || submission.status === 'ready_for_client_summary') return 5;
-  if (clearReports.some((report) => report.status === 'approved_for_consultation')) return 4;
-  if (clearReports.length > 0) return 3;
+  if (clearReports.some((report) => report.status === 'approved_for_consultation') || stage === 'senior_consultant_check' || submission.status === 'senior_review_in_progress') return 4;
+  if (clearReports.length > 0 || stage === 'preliminary_points_review' || submission.status === 'preliminary_points_review_in_progress') return 3;
   if (submission.leadRating) return 2;
   if (stage === 'intake_triage' || submission.status === 'intake_triage_in_progress') return 1;
   return 0;
@@ -226,12 +228,47 @@ const isRawPreviewValue = (value: unknown) => Boolean(value && typeof value === 
 
 const BackToTopLink = () => <p className="review-back-to-top"><a href="#client-review-top">↑ Back to top</a></p>;
 
-const PresetReasonOptions = ({ options }: { options: string[] }) => (
-  <select name="presetReason" defaultValue="" aria-label="Preset reason">
-    <option value="">Preset reason (optional)</option>
+const QUICK_WORKFLOW_REASONS = [
+  'Strong points and low risk',
+  'Ready for CLEAR preparation',
+  'Ready for senior review',
+  'Ready for consultation invite',
+  'Client requested urgent follow-up',
+  'Missing information required',
+  'Risk issue requires senior review',
+  'CSA discussion completed',
+  'Deposit confirmed',
+  'Other',
+];
+
+const PresetReasonOptions = ({ options, required = false }: { options: string[]; required?: boolean }) => (
+  <select name="presetReason" defaultValue="" aria-label="Preset reason" required={required}>
+    <option value="">{required ? 'Select preset reason' : 'Preset reason (optional)'}</option>
     {options.map((option) => <option key={option} value={option}>{option}</option>)}
   </select>
 );
+
+const QuickWorkflowReasonFields = ({ id }: { id: string }) => (
+  <div className="quick-workflow-reason-fields">
+    <label htmlFor={`${id}-preset`}><strong>Preset reason</strong></label>
+    <select id={`${id}-preset`} name="presetReason" defaultValue="" aria-label="Preset reason" required>
+      <option value="">Select preset reason</option>
+      {QUICK_WORKFLOW_REASONS.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
+    <label htmlFor={`${id}-note`}><strong>Optional internal note</strong></label>
+    <textarea id={`${id}-note`} name="internalNote" rows={2} placeholder="Add detail if Other is selected or this is a jump/override" />
+  </div>
+);
+
+const isPrimaryQuickAction = (workflowStageIndex: number, action: string) => {
+  if (workflowStageIndex <= 0) return action === 'mark_under_review';
+  if (workflowStageIndex === 1) return action === 'mark_clear_preparation';
+  if (workflowStageIndex === 2 || workflowStageIndex === 3) return action === 'mark_senior_review_ready';
+  if (workflowStageIndex === 4) return action === 'mark_consultation_ready_internal';
+  if (workflowStageIndex === 5) return action === 'mark_completed';
+  if (workflowStageIndex === 6) return action === 'mark_csa_issued';
+  return action === 'mark_deposit_paid';
+};
 
 const renderClearPreviewValue = (value: unknown) => {
   if (isRawPreviewValue(value)) {
@@ -325,6 +362,15 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   const riskLabel = activeRiskFlagCount === 0 ? 'No active flags' : `${activeRiskFlagCount} active ${activeRiskFlagCount === 1 ? 'flag' : 'flags'}`;
   const missingItems = latestPoints?.missingItems ?? [];
   const latestStaffAction = submission.auditEvents.find((event) => event.eventSource === 'staff_review_action' || event.relatedEntityType === 'staff_review');
+  const latestWorkflowAction = submission.auditEvents.find((event) =>
+    event.eventSource === 'staff_review_action' ||
+    event.eventSource === 'consultation_booking_action' ||
+    event.eventSource === 'clear_report_action' ||
+    event.relatedEntityType === 'staff_review' ||
+    event.relatedEntityType === 'consultation_booking',
+  );
+  const latestBooking = submission.consultationBookings[0];
+  const hasBooking = Boolean(latestBooking);
   const pointsBreakdown = pointsBreakdownItems(latestPoints?.pointsBreakdown);
   const hasSkilledOccupation = occupation !== 'Not provided';
   const hasKeyInformation = clientName !== 'Not provided' && (payload.email || payload.phone) && hasSkilledOccupation;
@@ -366,6 +412,70 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             </li>;
           })}
         </ol>
+      </section>
+      <section className="section review-section quick-workflow-actions" aria-labelledby="quick-workflow-actions-heading">
+        <div className="section-heading-row">
+          <div>
+            <h3 id="quick-workflow-actions-heading">Quick Workflow Actions</h3>
+            <p>Use these internal actions to move the registration through VPM’s review workflow. Each action is staff-controlled and recorded for audit history.</p>
+            <p className="form-helper">Some clients may move through stages faster than others. If you move a case ahead, record the internal reason so the decision is auditable.</p>
+          </div>
+          <span className="pill pill--placeholder quick-workflow-current-stage">Current stage: {currentWorkflowStage.label}</span>
+        </div>
+        {latestWorkflowAction ? <div className="status-feedback" role="status">
+          <strong>Status updated: {currentWorkflowStage.label}.</strong>
+          <p>Workflow action recorded successfully. Actor: {latestWorkflowAction.actorName || 'Unknown'} ({humanizeValue(latestWorkflowAction.actorRole || 'unknown')}) at {displayDate(latestWorkflowAction.eventAt)}.</p>
+        </div> : null}
+        <p className="form-helper"><strong>Internal only:</strong> Quick workflow actions do not send client communications and do not release client-facing outcomes.</p>
+        <div className="quick-workflow-grid">
+          <form action={runInternalReviewAction} className="quick-workflow-card">
+            <input type="hidden" name="submissionId" value={submission.id} />
+            <h4>Review stage</h4>
+            <QuickWorkflowReasonFields id="quick-review" />
+            <div className="button-row action-button-row">
+              <button className={`${isPrimaryQuickAction(workflowStageIndex, 'mark_under_review') ? 'button-primary' : 'button-secondary'} button-small`} type="submit" name="action" value="mark_under_review">Mark Under Review</button>
+              <button className="button-secondary button-small" type="submit" name="action" value="request_more_information">Request More Information</button>
+              <button className="button-secondary button-small" type="submit" name="action" value="escalate_risk_review">Escalate for Risk Review</button>
+            </div>
+          </form>
+          <form action={runInternalReviewAction} className="quick-workflow-card">
+            <input type="hidden" name="submissionId" value={submission.id} />
+            <h4>CLEAR / senior review</h4>
+            <QuickWorkflowReasonFields id="quick-clear" />
+            <div className="button-row action-button-row">
+              <button className={`${isPrimaryQuickAction(workflowStageIndex, 'mark_clear_preparation') ? 'button-primary' : 'button-secondary'} button-small`} type="submit" name="action" value="mark_clear_preparation">Mark CLEAR Preparation</button>
+              <button className={`${isPrimaryQuickAction(workflowStageIndex, 'mark_senior_review_ready') ? 'button-primary' : 'button-secondary'} button-small`} type="submit" name="action" value="mark_senior_review_ready">Mark Senior Review Ready</button>
+              <button className={`${isPrimaryQuickAction(workflowStageIndex, 'mark_consultation_ready_internal') ? 'button-primary' : 'button-secondary'} button-small`} type="submit" name="action" value="mark_consultation_ready_internal">Mark Consultation-Ready Internally</button>
+            </div>
+          </form>
+          <div className="quick-workflow-card">
+            <h4>Consultation</h4>
+            <p className="form-helper">Booking details and outcomes remain in the Consultation tab.</p>
+            <div className="button-row action-button-row">
+              <Link href={`/dashboard/intakes/${submission.id}?tab=consultation#consultation`} className="button-secondary button-small">Create/View Booking Record</Link>
+            </div>
+            {hasBooking ? <form action={runConsultationBookingAction} className="quick-workflow-nested-form">
+              <input type="hidden" name="submissionId" value={submission.id} />
+              <input type="hidden" name="bookingId" value={latestBooking.id} />
+              <QuickWorkflowReasonFields id="quick-consultation" />
+              <div className="button-row action-button-row">
+                <button className={`${isPrimaryQuickAction(workflowStageIndex, 'mark_completed') ? 'button-primary' : 'button-secondary'} button-small`} type="submit" name="action" value="mark_completed">Mark Consultation Completed</button>
+              </div>
+            </form> : <><p className="form-helper">Mark Consultation Completed is available after a booking record exists.</p><button className="button-secondary button-small" type="button" disabled>Mark Consultation Completed</button></>}
+          </div>
+          <div className="quick-workflow-card">
+            <h4>CSA / payment</h4>
+            {hasBooking ? <form action={runConsultationBookingAction} className="quick-workflow-nested-form">
+              <input type="hidden" name="submissionId" value={submission.id} />
+              <input type="hidden" name="bookingId" value={latestBooking.id} />
+              <QuickWorkflowReasonFields id="quick-csa-payment" />
+              <div className="button-row action-button-row">
+                <button className={`${isPrimaryQuickAction(workflowStageIndex, 'mark_csa_issued') ? 'button-primary' : 'button-secondary'} button-small`} type="submit" name="action" value="mark_csa_issued">Mark CSA Issued</button>
+                <button className={`${isPrimaryQuickAction(workflowStageIndex, 'mark_deposit_paid') ? 'button-primary' : 'button-secondary'} button-small`} type="submit" name="action" value="mark_deposit_paid">Mark Deposit Paid</button>
+              </div>
+            </form> : <><p className="form-helper">CSA and deposit actions are available after a booking record exists.</p><div className="button-row action-button-row"><button className="button-secondary button-small" type="button" disabled>Mark CSA Issued</button><button className="button-secondary button-small" type="button" disabled>Mark Deposit Paid</button></div></>}
+          </div>
+        </div>
       </section>
       <section className="section review-section case-quality-snapshot" aria-labelledby="case-quality-snapshot-heading">
         <h3 id="case-quality-snapshot-heading">Case Quality Snapshot</h3>
@@ -736,7 +846,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           </div>
         </>
       )}</section> : null}
-      {activeTab === 'consultation' ? <section className="section review-section">
+      {activeTab === 'consultation' ? <section id="consultation" className="section review-section">
         <h3>Consultation Booking Management</h3>
         <p>Consultation booking records are for internal operations and KPI tracking. Client outcomes and calendar events are not created from this section.</p>
         <form action={runConsultationBookingAction} className="intake-form">
