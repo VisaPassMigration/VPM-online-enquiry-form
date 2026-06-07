@@ -265,6 +265,7 @@ enum ClientCommunicationStatus {
 
 model IntakeSubmission {
   id                      String           @id @default(uuid())
+  registrationReference   String?          @unique
   status                  SubmissionStatus @default(draft)
   payload                 Json
   currentReviewState      SubmissionReviewState?
