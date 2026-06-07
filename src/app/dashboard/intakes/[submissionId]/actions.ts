@@ -115,6 +115,13 @@ async function requireStaffActorContextForClientCommunication(permission: string
   return { ...actor, actorRole: mapClientCommunicationActorRole(actor.actorRole) };
 }
 
+function internalReasonFromForm(formData: FormData, fallback: string) {
+  const note = String(formData.get('internalNote') ?? formData.get('internalReason') ?? formData.get('reason') ?? '').trim();
+  const preset = String(formData.get('presetReason') ?? '').trim();
+  if (preset && note) return `${preset} — ${note}`;
+  return note || preset || fallback;
+}
+
 function resolveDocumentReviewEventType(action: string): AuditEventType {
   if (action === 'accept') return AuditEventType.document_accepted;
   if (action === 'reject') return AuditEventType.document_rejected;
@@ -129,7 +136,7 @@ export async function runInternalReviewAction(formData: FormData) {
 
   const submissionId = String(formData.get('submissionId') ?? '');
   const action = String(formData.get('action') ?? '');
-  const note = String(formData.get('internalNote') ?? '').trim();
+  const note = internalReasonFromForm(formData, '');
   const { actorId, actorName, actorRole, actorStaffUserId } = actor;
 
   if (!submissionId || !action || !note || !actorId) return;
@@ -247,7 +254,7 @@ export async function runClientCommunicationAction(formData: FormData) {
   'use server';
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = internalReasonFromForm(formData, '');
   const communicationType = String(formData.get('communicationType') ?? '').trim() as
     | 'request_more_information'
     | 'consultation_invitation'
@@ -339,7 +346,7 @@ export async function runConsultationBookingAction(formData: FormData) {
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const reason = String(formData.get('internalReason') ?? '').trim();
+  const reason = internalReasonFromForm(formData, '');
   const bookingId = String(formData.get('bookingId') ?? '').trim();
 
   if (!submissionId || !action || !reason) return;
@@ -536,7 +543,7 @@ export async function runLeadRatingAction(formData: FormData) {
   'use server';
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const reason = String(formData.get('reason') ?? '').trim();
+  const reason = internalReasonFromForm(formData, '');
   const rating = String(formData.get('rating') ?? '').trim() as LeadRating;
   const actor = await requireStaffActorContext();
 
@@ -565,7 +572,7 @@ export async function runGenerateClearReportDraftAction(formData: FormData) {
   await requirePermission(PERMISSIONS.GENERATE_CLEAR_REPORT);
 
   const submissionId = String(formData.get('submissionId') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = internalReasonFromForm(formData, '');
   const overrideNote = String(formData.get('overrideNote') ?? '').trim();
   const actor = await requireStaffActorContext();
   if (!submissionId || !internalReason || !actor.actorId) return;
@@ -585,7 +592,7 @@ export async function runClearWorkflowAction(formData: FormData) {
   const clearReportId = String(formData.get('clearReportId') ?? '').trim();
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = internalReasonFromForm(formData, '');
   const actor = await requireStaffActorContext();
   if (!clearReportId || !submissionId || !action || !internalReason || !actor.actorId) return;
 
@@ -604,7 +611,7 @@ export async function runUpdateClearReportNotesAction(formData: FormData) {
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const staffNotes = String(formData.get('staffNotes') ?? '');
   const clientFacingNotes = String(formData.get('clientFacingNotes') ?? '');
-  const internalReason = String(formData.get('internalReason') ?? '').trim();
+  const internalReason = internalReasonFromForm(formData, '');
   const actor = await requireStaffActorContext();
   if (!clearReportId || !submissionId || !internalReason || !actor.actorId) return;
 

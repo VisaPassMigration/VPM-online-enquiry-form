@@ -2539,3 +2539,44 @@ button[type='submit']:not(.secondary-btn):hover {
     display: block;
   }
 }
+
+
+.review-tab-anchor {
+  scroll-margin-top: 1rem;
+}
+
+.review-back-to-top {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.review-back-to-top a {
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  background: #ffffff;
+  color: var(--vpm-deep-navy);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.technical-details {
+  margin-top: 0.55rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 0.65rem;
+  background: #f8fafc;
+}
+
+.technical-details summary {
+  cursor: pointer;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.consultation-action-form {
+  align-items: center;
+  gap: 0.5rem;
+}
