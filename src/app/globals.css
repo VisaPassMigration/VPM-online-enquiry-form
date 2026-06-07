@@ -2291,6 +2291,56 @@ button[type='submit']:not(.secondary-btn):hover {
   opacity: 0.85;
 }
 
+
+.registration-reference-label {
+  margin: 1rem 0 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #bfdbfe;
+}
+
+.registration-reference-value {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.75rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+}
+
+.client-review-technical-details {
+  max-width: 36rem;
+  background: rgba(248, 250, 252, 0.95);
+}
+
+.client-review-technical-details dl {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.65rem 0 0;
+}
+
+.client-review-technical-details dt {
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.client-review-technical-details dd {
+  margin: 0.15rem 0 0;
+  color: var(--vpm-deep-navy);
+}
+
+.client-review-technical-details input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  color: var(--vpm-deep-navy);
+  background: #ffffff;
+}
+
 .client-review-snapshot,
 .review-state-card-grid,
 .points-snapshot-grid,

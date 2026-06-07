@@ -486,7 +486,8 @@ describe('intake dashboard actions', () => {
 
   it('renders client review workspace header, workflow snapshot, case quality snapshot, and spaced tab chips', async () => {
     mocks.findUniqueMock.mockResolvedValueOnce({
-      id: 'sub-1',
+      id: '6f36b53d-3f13-49ef-81e8-2ac6d75fabcd',
+      registrationReference: 'VPM-REG-030626-0001',
       submittedAt: new Date('2026-06-03T10:53:00.000Z'),
       createdAt: new Date('2026-06-03T10:53:00.000Z'),
       payload: { firstName: 'Testing', currentOccupation: 'Mechanical Engineer', email: 'client@example.com' },
@@ -495,11 +496,17 @@ describe('intake dashboard actions', () => {
       pointsSnapshots: [{ totalPoints: 85, missingItems: [], pointsBreakdown: { age: 30, english: 20 }, generatedAt: new Date('2026-06-03T10:54:00.000Z'), calculatorVersion: 'v1', generatedBy: 'system', preliminaryLabel: 'Preliminary only; subject to human review.' }],
       riskFlags: [], documents: [], currentReviewState: { currentStage: 'client_summary_ready', lastDecision: 'manual_hold', mandatoryStagesComplete: false, releaseChecklistSigned: false, seniorSignOffBy: null, seniorSignOffAt: null, updatedAt: new Date('2026-06-03T11:10:00.000Z') }, clientCommunications: [], consultationBookings: [], clearReports: [], auditEvents: [],
     });
-    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: '6f36b53d-3f13-49ef-81e8-2ac6d75fabcd' }), searchParams: Promise.resolve({ tab: 'overview' }) });
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('Client Review Workspace');
+    expect(html).toContain('Registration Reference');
+    expect(html).toContain('VPM-REG-030626-0001');
     expect(html).toContain('Testing — Mechanical Engineer');
     expect(html).toContain('Submitted: 3 June 2026, 6:53 pm');
+    expect(html).not.toContain('Submission ID: 6f36b53d-3f13-49ef-81e8-2ac6d75fabcd');
+    expect(html).toContain('Technical details');
+    expect(html).toContain('Full submission UUID');
+    expect(html).toContain('value="6f36b53d-3f13-49ef-81e8-2ac6d75fabcd"');
     expect(html).toContain('Progressing to consultation');
     expect(html).toContain('Workflow Stage Snapshot');
     expect(html).toContain('Current stage: Consultation invite');

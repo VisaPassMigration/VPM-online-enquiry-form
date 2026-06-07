@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { LeadRating, Prisma, RiskResolutionStatus } from '@prisma/client';
 
 import { db } from '@/server/db';
+import { displayRegistrationReference } from '@/server/registrationReferences';
 import {
 
   runClearWorkflowAction,
@@ -329,6 +330,8 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   const hasSkilledOccupation = occupation !== 'Not provided';
   const hasKeyInformation = clientName !== 'Not provided' && (payload.email || payload.phone) && hasSkilledOccupation;
   const submittedDisplayDate = submission.submittedAt ?? submission.createdAt ?? new Date(0);
+  const registrationReference = displayRegistrationReference(submission);
+  const isFallbackRegistrationReference = !submission.registrationReference;
 
   return (
     <>
@@ -336,8 +339,17 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <div>
           <p className="eyebrow">Internal staff workspace</p>
           <h1>Client Review Workspace</h1>
+          <p className="registration-reference-label">Registration Reference</p>
+          <p className="registration-reference-value">{registrationReference}</p>
+          {isFallbackRegistrationReference ? <p className="client-review-hero__secondary">Fallback reference shown for an older registration without a persisted reference.</p> : null}
           <h2>{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
-          <p className="client-review-hero__secondary">Submission ID: {submission.id}</p>
+          <details className="technical-details client-review-technical-details">
+            <summary>Technical details</summary>
+            <dl>
+              <div><dt>Full submission UUID</dt><dd><input aria-label="Full submission UUID" readOnly value={submission.id} /></dd></div>
+              <div><dt>Reference source</dt><dd>{isFallbackRegistrationReference ? 'Fallback derived from date and UUID suffix' : 'Persisted registration reference'}</dd></div>
+            </dl>
+          </details>
           <p>Submitted: {displayDate(submittedDisplayDate)}</p>
           <p><Link href="/dashboard">← Back to dashboard</Link></p>
         </div>
