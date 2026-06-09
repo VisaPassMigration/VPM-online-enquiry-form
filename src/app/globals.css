@@ -2278,40 +2278,72 @@ button[type='submit']:not(.secondary-btn):hover {
   grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
   gap: 1rem;
   align-items: start;
+  border-color: var(--vpm-border-strong);
+  background:
+    radial-gradient(circle at top left, rgba(255, 239, 202, 0.82), rgba(255, 255, 255, 0.72) 38%),
+    linear-gradient(135deg, var(--vpm-surface) 0%, var(--vpm-surface-soft) 100%);
+  box-shadow: var(--vpm-shadow-md);
+}
+
+.client-review-hero h1 {
+  color: var(--vpm-deep-navy);
 }
 
 .client-review-hero h2 {
-  margin: 0.35rem 0;
-  color: #e0f2fe;
-  font-size: clamp(1.15rem, 2vw, 1.6rem);
+  margin: 0.35rem 0 0.85rem;
+  color: var(--vpm-deep-navy);
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.2;
 }
 
-.client-review-hero__secondary {
-  font-size: 0.9rem;
-  opacity: 0.85;
+.client-review-hero__submitted {
+  margin: 0.75rem 0 0.55rem;
+  color: var(--vpm-navy-muted);
+  font-weight: 700;
 }
 
+.registration-reference-card {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: 100%;
+  margin: 0 0 0.15rem;
+  padding: 0.78rem 0.95rem;
+  border: 1px solid rgba(115, 55, 23, 0.20);
+  border-radius: 0.95rem;
+  background: linear-gradient(135deg, rgba(255, 248, 231, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow: var(--vpm-shadow-sm);
+}
 
 .registration-reference-label {
-  margin: 1rem 0 0.2rem;
-  font-size: 0.78rem;
+  margin: 0;
+  font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #bfdbfe;
+  color: var(--vpm-copper);
 }
 
 .registration-reference-value {
   margin: 0;
-  font-size: clamp(1.8rem, 4vw, 2.75rem);
+  color: var(--vpm-dark-blue);
+  font-size: clamp(1rem, 1.6vw, 1.25rem);
   font-weight: 900;
   letter-spacing: 0.04em;
-  color: #ffffff;
+  overflow-wrap: anywhere;
 }
 
 .client-review-technical-details {
   max-width: 36rem;
-  background: rgba(248, 250, 252, 0.95);
+  margin-top: 0.45rem;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.client-review-technical-details[open] {
+  border-color: var(--vpm-border);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .client-review-technical-details dl {
@@ -2352,10 +2384,10 @@ button[type='submit']:not(.secondary-btn):hover {
 .client-review-snapshot {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
-  padding: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.8rem;
+  border: 1px solid var(--vpm-border);
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .client-review-snapshot div,
@@ -2366,6 +2398,41 @@ button[type='submit']:not(.secondary-btn):hover {
   border-radius: 0.85rem;
   background: #ffffff;
   padding: 0.85rem;
+}
+
+.client-review-snapshot div {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--vpm-border);
+  background: var(--vpm-surface);
+  box-shadow: var(--vpm-shadow-sm);
+}
+
+.client-review-snapshot div::before {
+  content: '';
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--vpm-dark-blue);
+  box-shadow: 0 0 0 5px rgba(8, 50, 79, 0.08);
+}
+
+.client-review-snapshot div:nth-child(2)::before {
+  background: var(--vpm-cream);
+  box-shadow: 0 0 0 5px rgba(255, 239, 202, 0.72);
+}
+
+.client-review-snapshot div:nth-child(3)::before {
+  background: var(--vpm-copper);
+  box-shadow: 0 0 0 5px rgba(115, 55, 23, 0.08);
+}
+
+.client-review-snapshot div:nth-child(4)::before {
+  background: var(--vpm-deep-navy);
+  box-shadow: 0 0 0 5px rgba(12, 20, 32, 0.08);
 }
 
 .client-review-snapshot dt,
@@ -2629,4 +2696,32 @@ button[type='submit']:not(.secondary-btn):hover {
 .consultation-action-form {
   align-items: center;
   gap: 0.5rem;
+}
+
+.client-review-technical-details.technical-details {
+  max-width: 36rem;
+  margin-top: 0.45rem;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.client-review-technical-details.technical-details[open] {
+  border-color: var(--vpm-border);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.client-review-technical-details.technical-details summary {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--vpm-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--vpm-navy-muted);
+  font-size: 0.82rem;
+}
+
+.client-review-technical-details.technical-details[open] summary {
+  color: var(--vpm-dark-blue);
 }

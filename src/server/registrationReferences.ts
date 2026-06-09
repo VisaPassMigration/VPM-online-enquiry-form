@@ -1,15 +1,9 @@
+import type { Prisma } from '@prisma/client';
+
 const REGISTRATION_REFERENCE_PREFIX = 'VPM-REG';
 const DAILY_SEQUENCE_WIDTH = 4;
 
-type RegistrationReferenceTx = {
-  intakeSubmission: {
-    findFirst: (args: {
-      where: { registrationReference: { startsWith: string } };
-      orderBy: { registrationReference: 'desc' };
-      select: { registrationReference: true };
-    }) => Promise<{ registrationReference: string | null } | null>;
-  };
-};
+type RegistrationReferenceClient = Pick<Prisma.TransactionClient, 'intakeSubmission'>;
 
 const registrationDateFormatter = new Intl.DateTimeFormat('en-AU', {
   day: '2-digit',
@@ -46,7 +40,7 @@ export function displayRegistrationReference(input: { id: string; registrationRe
   return input.registrationReference ?? fallbackRegistrationReference(input);
 }
 
-export async function nextRegistrationReference(tx: RegistrationReferenceTx, date: Date) {
+export async function nextRegistrationReference(tx: RegistrationReferenceClient, date: Date) {
   const prefix = registrationReferencePrefixForDate(date);
   const latest = await tx.intakeSubmission.findFirst({
     where: { registrationReference: { startsWith: `${prefix}-` } },
