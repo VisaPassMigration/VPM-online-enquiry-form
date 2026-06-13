@@ -73,6 +73,8 @@ function buildMetadata() {
   return { internalOnly: true, triageClassification: true } as Prisma.InputJsonObject;
 }
 
+const ratingValue = (rating: LeadRating | null | undefined): Prisma.InputJsonObject => ({ rating: rating ?? null });
+
 export async function suggestLeadRating(input: SuggestLeadRatingInput) {
   assertPermission(input.actor.actorRoles, PERMISSIONS.SUGGEST_LEAD_RATING);
 
@@ -123,8 +125,8 @@ export async function suggestLeadRating(input: SuggestLeadRatingInput) {
     actorStaffUserId: input.actor.actorStaffUserId,
     relatedEntityType: 'intake_submission',
     relatedEntityId: input.submissionId,
-    fromValue: submission.leadRatingSuggested ?? undefined,
-    toValue: suggested.rating,
+    fromValue: ratingValue(submission.leadRatingSuggested),
+    toValue: ratingValue(suggested.rating),
     internalNote: normalize(input.reason) ?? suggested.reason,
     metadata: buildMetadata(),
   });
@@ -155,8 +157,8 @@ export async function confirmLeadRating(input: ConfirmLeadRatingInput) {
     actorStaffUserId: input.actor.actorStaffUserId,
     relatedEntityType: 'intake_submission',
     relatedEntityId: input.submissionId,
-    fromValue: submission.leadRating ?? undefined,
-    toValue: input.rating,
+    fromValue: ratingValue(submission.leadRating),
+    toValue: ratingValue(input.rating),
     internalNote: input.reason.trim(),
     metadata: buildMetadata(),
   });
@@ -169,6 +171,10 @@ export async function changeLeadRating(input: ChangeLeadRatingInput) {
   if (!input.reason.trim()) throw new Error('Reason is required when changing confirmed lead rating.');
 
   const submission = await db.intakeSubmission.findUniqueOrThrow({ where: { id: input.submissionId } });
+
+  if (submission.leadRating === input.rating) {
+    return { ...submission, leadRatingNoChange: true };
+  }
 
   const updated = await db.intakeSubmission.update({
     where: { id: input.submissionId },
@@ -189,8 +195,8 @@ export async function changeLeadRating(input: ChangeLeadRatingInput) {
     actorStaffUserId: input.actor.actorStaffUserId,
     relatedEntityType: 'intake_submission',
     relatedEntityId: input.submissionId,
-    fromValue: submission.leadRating ?? undefined,
-    toValue: input.rating,
+    fromValue: ratingValue(submission.leadRating),
+    toValue: ratingValue(input.rating),
     internalNote: input.reason.trim(),
     metadata: buildMetadata(),
   });

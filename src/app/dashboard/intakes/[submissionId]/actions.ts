@@ -28,6 +28,8 @@ import {
   updateClearReportNotes,
 } from '@/server/clearReports';
 
+const leadRatingLabel = (rating: LeadRating) => rating[0].toUpperCase() + rating.slice(1);
+
 type ClientCommunicationActorRole = 'staff' | 'admin' | 'case_manager' | 'consultant' | 'reviewer' | 'system' | 'client';
 
 type StaffActorContext = {
@@ -539,32 +541,41 @@ export async function runDocumentReviewAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
-export async function runLeadRatingAction(formData: FormData) {
+export async function runLeadRatingAction(stateOrFormData: { notice?: string } | FormData | null, maybeFormData?: FormData) {
   'use server';
+  const formData = maybeFormData ?? stateOrFormData as FormData;
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
   const reason = internalReasonFromForm(formData, '');
   const rating = String(formData.get('rating') ?? '').trim() as LeadRating;
   const actor = await requireStaffActorContext();
 
-  if (!submissionId || !action || !actor.actorId) return;
+  if (!submissionId || !action || !actor.actorId) return null;
+
+  let notice: string | null = null;
 
   if (action === 'suggest') {
     await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING);
-    await suggestLeadRating({ submissionId, actor, reason });
+    const updated = await suggestLeadRating({ submissionId, actor, reason });
+    notice = updated?.leadRatingSuggested ? `Suggested lead rating updated to ${leadRatingLabel(updated.leadRatingSuggested)}.` : 'Suggested lead rating updated.';
   }
 
   if (action === 'confirm' && reason) {
     await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING);
     await confirmLeadRating({ submissionId, actor, rating, reason });
+    notice = `Lead rating confirmed as ${leadRatingLabel(rating)}.`;
   }
 
   if (action === 'change' && reason) {
     await requirePermission(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING);
-    await changeLeadRating({ submissionId, actor, rating, reason });
+    const updated = await changeLeadRating({ submissionId, actor, rating, reason });
+    notice = updated && 'leadRatingNoChange' in updated
+      ? `No change made — lead rating is already ${leadRatingLabel(rating)}.`
+      : `Lead rating updated to ${leadRatingLabel(rating)}.`;
   }
 
   revalidatePath(`/dashboard/intakes/${submissionId}`);
+  return notice ? { notice } : null;
 }
 
 export async function runGenerateClearReportDraftAction(formData: FormData) {

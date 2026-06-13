@@ -20,6 +20,8 @@ import {
   runReleaseRequestMoreInformationAction,
   updateClearReportNotesAction,
 } from './actions';
+import { LeadRatingActionForm } from './LeadRatingActionForm';
+import { LeadRatingSubmitButton } from './LeadRatingSubmitButton';
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,7 @@ const stageLabel = (stage: string | undefined | null) => {
 const auditEventLabel = (eventType: string) => humanizeValue(eventType);
 
 const ratingFromValue = (value: unknown): LeadRating | null => {
+  if (value === 'cold' || value === 'warm' || value === 'hot' || value === 'escalate') return value;
   if (value && typeof value === 'object' && 'rating' in value) {
     const rating = (value as { rating?: LeadRating | null }).rating;
     return rating ?? null;
@@ -464,7 +467,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             })}
           </div>}
         </details>
-        <form action={runLeadRatingAction} className="intake-form">
+        <LeadRatingActionForm action={runLeadRatingAction}>
           <input type="hidden" name="submissionId" value={submission.id} />
           <label><strong>Internal file note / reason for rating decision</strong></label>
           <p className="form-helper">This note is internal only and is used for audit history. It is not sent to the client.</p>
@@ -476,11 +479,11 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           </select>
           <p className="form-helper">Generate Suggested Rating creates or updates a system suggestion only. Confirm Suggested Rating confirms the current suggested internal rating. Change Confirmed Rating manually changes the confirmed internal rating.</p>
           <div className="button-row action-button-row">
-            {canSuggestLeadRating ? <button className="button-secondary button-small" type="submit" name="action" value="suggest">Generate Suggested Rating</button> : null}
-            {canConfirmLeadRating ? <button className="button-primary button-small" type="submit" name="action" value="confirm">Confirm Suggested Rating</button> : null}
-            {canChangeLeadRating ? <button className="button-secondary button-small" type="submit" name="action" value="change">Change Confirmed Rating</button> : null}
+            {canSuggestLeadRating ? <LeadRatingSubmitButton className="button-secondary button-small" actionValue="suggest" pendingLabel="Updating rating…">Generate Suggested Rating</LeadRatingSubmitButton> : null}
+            {canConfirmLeadRating ? <LeadRatingSubmitButton className="button-primary button-small" actionValue="confirm" pendingLabel="Updating rating…">Confirm Suggested Rating</LeadRatingSubmitButton> : null}
+            {canChangeLeadRating ? <LeadRatingSubmitButton className="button-secondary button-small" actionValue="change" pendingLabel="Updating rating…">Change Confirmed Rating</LeadRatingSubmitButton> : null}
           </div>
-        </form>
+        </LeadRatingActionForm>
       </section> : null}
       {activeTab === 'overview' ? <section className="section dashboard-note" role="note" aria-label="Internal intake review note">
         <strong>Important:</strong> Internal review page only. No client outcome should be released without authorised human review.
