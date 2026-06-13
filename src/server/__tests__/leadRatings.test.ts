@@ -99,6 +99,32 @@ describe('lead rating services', () => {
     }
   });
 
+  it('stores lead rating audit from/to values as rating objects and preserves actor metadata', async () => {
+    findUniqueOrThrowMock.mockResolvedValueOnce({ id: 'sub-1', leadRating: 'warm' });
+
+    await changeLeadRating({ submissionId: 'sub-1', actor, rating: 'hot', reason: 'new evidence' });
+
+    expect(recordAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'lead_rating_changed',
+      actorName: 'Staff One',
+      actorRole: 'senior_staff',
+      actorStaffUserId: 'staff-1',
+      fromValue: { rating: 'warm' },
+      toValue: { rating: 'hot' },
+      internalNote: 'new evidence',
+    }));
+  });
+
+  it('does not create a misleading changed event when submitted rating already matches current rating', async () => {
+    findUniqueOrThrowMock.mockResolvedValueOnce({ id: 'sub-1', leadRating: 'hot', leadRatingReason: 'existing' });
+
+    const result = await changeLeadRating({ submissionId: 'sub-1', actor, rating: 'hot', reason: 'second click' });
+
+    expect(result).toEqual(expect.objectContaining({ leadRating: 'hot', leadRatingNoChange: true }));
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(recordAuditEventMock).not.toHaveBeenCalled();
+  });
+
   it('no client communication is sent', async () => {
     findUniqueOrThrowMock.mockResolvedValue({
       id: 'sub-1',
