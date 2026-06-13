@@ -48,6 +48,39 @@ const humanizeValue = (value: string | undefined | null) => {
   return label ? label[0].toUpperCase() + label.slice(1) : 'Not provided';
 };
 
+
+const riskFlagLabel = (riskCode: string | undefined | null) => {
+  const labels: Record<string, string> = {
+    previous_refusal_declared: 'Previous visa refusal declared',
+    cancellation_overstay_declared: 'Cancellation, overstay, or removal declared',
+    status_history_declared: 'Cancellation, overstay, or removal declared',
+    criminal_history_declared: 'Criminal history declared',
+    health_condition_declared: 'Health condition declared',
+    low_preliminary_points: 'Low preliminary points',
+    preliminary_points_low: 'Low preliminary points',
+    missing_key_information: 'Missing key information',
+    preliminary_points_incomplete: 'Preliminary points information incomplete',
+    visa_refusal_history: 'Visa refusal history',
+  };
+  return riskCode ? labels[riskCode] ?? humanizeValue(riskCode) : 'Risk flag';
+};
+
+const riskSeverityPillClass = (severity: string | undefined | null) => {
+  const normalized = severity?.toLowerCase();
+  if (normalized === 'high' || normalized === 'critical') return 'pill--danger';
+  if (normalized === 'medium') return 'pill--warning';
+  if (normalized === 'low') return 'pill--ok';
+  return 'pill--placeholder';
+};
+
+const riskStatusPillClass = (status: string | undefined | null) => {
+  const normalized = status?.toLowerCase();
+  if (normalized === 'open') return 'pill--danger';
+  if (normalized === 'under_review') return 'pill--warning';
+  if (normalized === 'resolved' || normalized === 'closed') return 'pill--ok';
+  return 'pill--placeholder';
+};
+
 const reviewStatusLabel = (status: string | undefined | null) => {
   const labels: Record<string, string> = {
     submitted: 'Registration submitted',
@@ -336,13 +369,21 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   return (
     <>
       <section id="client-review-top" className="hero client-review-hero">
-        <div>
-          <p className="eyebrow">Internal staff workspace</p>
-          <h1>Client Review Workspace</h1>
-          <p className="registration-reference-label">Registration Reference</p>
-          <p className="registration-reference-value">{registrationReference}</p>
-          {isFallbackRegistrationReference ? <p className="client-review-hero__secondary">Fallback reference shown for an older registration without a persisted reference.</p> : null}
-          <h2>{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
+        <div className="client-review-summary">
+          <div className="client-review-summary__topline">
+            <div>
+              <p className="eyebrow">Internal staff workspace</p>
+              <h1>Client Review Workspace</h1>
+            </div>
+            <Link href="/dashboard" className="secondary-btn client-review-back-link">← Back to dashboard</Link>
+          </div>
+          <h2 className="client-review-identity">{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
+          <p className="client-review-submitted">Submitted: {displayDate(submittedDisplayDate)}</p>
+          <div className="registration-reference-card">
+            <p className="registration-reference-label">Registration Reference</p>
+            <p className="registration-reference-value">{registrationReference}</p>
+            {isFallbackRegistrationReference ? <p className="client-review-hero__secondary">Fallback reference shown for an older registration without a persisted reference.</p> : null}
+          </div>
           <details className="technical-details client-review-technical-details">
             <summary>Technical details</summary>
             <dl>
@@ -350,8 +391,6 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
               <div><dt>Reference source</dt><dd>{isFallbackRegistrationReference ? 'Fallback derived from date and UUID suffix' : 'Persisted registration reference'}</dd></div>
             </dl>
           </details>
-          <p>Submitted: {displayDate(submittedDisplayDate)}</p>
-          <p><Link href="/dashboard">← Back to dashboard</Link></p>
         </div>
         <dl className="client-review-snapshot" aria-label="Client review snapshot">
           <div><dt>Status</dt><dd>{reviewStatusLabel(submission.status)}</dd></div>
@@ -877,7 +916,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
       </div> : <p>No points snapshot available yet.</p>}</section> : null}
 
       {activeTab === 'overview' ? <section className="section review-section"><h3>Active risk flags</h3>{submission.riskFlags.length === 0 ? <p>No active risk flags.</p> : (
-        <ul className="review-list">{submission.riskFlags.map((flag) => <li key={flag.id}><strong>{flag.riskCode}</strong> ({flag.severity}) — {flag.resolutionStatus}</li>)}</ul>
+        <div className="risk-flag-list">{submission.riskFlags.map((flag) => <article key={flag.id} className="risk-flag-card"><div><strong>{riskFlagLabel(flag.riskCode)}</strong>{flag.resolutionSummaryInternal || flag.clientSafeDisclosure ? <p>{flag.resolutionSummaryInternal || flag.clientSafeDisclosure}</p> : null}</div><div className="risk-flag-card__badges"><span className={`pill ${riskSeverityPillClass(flag.severity)}`}>{humanizeValue(flag.severity)}</span><span className={`pill ${riskStatusPillClass(flag.resolutionStatus)}`}>{humanizeValue(flag.resolutionStatus)}</span></div></article>)}</div>
       )}</section> : null}
 
       {activeTab === 'documents' ? <section className="section review-section"><h3>Document review (staff-controlled)</h3>{submission.documents.length === 0 ? <p>No document metadata available.</p> : (
@@ -887,12 +926,12 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         })}</tbody></table></div>
       )}</section> : null}
 
-      {activeTab === 'overview' ? <section className="section review-section"><h3>Current Review State</h3>{submission.currentReviewState ? <div className="review-state-card-grid">
-        <article><p>Current stage</p><strong>{stageLabel(submission.currentReviewState.currentStage)}</strong></article>
+      {activeTab === 'overview' ? <section className="section review-section current-review-state"><h3>Current Review State</h3>{submission.currentReviewState ? <div className="review-state-card-grid">
+        <article className="review-state-card--primary"><p>Current stage</p><strong>{stageLabel(submission.currentReviewState.currentStage)}</strong></article>
+        <article className="review-state-card--primary"><p>Last updated</p><strong>{displayDate(submission.currentReviewState.updatedAt)}</strong></article>
         <article><p>Last decision</p><strong>{humanizeValue(submission.currentReviewState.lastDecision)}</strong></article>
-        <article><p>Mandatory stages complete</p><strong>{boolText(submission.currentReviewState.mandatoryStagesComplete)}</strong></article>
-        <article><p>Senior sign-off status</p><strong>{submission.currentReviewState.seniorSignOffAt ? 'Signed off' : 'Not signed off'}</strong><span>{submission.currentReviewState.seniorSignOffBy || 'No senior reviewer recorded'}</span></article>
-        <article><p>Last updated</p><strong>{displayDate(submission.currentReviewState.updatedAt)}</strong></article>
+        <article><p>Required review stages</p><strong>{submission.currentReviewState.mandatoryStagesComplete ? 'Complete' : 'Still in progress'}</strong></article>
+        <article><p>Senior sign-off</p><strong>{submission.currentReviewState.seniorSignOffAt ? 'Signed off' : 'Not signed off yet'}</strong><span>{submission.currentReviewState.seniorSignOffBy || 'No senior reviewer recorded'}</span></article>
       </div> : <p>No review state available yet.</p>}</section> : null}
       {activeTab === 'staff-tasks' ? <section className="section review-section"><h3>Staff task list</h3><p>No active staff tasks are currently displayed for this submission.</p><div className="status-feedback status-feedback--info"><strong>Task field guide:</strong> Task type is the category of work, priority is the urgency/importance, and status is the lifecycle stage.</div><form className="intake-form"><h4>Create task</h4><input name="title" placeholder="Task title" /><textarea name="description" placeholder="Task description" /><input name="assignee" placeholder="Assignee" /><input name="dueDate" type="date" /><select name="taskType" aria-describedby="task-type-helper"><option>Task type</option><option>Document follow-up</option><option>Risk review</option><option>Consultation preparation</option></select><p id="task-type-helper" className="form-helper">Task type = category of work.</p><select name="priority" aria-describedby="task-priority-helper"><option>Priority</option><option>Low</option><option>Normal</option><option>High</option><option>Urgent</option></select><p id="task-priority-helper" className="form-helper">Priority = urgency/importance.</p><select name="status" aria-describedby="task-status-helper"><option>Status</option><option>Not started</option><option>In progress</option><option>Blocked</option><option>Complete</option></select><p id="task-status-helper" className="form-helper">Status = lifecycle stage.</p><div className="button-row"><button type="button">Create task</button><button type="button">Start task</button><button type="button">Complete task</button><button type="button">Cancel task</button><button type="button">Assign task</button><button type="button">Reassign task</button></div></form><BackToTopLink /></section> : null}
 
