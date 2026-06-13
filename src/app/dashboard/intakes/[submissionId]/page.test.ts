@@ -501,12 +501,15 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Client Review Workspace');
     expect(html).toContain('Registration Reference');
     expect(html).toContain('VPM-REG-030626-0001');
+    expect(html).not.toContain('Legacy fallback reference');
     expect(html).toContain('Testing — Mechanical Engineer');
     expect(html).toContain('Submitted: 3 June 2026, 6:53 pm');
     expect(html).not.toContain('Submission ID: 6f36b53d-3f13-49ef-81e8-2ac6d75fabcd');
     expect(html).toContain('Technical details');
     expect(html).toContain('Full submission UUID');
     expect(html).toContain('value="6f36b53d-3f13-49ef-81e8-2ac6d75fabcd"');
+    expect(html).toContain('class="technical-details client-review-technical-details"');
+    expect(html).toContain('class="client-review-back-link"');
     expect(html).toContain('Progressing to consultation');
     expect(html).toContain('Workflow Stage Snapshot');
     expect(html).toContain('Current stage: Consultation invite');
@@ -516,6 +519,31 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Recommended next staff action');
     expect(html).toContain('review-tab-list');
     expect(html).toContain('Overview');
+  });
+
+  it('renders fallback registration reference with a compact legacy helper and keeps UUID secondary', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: '6f36b53d-3f13-49ef-81e8-2ac6d75fabcd',
+      registrationReference: null,
+      submittedAt: new Date('2026-06-03T10:53:00.000Z'),
+      createdAt: new Date('2026-06-03T10:53:00.000Z'),
+      payload: { firstName: 'Legacy', lastName: 'Client', migrationOccupation: 'Registered Nurse', email: 'legacy@example.com' },
+      status: 'submitted',
+      leadRatingSuggested: null, leadRatingSuggestedAt: null, leadRating: null, leadRatingConfirmedAt: null, leadRatingConfirmedBy: null, leadRatingReason: null,
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], clearReports: [], auditEvents: [],
+    });
+
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: '6f36b53d-3f13-49ef-81e8-2ac6d75fabcd' }) });
+    const html = renderToStaticMarkup(jsx);
+
+    expect(html).toContain('Registration Reference');
+    expect(html).toContain('VPM-REG-030626-ABCD');
+    expect(html).toContain('Legacy fallback reference — this record was created before permanent references were introduced.');
+    expect(html).toContain('Legacy Client — Registered Nurse');
+    expect(html).not.toContain('<p class="registration-reference-value">6f36b53d-3f13-49ef-81e8-2ac6d75fabcd</p>');
+    expect(html).toContain('Technical details');
+    expect(html).toContain('Full submission UUID');
+    expect(html).toContain('value="6f36b53d-3f13-49ef-81e8-2ac6d75fabcd"');
   });
 
   it('lead rating history is human-readable, hides raw JSON metadata, and preserves from/to rating values', async () => {

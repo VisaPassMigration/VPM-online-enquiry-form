@@ -336,13 +336,18 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   return (
     <>
       <section id="client-review-top" className="hero client-review-hero">
-        <div>
+        <div className="client-review-hero__content">
           <p className="eyebrow">Internal staff workspace</p>
           <h1>Client Review Workspace</h1>
-          <p className="registration-reference-label">Registration Reference</p>
-          <p className="registration-reference-value">{registrationReference}</p>
-          {isFallbackRegistrationReference ? <p className="client-review-hero__secondary">Fallback reference shown for an older registration without a persisted reference.</p> : null}
-          <h2>{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
+          <div className="registration-reference-block" aria-label="Registration reference">
+            <p className="registration-reference-label">Registration Reference</p>
+            <p className="registration-reference-value">{registrationReference}</p>
+            {isFallbackRegistrationReference ? <p className="registration-reference-helper">Legacy fallback reference — this record was created before permanent references were introduced.</p> : null}
+          </div>
+          <div className="client-review-identity">
+            <h2>{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
+            <p className="client-review-submitted">Submitted: {displayDate(submittedDisplayDate)}</p>
+          </div>
           <details className="technical-details client-review-technical-details">
             <summary>Technical details</summary>
             <dl>
@@ -350,8 +355,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
               <div><dt>Reference source</dt><dd>{isFallbackRegistrationReference ? 'Fallback derived from date and UUID suffix' : 'Persisted registration reference'}</dd></div>
             </dl>
           </details>
-          <p>Submitted: {displayDate(submittedDisplayDate)}</p>
-          <p><Link href="/dashboard">← Back to dashboard</Link></p>
+          <p className="client-review-back-link"><Link href="/dashboard" className="client-review-back-link__control">← Back to dashboard</Link></p>
         </div>
         <dl className="client-review-snapshot" aria-label="Client review snapshot">
           <div><dt>Status</dt><dd>{reviewStatusLabel(submission.status)}</dd></div>
