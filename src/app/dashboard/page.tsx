@@ -726,7 +726,7 @@ export default async function DashboardPage({
               <tbody>
                 {filteredRows.map((submission) => (
                   <tr key={submission.id}>
-                    <td>{submission.clientName}</td>
+                    <td><div className="review-queue-client-action"><Link href={`/dashboard/intakes/${submission.id}`} className="review-queue-client-link">{submission.clientName}</Link><Link href={`/dashboard/intakes/${submission.id}`} className="secondary-btn review-queue-open-link">Open review</Link></div></td>
                     <td>{displayDate(submission.submittedDate)}</td>
                     <td>{submission.country}</td>
                     <td>{submission.nationality}</td>

@@ -2797,3 +2797,59 @@ button[type='submit']:not(.secondary-btn):hover {
   color: #64748b;
   opacity: 1;
 }
+
+.client-review-side {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.client-review-summary .client-review-back-link {
+  justify-self: start;
+  width: fit-content;
+  margin-top: -0.15rem;
+}
+
+.client-review-side .client-review-technical-details {
+  justify-self: end;
+  width: auto;
+  max-width: min(100%, 34rem);
+  margin-top: 0;
+}
+
+.review-queue-client-action {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 10rem;
+}
+
+.review-queue-client-link {
+  color: var(--vpm-dark-blue);
+  font-weight: 900;
+  text-decoration: underline;
+  text-decoration-color: rgba(8, 50, 79, 0.28);
+  text-underline-offset: 0.18em;
+}
+
+.review-queue-client-link:hover {
+  color: var(--vpm-copper);
+  text-decoration-color: currentColor;
+}
+
+.review-queue-open-link {
+  justify-self: start;
+  padding: 0.32rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--vpm-dark-blue);
+  background: #fffdf7;
+  border-color: var(--vpm-border-strong);
+}
+
+@media (max-width: 760px) {
+  .client-review-side .client-review-technical-details {
+    justify-self: stretch;
+    width: 100%;
+  }
+}

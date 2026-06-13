@@ -375,7 +375,6 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
               <p className="eyebrow">Internal staff workspace</p>
               <h1>Client Review Workspace</h1>
             </div>
-            <Link href="/dashboard" className="secondary-btn client-review-back-link">← Back to dashboard</Link>
           </div>
           <h2 className="client-review-identity">{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
           <p className="client-review-submitted">Submitted: {displayDate(submittedDisplayDate)}</p>
@@ -384,6 +383,15 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             <p className="registration-reference-value">{registrationReference}</p>
             {isFallbackRegistrationReference ? <p className="client-review-hero__secondary">Fallback reference shown for an older registration without a persisted reference.</p> : null}
           </div>
+          <Link href="/dashboard" className="secondary-btn client-review-back-link">← Back to dashboard</Link>
+        </div>
+        <div className="client-review-side">
+          <dl className="client-review-snapshot" aria-label="Client review snapshot">
+            <div><dt>Status</dt><dd>{reviewStatusLabel(submission.status)}</dd></div>
+            <div><dt>Lead rating</dt><dd><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></dd></div>
+            <div><dt>Points</dt><dd>{latestPoints ? latestPoints.totalPoints : 'Not available'}</dd></div>
+            <div><dt>Risk</dt><dd><span className={`pill ${activeRiskFlagCount === 0 ? 'pill--ok' : 'pill--danger'}`}>{riskLabel}</span></dd></div>
+          </dl>
           <details className="technical-details client-review-technical-details">
             <summary>Technical details</summary>
             <dl>
@@ -392,12 +400,6 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             </dl>
           </details>
         </div>
-        <dl className="client-review-snapshot" aria-label="Client review snapshot">
-          <div><dt>Status</dt><dd>{reviewStatusLabel(submission.status)}</dd></div>
-          <div><dt>Lead rating</dt><dd><span className={`pill ${leadRatingPillClass(submission.leadRating)}`}>{leadRatingLabel(submission.leadRating)}</span></dd></div>
-          <div><dt>Points</dt><dd>{latestPoints ? latestPoints.totalPoints : 'Not available'}</dd></div>
-          <div><dt>Risk</dt><dd><span className={`pill ${activeRiskFlagCount === 0 ? 'pill--ok' : 'pill--danger'}`}>{riskLabel}</span></dd></div>
-        </dl>
       </section>
       <section className="section review-section workflow-snapshot" aria-labelledby="workflow-stage-snapshot-heading">
         <div className="section-heading-row">

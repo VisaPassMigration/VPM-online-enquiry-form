@@ -90,6 +90,16 @@ describe('dashboard lead rating UI', () => {
     expect(markup).toContain('View risk escalated items');
   });
 
+  it('makes review queue client names and near-name actions open the client review workspace', async () => {
+    const page = (await import('./page')).default;
+    const markup = submittedSectionOnly(renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) })));
+
+    expect(markup).toContain('class="review-queue-client-link"');
+    expect(markup).toContain('class="secondary-btn review-queue-open-link"');
+    expect(markup).toContain('href="/dashboard/intakes/sub-cold"');
+    expect(markup).toContain('Open review');
+  });
+
   it('renders a dashboard top anchor and subtle back to top link', async () => {
     const page = (await import('./page')).default;
     const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
