@@ -2526,6 +2526,82 @@ button[type='submit']:not(.secondary-btn):hover {
   gap: 0.45rem;
 }
 
+
+.quick-workflow-actions {
+  position: relative;
+}
+
+.quick-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.quick-workflow-card {
+  border: 1px solid #dbe3ef;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.quick-workflow-card--primary {
+  border-color: rgba(29, 78, 216, 0.35);
+  box-shadow: 0 12px 30px rgba(29, 78, 216, 0.1);
+}
+
+.quick-workflow-card--final {
+  border-color: rgba(180, 83, 9, 0.25);
+  background: linear-gradient(180deg, #fffdf7 0%, #fffbeb 100%);
+}
+
+.quick-workflow-card--ready {
+  border-color: rgba(22, 163, 74, 0.38);
+  background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+.quick-workflow-card h4 {
+  margin: 0 0 0.35rem;
+  color: var(--vpm-deep-navy);
+}
+
+.quick-workflow-card p {
+  margin-top: 0;
+  color: var(--vpm-navy-muted);
+  font-size: 0.9rem;
+}
+
+.quick-workflow-form {
+  margin-top: 0.7rem;
+}
+
+.preset-reason-select {
+  min-height: 2.35rem;
+  border-color: #cbd5e1;
+  background: #ffffff;
+  font-size: 0.9rem;
+}
+
+.quick-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.2rem;
+}
+
+.quick-action-row a {
+  color: #1d4ed8;
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.quick-action-row a:hover {
+  text-decoration: underline;
+}
+
 .form-helper {
   margin: 0.2rem 0 0.6rem;
   color: #64748b;

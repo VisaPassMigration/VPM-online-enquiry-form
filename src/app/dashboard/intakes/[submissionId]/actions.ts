@@ -144,7 +144,7 @@ export async function runInternalReviewAction(formData: FormData) {
   await db.$transaction(async (tx) => {
     const submission = await tx.intakeSubmission.findUnique({
       where: { id: submissionId },
-      include: { currentReviewState: true, riskFlags: true },
+      include: { currentReviewState: true, riskFlags: true, consultationBookings: true },
     });
 
     if (!submission) return;
@@ -200,6 +200,16 @@ export async function runInternalReviewAction(formData: FormData) {
       decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
       nextStage = ReviewStage.client_summary_ready;
       auditType = AuditEventType.status_transition_executed;
+    } else if (action === 'mark_client_onboarded') {
+      const hasCsaIssued = submission.consultationBookings.some((booking) => booking.csaIssued);
+      const hasDepositPaid = submission.consultationBookings.some((booking) => booking.depositPaid);
+      nextStatus = submission.status;
+      decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.ready_for_consultant_summary;
+      nextStage = submission.currentReviewState?.currentStage ?? ReviewStage.client_summary_ready;
+      auditType = AuditEventType.status_transition_executed;
+      if (!hasCsaIssued || !hasDepositPaid) {
+        decision = ReviewDecision.manual_hold;
+      }
     } else if (action === 'add_internal_note') {
       decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
       nextStage = submission.currentReviewState?.currentStage ?? ReviewStage.intake_triage;
@@ -239,10 +249,23 @@ export async function runInternalReviewAction(formData: FormData) {
       relatedEntityType: 'staff_review',
       relatedEntityId: staffReview.id,
       fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
-      toValue: { status: nextStatus, stage: nextStage },
+      toValue: { status: nextStatus, stage: action === 'mark_client_onboarded' ? 'client_onboarded' : nextStage },
       reason: note,
-      internalNote: note,
-      metadata: { action, internalOnly: true, requiresHumanReviewBeforeClientCommunication: true, actorStaffUserId },
+      internalNote: action === 'mark_client_onboarded' ? `Client onboarded — ${note}` : note,
+      metadata: {
+        action,
+        internalOnly: true,
+        noClientCommunicationSent: true,
+        requiresHumanReviewBeforeClientCommunication: true,
+        actorStaffUserId,
+        ...(action === 'mark_client_onboarded' ? {
+          finalWorkflowStage: 'client_onboarded',
+          presetReasonOrInternalNote: note,
+          csaIssuedDetected: submission.consultationBookings.some((booking) => booking.csaIssued),
+          depositPaidDetected: submission.consultationBookings.some((booking) => booking.depositPaid),
+          overrideReasonRequired: !submission.consultationBookings.some((booking) => booking.csaIssued) || !submission.consultationBookings.some((booking) => booking.depositPaid),
+        } : {}),
+      },
       eventSource: 'staff_review_action',
     });
   });

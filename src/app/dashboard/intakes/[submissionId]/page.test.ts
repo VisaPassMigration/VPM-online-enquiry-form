@@ -587,7 +587,7 @@ describe('intake dashboard actions', () => {
   it('overview tab renders internal review actions and current review state', async () => {
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
     const html = renderToStaticMarkup(jsx);
-    expect(html).toContain('Internal review actions');
+    expect(html).toContain('Quick Workflow Actions');
     expect(html).toContain('Mark Under Review');
     expect(html).toContain('Current Review State');
   });
@@ -789,6 +789,120 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Consultation');
     expect(html).toContain('Staff Tasks');
     expect(html).toContain('Audit Trail');
-    expect(html).toContain('Internal review actions');
+    expect(html).toContain('Quick Workflow Actions');
   });
+
+  it('renders final onboarding quick workflow card and client onboarded snapshot stage', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1',
+      status: 'ready_for_client_summary',
+      payload: {},
+      leadRating: 'hot',
+      leadRatingSuggested: null,
+      leadRatingReason: null,
+      leadRatingConfirmedAt: null,
+      leadRatingConfirmedBy: null,
+      leadRatingSuggestedAt: null,
+      submittedAt: new Date('2026-01-01T00:00:00Z'),
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      pointsSnapshots: [],
+      currentReviewState: { currentStage: 'client_summary_ready', lastDecision: 'ready_for_consultant_summary' },
+      riskFlags: [],
+      documents: [],
+      clientCommunications: [],
+      consultationBookings: [{ id: 'booking-1', status: 'completed', csaIssued: true, depositPaid: true, createdAt: new Date('2026-01-02T00:00:00Z') }],
+      clearReports: [],
+      auditEvents: [{
+        id: 'audit-1',
+        eventType: 'status_transition_executed',
+        eventAt: new Date('2026-01-03T00:00:00Z'),
+        eventSource: 'staff_review_action',
+        relatedEntityType: 'staff_review',
+        metadata: { action: 'mark_client_onboarded', noClientCommunicationSent: true },
+        toValue: { status: 'ready_for_client_summary', stage: 'client_onboarded' },
+      }],
+    });
+
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const html = renderToStaticMarkup(jsx);
+
+    expect(html).toContain('Quick Workflow Actions');
+    expect(html).toContain('Final onboarding');
+    expect(html).toContain('Mark Client Onboarded');
+    expect(html).toContain('Use this only when the client has completed the required onboarding/payment step');
+    expect(html).toContain('Recommended after CSA issued and deposit paid.');
+    expect(html).toContain('Current stage: Client onboarded');
+    expect(html).toContain('Workflow updated: Client onboarded.');
+    expect(html).toContain('No client communication sent');
+  });
+
+  it('client onboarded action records audit note and does not send client communication', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1',
+      status: 'ready_for_client_summary',
+      currentReviewState: { currentStage: 'client_summary_ready', lastDecision: 'ready_for_consultant_summary' },
+      riskFlags: [],
+      consultationBookings: [{ id: 'booking-1', csaIssued: true, depositPaid: true }],
+    });
+
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1');
+    fd.set('action', 'mark_client_onboarded');
+    fd.set('presetReason', 'CSA issued and deposit paid');
+    fd.set('internalNote', 'ready for active matter setup');
+
+    await runInternalReviewAction(fd);
+
+    expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.PERFORM_INTERNAL_REVIEW_ACTIONS);
+    expect(mocks.updateSubmissionMock).toHaveBeenCalledWith({ where: { id: 'sub-1' }, data: { status: 'ready_for_client_summary' } });
+    expect(mocks.createAuditEventMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      eventType: 'status_transition_executed',
+      actorName: 'Jane Reviewer',
+      actorRole: 'senior_staff',
+      actorStaffUserId: 'staff-1',
+      internalNote: 'Client onboarded — CSA issued and deposit paid — ready for active matter setup',
+      toValue: { status: 'ready_for_client_summary', stage: 'client_onboarded' },
+      metadata: expect.objectContaining({
+        action: 'mark_client_onboarded',
+        finalWorkflowStage: 'client_onboarded',
+        noClientCommunicationSent: true,
+        csaIssuedDetected: true,
+        depositPaidDetected: true,
+        overrideReasonRequired: false,
+      }),
+    }) });
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
+  it('client onboarded jump-forward action records override-required audit metadata', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1',
+      status: 'submitted',
+      currentReviewState: { currentStage: 'intake_triage', lastDecision: 'manual_hold' },
+      riskFlags: [],
+      consultationBookings: [],
+    });
+
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1');
+    fd.set('action', 'mark_client_onboarded');
+    fd.set('presetReason', 'Manual override approved');
+    fd.set('internalNote', 'Boss approved jump-forward workflow');
+
+    await runInternalReviewAction(fd);
+
+    expect(mocks.createAuditEventMock).toHaveBeenCalledWith({ data: expect.objectContaining({
+      reason: 'Manual override approved — Boss approved jump-forward workflow',
+      metadata: expect.objectContaining({
+        action: 'mark_client_onboarded',
+        csaIssuedDetected: false,
+        depositPaidDetected: false,
+        overrideReasonRequired: true,
+      }),
+    }) });
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+  });
+
 });
