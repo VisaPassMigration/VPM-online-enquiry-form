@@ -27,10 +27,19 @@ Set these in Vercel Project Settings → Environment Variables:
 
 Optional depending on your use case:
 
-- `DIRECT_URL` (optional non-pooled DB connection)
+- `DIRECT_URL` (optional non-pooled DB connection; use it for Prisma migrate/deploy workflows when your primary runtime URL is pooled)
 - `EMAIL_PROVIDER`, `EMAIL_FROM`, and provider keys if you want real email sending
 - `CONSULTATION_BOOKING_URL`
 - `SEED_BOSS_ADMIN_EMAIL` (only needed if using seeding helper)
+
+
+## Neon / Prisma connection guidance
+
+For Vercel serverless runtime requests, set `DATABASE_URL` to the Neon pooled PostgreSQL connection string for the matching Vercel environment (Production, Preview, or Development). The app's Prisma datasource reads only `DATABASE_URL` at runtime, so staff login and intake writes depend on that value being reachable from Vercel.
+
+Use `DIRECT_URL` only for migration tooling if you keep a separate direct Neon connection string for Prisma migrate/deploy commands. The current Prisma schema does not read `DIRECT_URL`, so adding it alone will not fix runtime staff login connectivity.
+
+If staff login reports that the database is temporarily unavailable, check that the Neon project/branch is active, the Vercel environment has the intended `DATABASE_URL`, and the URL points to the correct database/branch for that deployment environment. Do not paste connection strings into logs, tickets, screenshots, or pull request text.
 
 ## Is a database required for `/intake` submit?
 
