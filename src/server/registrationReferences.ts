@@ -1,7 +1,7 @@
 const REGISTRATION_REFERENCE_PREFIX = 'VPM-REG';
 const DAILY_SEQUENCE_WIDTH = 4;
 
-type RegistrationReferenceTx = {
+export type RegistrationReferenceTx = {
   intakeSubmission: {
     findFirst: (args: {
       where: { registrationReference: { startsWith: string } };

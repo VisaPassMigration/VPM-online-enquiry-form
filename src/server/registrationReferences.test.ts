@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,7 +7,12 @@ import {
   fallbackRegistrationReference,
   formatRegistrationReference,
   nextRegistrationReference,
+  type RegistrationReferenceTx,
 } from './registrationReferences';
+
+const assertRegistrationReferenceTx = (_tx: RegistrationReferenceTx) => undefined;
+const assertPrismaTransactionClientCompatibility = (tx: Prisma.TransactionClient) => assertRegistrationReferenceTx(tx);
+void assertPrismaTransactionClientCompatibility;
 
 describe('registration references', () => {
   it('formats persisted registration references as VPM-REG-DDMMYY-XXXX', () => {
