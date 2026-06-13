@@ -339,18 +339,20 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <div>
           <p className="eyebrow">Internal staff workspace</p>
           <h1>Client Review Workspace</h1>
-          <p className="registration-reference-label">Registration Reference</p>
-          <p className="registration-reference-value">{registrationReference}</p>
-          {isFallbackRegistrationReference ? <p className="client-review-hero__secondary">Fallback reference shown for an older registration without a persisted reference.</p> : null}
           <h2>{clientName}{occupation !== 'Not provided' ? ` — ${occupation}` : ''}</h2>
+          <div className="registration-reference-card" aria-label="Registration reference">
+            <p className="registration-reference-label">Registration Reference</p>
+            <p className="registration-reference-value">{registrationReference}</p>
+          </div>
+          <p className="client-review-hero__submitted">Submitted: {displayDate(submittedDisplayDate)}</p>
           <details className="technical-details client-review-technical-details">
             <summary>Technical details</summary>
             <dl>
               <div><dt>Full submission UUID</dt><dd><input aria-label="Full submission UUID" readOnly value={submission.id} /></dd></div>
               <div><dt>Reference source</dt><dd>{isFallbackRegistrationReference ? 'Fallback derived from date and UUID suffix' : 'Persisted registration reference'}</dd></div>
+              {isFallbackRegistrationReference ? <div><dt>Fallback note</dt><dd>Legacy fallback reference — this record was created before permanent references were introduced.</dd></div> : null}
             </dl>
           </details>
-          <p>Submitted: {displayDate(submittedDisplayDate)}</p>
           <p><Link href="/dashboard">← Back to dashboard</Link></p>
         </div>
         <dl className="client-review-snapshot" aria-label="Client review snapshot">
