@@ -2630,3 +2630,226 @@ button[type='submit']:not(.secondary-btn):hover {
   align-items: center;
   gap: 0.5rem;
 }
+
+.client-review-summary {
+  display: grid;
+  min-height: 100%;
+  gap: 0.8rem;
+}
+
+.client-review-summary__topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.client-review-summary__topline h1 {
+  margin: 0.15rem 0 0;
+  color: var(--vpm-dark-blue);
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.client-review-identity {
+  margin: 0.15rem 0 0;
+  color: var(--vpm-dark-blue);
+  font-size: clamp(1.65rem, 3.5vw, 2.45rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.client-review-submitted {
+  margin: -0.25rem 0 0;
+  color: var(--vpm-navy-muted);
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+.client-review-back-link {
+  white-space: nowrap;
+  border-color: var(--vpm-border-strong);
+  color: var(--vpm-dark-blue);
+  box-shadow: 0 8px 18px rgba(12, 20, 32, 0.06);
+}
+
+.registration-reference-card {
+  max-width: 24rem;
+  border: 1px solid var(--vpm-border);
+  border-radius: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 248, 231, 0.7);
+}
+
+.client-review-technical-details {
+  justify-self: end;
+  align-self: end;
+  width: min(100%, 34rem);
+  margin-top: 0.15rem;
+  padding: 0.35rem 0.55rem;
+  background: transparent;
+  border-color: transparent;
+}
+
+.client-review-technical-details[open] {
+  padding: 0.65rem;
+  background: #f8fafc;
+  border-color: #e5e7eb;
+}
+
+.client-review-technical-details summary {
+  display: inline-flex;
+  width: auto;
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.client-review-snapshot {
+  gap: 0.85rem;
+  border-color: var(--vpm-border);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(255, 248, 231, 0.65));
+  box-shadow: var(--vpm-shadow-sm);
+}
+
+.risk-flag-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.risk-flag-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  border: 1px solid #e5e7eb;
+  border-left: 5px solid #f59e0b;
+  border-radius: 0.85rem;
+  padding: 0.85rem;
+  background: #ffffff;
+}
+
+.risk-flag-card strong {
+  color: var(--vpm-deep-navy);
+}
+
+.risk-flag-card p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+}
+
+.risk-flag-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.review-state-card-grid .review-state-card--primary {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+@media (max-width: 760px) {
+  .client-review-summary__topline,
+  .risk-flag-card {
+    display: block;
+  }
+
+  .client-review-back-link,
+  .risk-flag-card__badges {
+    margin-top: 0.7rem;
+  }
+
+  .client-review-technical-details {
+    justify-self: stretch;
+  }
+}
+
+.client-review-hero .client-review-identity {
+  margin: 0.15rem 0 0;
+  color: var(--vpm-dark-blue);
+  font-size: clamp(1.65rem, 3.5vw, 2.45rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.client-review-hero .registration-reference-label {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.client-review-hero .registration-reference-value {
+  margin: 0.15rem 0 0;
+  color: var(--vpm-dark-blue);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  letter-spacing: 0.03em;
+}
+
+.client-review-hero .client-review-hero__secondary {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  opacity: 1;
+}
+
+.client-review-side {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.client-review-summary .client-review-back-link {
+  justify-self: start;
+  width: fit-content;
+  margin-top: -0.15rem;
+}
+
+.client-review-side .client-review-technical-details {
+  justify-self: end;
+  width: auto;
+  max-width: min(100%, 34rem);
+  margin-top: 0;
+}
+
+.review-queue-client-action {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 10rem;
+}
+
+.review-queue-client-link {
+  color: var(--vpm-dark-blue);
+  font-weight: 900;
+  text-decoration: underline;
+  text-decoration-color: rgba(8, 50, 79, 0.28);
+  text-underline-offset: 0.18em;
+}
+
+.review-queue-client-link:hover {
+  color: var(--vpm-copper);
+  text-decoration-color: currentColor;
+}
+
+.review-queue-open-link {
+  justify-self: start;
+  padding: 0.32rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--vpm-dark-blue);
+  background: #fffdf7;
+  border-color: var(--vpm-border-strong);
+}
+
+@media (max-width: 760px) {
+  .client-review-side .client-review-technical-details {
+    justify-self: stretch;
+    width: 100%;
+  }
+}
