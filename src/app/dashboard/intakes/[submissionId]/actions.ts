@@ -172,6 +172,16 @@ export async function runInternalReviewAction(formData: FormData) {
         where: { submissionId, resolutionStatus: RiskResolutionStatus.open },
         data: { resolutionStatus: RiskResolutionStatus.under_review },
       });
+    } else if (action === 'mark_clear_preparation') {
+      nextStatus = SubmissionStatus.preliminary_points_review_in_progress;
+      decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
+      nextStage = ReviewStage.preliminary_points_review;
+      auditType = AuditEventType.status_transition_executed;
+    } else if (action === 'mark_senior_review_ready') {
+      nextStatus = SubmissionStatus.senior_review_in_progress;
+      decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
+      nextStage = ReviewStage.senior_consultant_check;
+      auditType = AuditEventType.status_transition_executed;
     } else if (action === 'mark_consultation_ready_internal') {
       const hasUnresolvedHighOrCriticalRisk = submission.riskFlags.some((flag) =>
         hasBlockingConsultationRisk(flag.severity, flag.resolutionStatus),

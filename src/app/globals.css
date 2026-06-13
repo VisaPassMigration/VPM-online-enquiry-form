@@ -2630,3 +2630,59 @@ button[type='submit']:not(.secondary-btn):hover {
   align-items: center;
   gap: 0.5rem;
 }
+
+.quick-workflow-actions {
+  border-color: #bfdbfe;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.quick-workflow-current-stage {
+  white-space: nowrap;
+}
+
+.quick-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.quick-workflow-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  border: 1px solid #dbeafe;
+  border-radius: 0.9rem;
+  padding: 0.85rem;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.quick-workflow-card h4 {
+  margin: 0;
+  color: var(--vpm-deep-navy);
+}
+
+.quick-workflow-card .button-row {
+  margin-top: 0.15rem;
+}
+
+.quick-workflow-reason-fields {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.quick-workflow-reason-fields label {
+  font-size: 0.82rem;
+  color: #334155;
+}
+
+.quick-workflow-reason-fields select,
+.quick-workflow-reason-fields textarea {
+  width: 100%;
+}
+
+.quick-workflow-nested-form {
+  display: grid;
+  gap: 0.65rem;
+}
