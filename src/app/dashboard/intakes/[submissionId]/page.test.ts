@@ -509,7 +509,9 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('value="6f36b53d-3f13-49ef-81e8-2ac6d75fabcd"');
     expect(html).toContain('Progressing to consultation');
     expect(html).toContain('Workflow Stage Snapshot');
-    expect(html).toContain('Current stage: Consultation invite');
+    expect(html).toContain('Quick Workflow Movement Controls');
+    expect(html).not.toContain('Current stage: Consultation invite');
+    expect(html).not.toContain('Next workflow stage:');
     expect(html).toContain('Upcoming / not started');
     expect(html).toContain('Case Quality Snapshot');
     expect(html).toContain('Strong indicators');

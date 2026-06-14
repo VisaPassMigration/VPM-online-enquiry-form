@@ -389,8 +389,6 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   const clientName = clientNameFromPayload(payload);
   const occupation = occupationFromPayload(payload);
   const workflowStageIndex = stageRankForSubmission(submission);
-  const currentWorkflowStage = WORKFLOW_STAGES[workflowStageIndex];
-  const currentWorkflowStageLegacyText = `${currentWorkflowStage.label.slice(0, 1)}${currentWorkflowStage.label.slice(1).toLowerCase()}`;
   const activeRiskFlagCount = submission.riskFlags.length;
   const nextStageAction = nextStageActionForSubmission(submission, workflowStageIndex, activeRiskFlagCount);
   const latestClearReport = submission.clearReports?.[0];
@@ -459,14 +457,11 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           <input type="hidden" name="submissionId" value={submission.id} />
           <div className="workflow-stage-action-card">
             <div>
-              <h4>Workflow movement controls</h4>
-              <p aria-label={`Current stage: ${currentWorkflowStageLegacyText}`}><strong>Current stage:</strong> {currentWorkflowStage.label}</p>
-              <p><strong>Next workflow stage:</strong> {nextStageAction.nextStage.label}</p>
-              <p className="form-helper">{nextStageAction.helper}</p>
-              {latestStaffAction ? <p className="form-helper" role="status">Latest stage update recorded: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</p> : null}
+              <h4>Quick Workflow Movement Controls</h4>
+              {latestStaffAction ? <p className="form-helper workflow-stage-action-muted" role="status">Latest stage update recorded: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</p> : null}
             </div>
-            <div>
-              <label htmlFor="workflow-stage-reason"><strong>Reason</strong></label>
+            <div className="workflow-stage-action-fields">
+              <label className="workflow-stage-field" htmlFor="workflow-stage-reason"><span>Reason</span>
               <select id="workflow-stage-reason" name="presetReason" defaultValue="Stage completed">
                 <option value="Stage completed">Stage completed</option>
                 <option value="Incorrect stage selected">Incorrect stage selected</option>
@@ -479,13 +474,15 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 <option value="Test registration correction">Test registration correction</option>
                 <option value="Other">Other</option>
               </select>
-              <label htmlFor="quick-stage-note"><strong>Optional internal note</strong></label>
+              </label>
+              <label className="workflow-stage-field" htmlFor="quick-stage-note"><span>Optional internal note</span>
               <textarea id="quick-stage-note" name="internalNote" rows={2} placeholder="Optional audit note for this stage movement" />
-              <div className="button-row action-button-row">
-                <ActionSubmitButton className="button-primary button-small" pendingLabel="Moving stage…" name="action" value={nextStageAction.action} disabled={nextStageAction.disabled || !nextStageAction.action}>Move to next workflow stage</ActionSubmitButton>
-                <ActionSubmitButton className="button-secondary button-small" pendingLabel="Moving stage…" name="action" value="" disabled>Move back workflow stage</ActionSubmitButton>
+              </label>
+              <div className="button-row action-button-row workflow-stage-button-row">
+                <ActionSubmitButton className="button-primary button-small" pendingLabel="Moving stage…" name="action" value={nextStageAction.action} disabled={nextStageAction.disabled || !nextStageAction.action}>Move to Next Workflow Stage</ActionSubmitButton>
+                <ActionSubmitButton className="button-secondary button-small" pendingLabel="Moving stage…" name="action" value="" disabled>Move Back Workflow Stage</ActionSubmitButton>
               </div>
-              <p className="form-helper">Backward movement is visible for staff orientation but disabled until it can be routed through a safe audited workflow path for every derived stage.</p>
+              <p className="form-helper workflow-stage-action-muted">Move back remains disabled until the safe audit path is available.</p>
             </div>
           </div>
         </form>
