@@ -149,7 +149,7 @@ const WORKFLOW_STAGES = [
   { key: 'lead_rating_confirmed', label: 'Lead Rating Confirmed', description: 'Staff has confirmed internal Lead quality rating before proceeding to next stage' },
   { key: 'clear_preparation', label: 'C.L.E.A.R Preparation', description: 'Preliminary Assessment and Skilled Migration Strategy started.' },
   { key: 'senior_review', label: 'Senior Review', description: 'Senior Team Member reviews case before booking a consultation' },
-  { key: 'consultation_invite', label: 'Consultation Invite', description: 'Staff has sent consultation invitation to Potential Client' },
+  { key: 'consultation_invite', label: 'Consultation Invite', description: 'Ready to prepare/send consultation invitation; no invitation is sent automatically by entering this stage' },
   { key: 'consultation_completed', label: 'Consultation Completed', description: 'Consultation has been completed and next steps have been confirmed with Client' },
   { key: 'csa_issued', label: 'CSA Issued', description: 'Client Service Agreement has been issued after consultation' },
   { key: 'deposit_paid', label: 'CSA Signed + Deposit Paid', description: 'Client has signed CSA & Paid deposit' },
