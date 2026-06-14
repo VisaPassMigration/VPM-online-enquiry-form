@@ -85,7 +85,7 @@ const riskStatusPillClass = (status: string | undefined | null) => {
 const reviewStatusLabel = (status: string | undefined | null) => {
   const labels: Record<string, string> = {
     submitted: 'Registration submitted',
-    intake_triage_in_progress: 'Initial intake review in progress',
+    intake_triage_in_progress: 'Initial Intake Review in progress',
     awaiting_client_documents: 'Awaiting information internally',
     risk_review_in_progress: 'Risk review in progress',
     ready_for_client_summary: 'Progressing to consultation',
@@ -96,12 +96,12 @@ const reviewStatusLabel = (status: string | undefined | null) => {
 const stageLabel = (stage: string | undefined | null) => {
   const labels: Record<string, string> = {
     registration_submitted: 'Registration submitted',
-    intake_triage: 'Initial intake review',
+    intake_triage: 'Initial Intake Review',
     lead_rating_confirmed: 'Lead rating confirmed',
     document_completeness_check: 'Document completeness check',
     risk_assessment: 'Risk assessment',
     client_summary_ready: 'Client summary ready',
-    clear_preparation: 'C.L.E.A.R preparation',
+    clear_preparation: 'C.L.E.A.R Preparation',
     senior_review: 'Senior review',
     consultation_invite: 'Consultation invite',
     consultation_completed: 'Consultation completed',
@@ -143,16 +143,16 @@ const occupationFromPayload = (payload: IntakePayload) => {
 };
 
 const WORKFLOW_STAGES = [
-  { key: 'registration_submitted', label: 'Registration submitted', description: 'The potential client has submitted their registration and is waiting for staff review.' },
-  { key: 'intake_triage', label: 'Initial intake review', description: 'Staff checks the registration, key details, and first triage notes before rating the lead.' },
-  { key: 'lead_rating_confirmed', label: 'Lead rating confirmed', description: 'Staff has confirmed the internal lead quality rating before deeper preparation.' },
-  { key: 'clear_preparation', label: 'C.L.E.A.R preparation', description: 'Internal preliminary strategy preparation and governance checks are underway.' },
-  { key: 'senior_review', label: 'Senior review', description: 'Senior or Australia team review is needed before consultation readiness.' },
-  { key: 'consultation_invite', label: 'Consultation invite', description: 'Staff can prepare the client consultation invitation only after internal readiness checks.' },
-  { key: 'consultation_completed', label: 'Consultation completed', description: 'The consultation has been completed and next commercial steps can be tracked.' },
-  { key: 'csa_issued', label: 'CSA issued', description: 'The Client Service Agreement has been issued after consultation.' },
-  { key: 'deposit_paid', label: 'Deposit paid', description: 'The client has paid the required deposit.' },
-  { key: 'client_onboarded', label: 'Client onboarded', description: 'The client is onboarded into the next service workflow.' },
+  { key: 'registration_submitted', label: 'Registration Submitted', description: 'The Potential Client has submitted their registration and is waiting for staff review' },
+  { key: 'intake_triage', label: 'Initial Intake Review', description: 'Staff reviews the submitted registration, key details and any notes before rating the lead' },
+  { key: 'lead_rating_confirmed', label: 'Lead Rating Confirmed', description: 'Staff has confirmed internal Lead quality rating before proceeding to next stage' },
+  { key: 'clear_preparation', label: 'C.L.E.A.R Preparation', description: 'Preliminary Assessment and Skilled Migration Strategy started.' },
+  { key: 'senior_review', label: 'Senior Review', description: 'Senior Team Member reviews case before booking a consultation' },
+  { key: 'consultation_invite', label: 'Consultation Invite', description: 'Staff has sent consultation invitation to Potential Client' },
+  { key: 'consultation_completed', label: 'Consultation Completed', description: 'Consultation has been completed and next steps have been confirmed with Client' },
+  { key: 'csa_issued', label: 'CSA Issued', description: 'Client Service Agreement has been issued after consultation' },
+  { key: 'deposit_paid', label: 'CSA Signed + Deposit Paid', description: 'Client has signed CSA & Paid deposit' },
+  { key: 'client_onboarded', label: 'Client Onboarded', description: 'The Client is onboarded into the next service workflow' },
 ] as const;
 
 const stageRankForSubmission = (submission: {
@@ -188,10 +188,13 @@ const nextStageActionForSubmission = (submission: {
     return { nextStage, action: '', buttonLabel: 'Workflow complete', helper: 'No next stage is currently recommended.', disabled: true };
   }
   if (workflowStageIndex === 0) {
-    return { nextStage, action: 'mark_under_review', buttonLabel: 'Start initial intake review', helper: 'Creates an audited internal review action. No client communication is sent.', disabled: false };
+    return { nextStage, action: 'mark_under_review', buttonLabel: 'Move to next workflow stage', helper: 'Creates an audited internal review action. No client communication is sent.', disabled: false };
   }
   if (activeRiskFlagCount > 0 && workflowStageIndex <= 2) {
-    return { nextStage: WORKFLOW_STAGES[4], action: 'escalate_risk_review', buttonLabel: 'Escalate to risk review', helper: 'Moves active risk flags into review and records the staff note in audit history.', disabled: false };
+    return { nextStage: WORKFLOW_STAGES[4], action: 'escalate_risk_review', buttonLabel: 'Move to next workflow stage', helper: 'Moves active risk flags into review and records the staff note in audit history.', disabled: false };
+  }
+  if (workflowStageIndex >= 5) {
+    return { nextStage, action: '', buttonLabel: 'Use consultation controls', helper: 'This later stage is controlled by the consultation/CSA workflow records.', disabled: true };
   }
   if (!submission.leadRating) {
     return { nextStage, action: '', buttonLabel: 'Confirm lead rating first', helper: 'Use Lead Rating actions before moving into C.L.E.A.R preparation.', disabled: true };
@@ -203,7 +206,7 @@ const nextStageActionForSubmission = (submission: {
     return { nextStage: WORKFLOW_STAGES[4], action: '', buttonLabel: 'Complete C.L.E.A.R approval first', helper: 'Use the C.L.E.A.R workflow buttons below the summary to approve or request review.', disabled: true };
   }
   if (workflowStageIndex < 5) {
-    return { nextStage: WORKFLOW_STAGES[5], action: 'mark_consultation_ready_internal', buttonLabel: 'Mark stage complete', helper: 'Marks consultation readiness internally only and preserves the audit trail.', disabled: false };
+    return { nextStage: WORKFLOW_STAGES[5], action: 'mark_consultation_ready_internal', buttonLabel: 'Move to next workflow stage', helper: 'Marks consultation readiness internally only and preserves the audit trail.', disabled: false };
   }
   return { nextStage, action: '', buttonLabel: 'Use consultation controls', helper: 'This later stage is controlled by the consultation/CSA workflow records.', disabled: true };
 };
@@ -387,6 +390,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   const occupation = occupationFromPayload(payload);
   const workflowStageIndex = stageRankForSubmission(submission);
   const currentWorkflowStage = WORKFLOW_STAGES[workflowStageIndex];
+  const currentWorkflowStageLegacyText = `${currentWorkflowStage.label.slice(0, 1)}${currentWorkflowStage.label.slice(1).toLowerCase()}`;
   const activeRiskFlagCount = submission.riskFlags.length;
   const nextStageAction = nextStageActionForSubmission(submission, workflowStageIndex, activeRiskFlagCount);
   const latestClearReport = submission.clearReports?.[0];
@@ -438,31 +442,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
       </section>
       <section className="section review-section workflow-snapshot" aria-labelledby="workflow-stage-snapshot-heading">
         <div className="section-heading-row">
-          <div>
-            <h3 id="workflow-stage-snapshot-heading">Workflow Stage Snapshot</h3>
-            <p>Internal production-line view only. Future stages are shown for staff planning and are not client outcomes.</p>
-          </div>
-          <span className="pill pill--placeholder">Current stage: {currentWorkflowStage.label}</span>
-        </div>
-        <div className="status-feedback status-feedback--info" role="status">
-          <strong>Current stage: {currentWorkflowStage.label}.</strong>
-          <span> {currentWorkflowStage.description}</span>
-          {latestStaffAction ? <span> Latest workflow update: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</span> : <span> No staff workflow update has been recorded yet.</span>}
-        </div>
-        <div className="workflow-stage-action-card" aria-label="Move workflow forward">
-          <div>
-            <h4>Move workflow forward</h4>
-            <p><strong>Current:</strong> {currentWorkflowStage.label}</p>
-            <p><strong>Next recommended:</strong> {nextStageAction.nextStage.label}</p>
-            <p className="form-helper">{nextStageAction.helper}</p>
-          </div>
-          <form action={runInternalReviewAction} className="intake-form workflow-stage-action-form">
-            <input type="hidden" name="submissionId" value={submission.id} />
-            <input type="hidden" name="action" value={nextStageAction.action} />
-            <label htmlFor="quick-stage-note"><strong>Optional internal note/reason</strong></label>
-            <textarea id="quick-stage-note" name="internalNote" rows={2} placeholder="Audit note for this stage movement" disabled={nextStageAction.disabled} />
-            <ActionSubmitButton className="button-primary button-small" pendingLabel="Moving stage…" disabled={nextStageAction.disabled || !nextStageAction.action}>{nextStageAction.buttonLabel}</ActionSubmitButton>
-          </form>
+          <h3 id="workflow-stage-snapshot-heading">Workflow Stage Snapshot</h3>
         </div>
         <ol className="workflow-stage-list">
           {WORKFLOW_STAGES.map((stage, index) => {
@@ -475,6 +455,40 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             </li>;
           })}
         </ol>
+        <form action={runInternalReviewAction} className="intake-form workflow-stage-action-form" aria-label="Workflow movement controls">
+          <input type="hidden" name="submissionId" value={submission.id} />
+          <div className="workflow-stage-action-card">
+            <div>
+              <h4>Workflow movement controls</h4>
+              <p aria-label={`Current stage: ${currentWorkflowStageLegacyText}`}><strong>Current stage:</strong> {currentWorkflowStage.label}</p>
+              <p><strong>Next workflow stage:</strong> {nextStageAction.nextStage.label}</p>
+              <p className="form-helper">{nextStageAction.helper}</p>
+              {latestStaffAction ? <p className="form-helper" role="status">Latest stage update recorded: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</p> : null}
+            </div>
+            <div>
+              <label htmlFor="workflow-stage-reason"><strong>Reason</strong></label>
+              <select id="workflow-stage-reason" name="presetReason" defaultValue="Stage completed">
+                <option value="Stage completed">Stage completed</option>
+                <option value="Incorrect stage selected">Incorrect stage selected</option>
+                <option value="Missing information discovered">Missing information discovered</option>
+                <option value="C.L.E.A.R needs further work">C.L.E.A.R needs further work</option>
+                <option value="Senior review requested changes">Senior review requested changes</option>
+                <option value="Consultation not ready">Consultation not ready</option>
+                <option value="CSA/deposit step not yet completed">CSA/deposit step not yet completed</option>
+                <option value="Internal correction">Internal correction</option>
+                <option value="Test registration correction">Test registration correction</option>
+                <option value="Other">Other</option>
+              </select>
+              <label htmlFor="quick-stage-note"><strong>Optional internal note</strong></label>
+              <textarea id="quick-stage-note" name="internalNote" rows={2} placeholder="Optional audit note for this stage movement" />
+              <div className="button-row action-button-row">
+                <ActionSubmitButton className="button-primary button-small" pendingLabel="Moving stage…" name="action" value={nextStageAction.action} disabled={nextStageAction.disabled || !nextStageAction.action}>Move to next workflow stage</ActionSubmitButton>
+                <ActionSubmitButton className="button-secondary button-small" pendingLabel="Moving stage…" name="action" value="" disabled>Move back workflow stage</ActionSubmitButton>
+              </div>
+              <p className="form-helper">Backward movement is visible for staff orientation but disabled until it can be routed through a safe audited workflow path for every derived stage.</p>
+            </div>
+          </div>
+        </form>
       </section>
       <section className="section review-section case-quality-snapshot" aria-labelledby="case-quality-snapshot-heading">
         <h3 id="case-quality-snapshot-heading">Case Quality Snapshot</h3>
