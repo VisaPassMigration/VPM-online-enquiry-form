@@ -477,7 +477,7 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Actor name');
     expect(html).toContain('From rating');
     expect(html).toContain('To rating');
-    expect(html).toContain('Internal use only:');
+    expect(html).not.toContain('Internal use only: Lead ratings are staff triage classifications and must not be communicated to clients as assessment outcomes.');
     expect(html).not.toContain('Edit');
     expect(html).not.toContain('Delete');
     expect(html).not.toContain('assessment outcome for client');
@@ -536,7 +536,9 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('<dt>To rating</dt><dd>Hot</dd>');
     expect(html).not.toContain('{&quot;internalOnly&quot;:true');
     expect(html).not.toContain('lead_rating_changed');
-    expect(html).toContain('Internal use only:');
+    expect(html).not.toContain('Internal use only: Lead ratings are staff triage classifications and must not be communicated to clients as assessment outcomes.');
+    expect(html).toContain('Lead rating details');
+    expect(html).toContain('Show details');
     expect(html).toContain('This note is internal only and is used for audit history. It is not sent to the client.');
   });
 

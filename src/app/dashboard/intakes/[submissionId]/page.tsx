@@ -537,18 +537,19 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <div className="section-heading-row">
           <div>
             <h3>Lead Quality Rating</h3>
-            <p><strong>Internal use only:</strong> Lead ratings are staff triage classifications and must not be communicated to clients as assessment outcomes.</p>
           </div>
           <span className={`pill lead-rating-feature ${leadRatingPillClass(submission.leadRating)}`}>Confirmed: {leadRatingLabel(submission.leadRating)}</span>
         </div>
-        {renderRows([
-          ['System-suggested rating', leadRatingLabel(submission.leadRatingSuggested)],
-          ['Confirmed rating', leadRatingLabel(submission.leadRating)],
-          ['Confirmed by', submission.leadRatingConfirmedBy],
-          ['Confirmed timestamp', submission.leadRatingConfirmedAt ? displayDate(submission.leadRatingConfirmedAt) : 'Not provided'],
-          ['Rating reason', submission.leadRatingReason],
-          ['Suggested timestamp', submission.leadRatingSuggestedAt ? displayDate(submission.leadRatingSuggestedAt) : 'Not provided'],
-        ])}
+        <details className="history-details">
+          <summary>Lead rating details <span>Show details</span></summary>
+          {renderRows([
+            ['System-suggested rating', leadRatingLabel(submission.leadRatingSuggested)],
+            ['Confirmed by', submission.leadRatingConfirmedBy],
+            ['Confirmed timestamp', submission.leadRatingConfirmedAt ? displayDate(submission.leadRatingConfirmedAt) : 'Not provided'],
+            ['Rating reason', submission.leadRatingReason],
+            ['Suggested timestamp', submission.leadRatingSuggestedAt ? displayDate(submission.leadRatingSuggestedAt) : 'Not provided'],
+          ])}
+        </details>
         <details className="history-details">
           <summary>Lead rating history — {leadRatingHistory.length} {leadRatingHistory.length === 1 ? 'event' : 'events'} <span>Show history</span></summary>
           {leadRatingHistory.length === 0 ? <p>No lead rating history recorded yet.</p> : <div className="communication-timeline" aria-label="Lead rating history">
