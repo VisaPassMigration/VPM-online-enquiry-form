@@ -28,6 +28,11 @@ import {
   updateClearReportNotes,
 } from '@/server/clearReports';
 
+type StaffActionFeedbackState = {
+  status: 'idle' | 'success' | 'error' | 'unchanged';
+  message: string;
+};
+
 type ClientCommunicationActorRole = 'staff' | 'admin' | 'case_manager' | 'consultant' | 'reviewer' | 'system' | 'client';
 
 type StaffActorContext = {
@@ -79,6 +84,11 @@ async function recordAuditEventInTx(
   });
 }
 
+const leadRatingFeedbackLabel = (rating: LeadRating | string) => {
+  const value = String(rating || '').trim();
+  return value ? value[0].toUpperCase() + value.slice(1) : 'rating';
+};
+
 const hasBlockingConsultationRisk = (severity: RiskSeverity, status: RiskResolutionStatus) => {
   const severe = severity === RiskSeverity.high || severity === RiskSeverity.critical;
   const unresolved = status === RiskResolutionStatus.open || status === RiskResolutionStatus.under_review;
@@ -115,6 +125,14 @@ async function requireStaffActorContextForClientCommunication(permission: string
   return { ...actor, actorRole: mapClientCommunicationActorRole(actor.actorRole) };
 }
 
+function formDataFromActionArgs(first: FormData | StaffActionFeedbackState, second?: FormData) {
+  return second ?? first as FormData;
+}
+
+const actionSuccess = (message: string): StaffActionFeedbackState => ({ status: 'success', message });
+const actionError = (message: string): StaffActionFeedbackState => ({ status: 'error', message });
+const actionUnchanged = (message: string): StaffActionFeedbackState => ({ status: 'unchanged', message });
+
 function internalReasonFromForm(formData: FormData, fallback: string) {
   const note = String(formData.get('internalNote') ?? formData.get('internalReason') ?? formData.get('reason') ?? '').trim();
   const preset = String(formData.get('presetReason') ?? '').trim();
@@ -130,8 +148,9 @@ function resolveDocumentReviewEventType(action: string): AuditEventType {
   throw new Error(`Document review action validation failed: unknown action "${action}".`);
 }
 
-export async function runInternalReviewAction(formData: FormData) {
+export async function runInternalReviewAction(first: FormData | StaffActionFeedbackState, second?: FormData): Promise<StaffActionFeedbackState> {
   'use server';
+  const formData = formDataFromActionArgs(first, second);
   const actor = await requireStaffActorContext(PERMISSIONS.PERFORM_INTERNAL_REVIEW_ACTIONS);
 
   const submissionId = String(formData.get('submissionId') ?? '');
@@ -139,15 +158,21 @@ export async function runInternalReviewAction(formData: FormData) {
   const note = internalReasonFromForm(formData, 'Quick stage action from Workflow Stage Snapshot.');
   const { actorId, actorName, actorRole, actorStaffUserId } = actor;
 
-  if (!submissionId || !action || !note || !actorId) return;
+  if (!submissionId || !action || !note || !actorId) return actionError('Internal review action could not be recorded. Check the required fields and try again.');
 
-  await db.$transaction(async (tx) => {
+  let resultMessage = 'Internal review action recorded.';
+
+  try {
+    await db.$transaction(async (tx) => {
     const submission = await tx.intakeSubmission.findUnique({
       where: { id: submissionId },
       include: { currentReviewState: true, riskFlags: true },
     });
 
-    if (!submission) return;
+    if (!submission) {
+      resultMessage = 'Internal review action could not be recorded because the submission was not found.';
+      return;
+    }
 
     let nextStatus = submission.status;
     let nextStage = submission.currentReviewState?.currentStage ?? ReviewStage.intake_triage;
@@ -178,6 +203,7 @@ export async function runInternalReviewAction(formData: FormData) {
       );
 
       if (hasUnresolvedHighOrCriticalRisk) {
+        resultMessage = 'Risk review escalation was blocked: clear high or critical risk before marking consultation-ready internally.';
         await recordAuditEventInTx(tx, {
           submissionId,
           eventType: AuditEventType.consultation_invite_release_blocked_risk,
@@ -204,8 +230,19 @@ export async function runInternalReviewAction(formData: FormData) {
       decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
       nextStage = submission.currentReviewState?.currentStage ?? ReviewStage.intake_triage;
     } else {
+      resultMessage = 'Internal review action could not be recorded because the action was not recognised.';
       return;
     }
+
+    const statusLabel = nextStatus === SubmissionStatus.intake_triage_in_progress ? 'Initial Intake Review in Progress'
+      : nextStatus === SubmissionStatus.awaiting_client_documents ? 'Awaiting Information Internally'
+        : nextStatus === SubmissionStatus.risk_review_in_progress ? 'Risk Review in Progress'
+          : nextStatus === SubmissionStatus.ready_for_client_summary ? 'Ready for Client Summary'
+            : nextStatus;
+    if (action === 'add_internal_note') resultMessage = 'Internal note recorded.';
+    else if (action === 'request_more_information') resultMessage = 'More information request marked internally.';
+    else if (action === 'escalate_risk_review') resultMessage = 'Risk review escalation recorded.';
+    else resultMessage = `Status updated → ${statusLabel}.`;
 
     await tx.intakeSubmission.update({
       where: { id: submissionId },
@@ -248,6 +285,10 @@ export async function runInternalReviewAction(formData: FormData) {
   });
 
   revalidatePath(`/dashboard/intakes/${submissionId}`);
+    return resultMessage.startsWith('Internal review action could not') ? actionError(resultMessage) : actionSuccess(resultMessage);
+  } catch {
+    return actionError('Internal review action failed. Nothing was recorded; please try again.');
+  }
 }
 
 export async function runClientCommunicationAction(formData: FormData) {
@@ -539,32 +580,50 @@ export async function runDocumentReviewAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
-export async function runLeadRatingAction(formData: FormData) {
+export async function runLeadRatingAction(first: FormData | StaffActionFeedbackState, second?: FormData): Promise<StaffActionFeedbackState> {
   'use server';
+  const formData = formDataFromActionArgs(first, second);
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
   const reason = internalReasonFromForm(formData, '');
   const rating = String(formData.get('rating') ?? '').trim() as LeadRating;
   const actor = await requireStaffActorContext();
 
-  if (!submissionId || !action || !actor.actorId) return;
+  if (!submissionId || !action || !actor.actorId) return actionError('Rating action failed. Check the case and try again.');
 
-  if (action === 'suggest') {
-    await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING);
-    await suggestLeadRating({ submissionId, actor, reason });
+  try {
+    if (action === 'change') {
+      const existing = await db.intakeSubmission.findUnique({ where: { id: submissionId }, select: { leadRating: true } });
+      if (existing?.leadRating === rating) {
+        return actionUnchanged(`Already set to ${leadRatingFeedbackLabel(rating)} — no change made.`);
+      }
+    }
+
+    if (action === 'suggest') {
+      await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING);
+      await suggestLeadRating({ submissionId, actor, reason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      return actionSuccess('Suggested rating generated.');
+    }
+
+    if (action === 'confirm' && reason) {
+      await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING);
+      await confirmLeadRating({ submissionId, actor, rating, reason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      return actionSuccess(`Confirmed rating updated to ${leadRatingFeedbackLabel(rating)}.`);
+    }
+
+    if (action === 'change' && reason) {
+      await requirePermission(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING);
+      await changeLeadRating({ submissionId, actor, rating, reason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      return actionSuccess(`Confirmed rating updated to ${leadRatingFeedbackLabel(rating)}.`);
+    }
+
+    return actionError('Rating action failed. Add the required internal reason and try again.');
+  } catch {
+    return actionError('Rating action failed. Nothing was recorded; please try again.');
   }
-
-  if (action === 'confirm' && reason) {
-    await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING);
-    await confirmLeadRating({ submissionId, actor, rating, reason });
-  }
-
-  if (action === 'change' && reason) {
-    await requirePermission(PERMISSIONS.CHANGE_CONFIRMED_LEAD_RATING);
-    await changeLeadRating({ submissionId, actor, rating, reason });
-  }
-
-  revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
 export async function runGenerateClearReportDraftAction(formData: FormData) {
