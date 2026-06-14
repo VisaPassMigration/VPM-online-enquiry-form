@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 type ActionSubmitButtonProps = {
   children: React.ReactNode;
@@ -11,8 +11,12 @@ type ActionSubmitButtonProps = {
   disabled?: boolean;
 };
 
+export const StaffActionPendingContext = createContext<boolean | undefined>(undefined);
+
 export function ActionSubmitButton({ children, pendingLabel = 'Saving…', disabled = false, ...props }: ActionSubmitButtonProps) {
-  const [pending, setPending] = useState(false);
+  const formPending = useContext(StaffActionPendingContext);
+  const [localPending, setLocalPending] = useState(false);
+  const pending = formPending ?? localPending;
   const isDisabled = disabled || pending;
 
   return (
@@ -21,7 +25,9 @@ export function ActionSubmitButton({ children, pendingLabel = 'Saving…', disab
       disabled={isDisabled}
       aria-disabled={isDisabled}
       data-pending-label={pendingLabel}
-      onClick={() => setPending(true)}
+      onClick={() => {
+        if (formPending === undefined) setLocalPending(true);
+      }}
       {...props}
     >
       {pending ? pendingLabel : children}

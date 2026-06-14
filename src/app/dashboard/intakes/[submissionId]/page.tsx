@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { LeadRating, Prisma, RiskResolutionStatus } from '@prisma/client';
 import { ActionSubmitButton } from './ActionSubmitButton';
+import { StaffActionForm } from './StaffActionForm';
 
 import { db } from '@/server/db';
 import { displayRegistrationReference } from '@/server/registrationReferences';
@@ -453,7 +454,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             </li>;
           })}
         </ol>
-        <form action={runInternalReviewAction} className="intake-form workflow-stage-action-form" aria-label="Workflow movement controls">
+        <StaffActionForm action={runInternalReviewAction} className="intake-form workflow-stage-action-form" aria-label="Workflow movement controls">
           <input type="hidden" name="submissionId" value={submission.id} />
           <div className="workflow-stage-action-card">
             <div>
@@ -485,7 +486,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
               <p className="form-helper workflow-stage-action-muted">Move back remains disabled until the safe audit path is available.</p>
             </div>
           </div>
-        </form>
+        </StaffActionForm>
       </section>
       <section className="section review-section case-quality-snapshot" aria-labelledby="case-quality-snapshot-heading">
         <h3 id="case-quality-snapshot-heading">Case Quality Snapshot</h3>
@@ -573,7 +574,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             })}
           </div>}
         </details>
-        <form action={runLeadRatingAction} className="intake-form">
+        <StaffActionForm action={runLeadRatingAction} className="intake-form" currentRating={submission.leadRating}>
           <input type="hidden" name="submissionId" value={submission.id} />
           <label><strong>Internal file note / reason for rating decision</strong></label>
           <p className="form-helper">This note is internal only and is used for audit history. It is not sent to the client.</p>
@@ -585,11 +586,11 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           </select>
           <p className="form-helper">Generate Suggested Rating creates or updates a system suggestion only. Confirm Suggested Rating confirms the current suggested internal rating. Change Confirmed Rating manually changes the confirmed internal rating.</p>
           <div className="button-row action-button-row">
-            {canSuggestLeadRating ? <button className="button-secondary button-small" type="submit" name="action" value="suggest">Generate Suggested Rating</button> : null}
-            {canConfirmLeadRating ? <button className="button-primary button-small" type="submit" name="action" value="confirm">Confirm Suggested Rating</button> : null}
-            {canChangeLeadRating ? <button className="button-secondary button-small" type="submit" name="action" value="change">Change Confirmed Rating</button> : null}
+            {canSuggestLeadRating ? <ActionSubmitButton className="button-secondary button-small" pendingLabel="Updating rating…" name="action" value="suggest">Generate Suggested Rating</ActionSubmitButton> : null}
+            {canConfirmLeadRating ? <ActionSubmitButton className="button-primary button-small" pendingLabel="Updating rating…" name="action" value="confirm">Confirm Suggested Rating</ActionSubmitButton> : null}
+            {canChangeLeadRating ? <ActionSubmitButton className="button-secondary button-small" pendingLabel="Updating rating…" name="action" value="change">Change Confirmed Rating</ActionSubmitButton> : null}
           </div>
-        </form>
+        </StaffActionForm>
       </section> : null}
       {activeTab === 'overview' ? <section className="section dashboard-note" role="note" aria-label="Internal intake review note">
         <strong>Important:</strong> Internal review page only. No client outcome should be released without authorised human review.
@@ -602,19 +603,19 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           <strong>Status updated: {reviewStatusLabel(submission.status)}.</strong>
           <span> Internal review state updated successfully. Latest action: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</span>
         </div> : null}
-        <form action={runInternalReviewAction} className="intake-form">
+        <StaffActionForm action={runInternalReviewAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
           <label htmlFor="internal-note"><strong>Internal note</strong></label>
           <PresetReasonOptions options={['Routine workflow update', 'Client information follow-up', 'Risk review escalation', 'Consultation readiness check']} />
           <textarea id="internal-note" name="internalNote" rows={4} placeholder="Optional detail for audit history" />
           <div className="button-row">
-            <button type="submit" name="action" value="mark_under_review">Mark Under Review</button>
-            <button type="submit" name="action" value="request_more_information">Request More Information</button>
-            <button type="submit" name="action" value="escalate_risk_review">Escalate for Risk Review</button>
-            <button type="submit" name="action" value="add_internal_note">Add Internal Note</button>
-            <button type="submit" name="action" value="mark_consultation_ready_internal">Mark Consultation-Ready Internally</button>
+            <ActionSubmitButton pendingLabel="Updating status…" name="action" value="mark_under_review">Mark Under Review</ActionSubmitButton>
+            <ActionSubmitButton pendingLabel="Recording action…" name="action" value="request_more_information">Request More Information</ActionSubmitButton>
+            <ActionSubmitButton pendingLabel="Recording action…" name="action" value="escalate_risk_review">Escalate for Risk Review</ActionSubmitButton>
+            <ActionSubmitButton pendingLabel="Saving note…" name="action" value="add_internal_note">Add Internal Note</ActionSubmitButton>
+            <ActionSubmitButton pendingLabel="Updating status…" name="action" value="mark_consultation_ready_internal">Mark Consultation-Ready Internally</ActionSubmitButton>
           </div>
-        </form>
+        </StaffActionForm>
       </section> : null}
 
       {activeTab === 'clear' ? <section className="section review-section">

@@ -348,6 +348,36 @@ describe('intake dashboard actions', () => {
     expect(mocks.changeLeadRatingMock).toHaveBeenCalled();
   });
 
+
+  it('no-change confirmed lead rating returns visible feedback without submitting a change', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({ leadRating: 'hot' });
+    const change = new FormData();
+    change.set('submissionId', 'sub-1');
+    change.set('action', 'change');
+    change.set('reason', 'already hot');
+    change.set('rating', 'hot');
+
+    const result = await runLeadRatingAction(change);
+
+    expect(result).toEqual({ status: 'unchanged', message: 'Already set to Hot — no change made.' });
+    expect(mocks.changeLeadRatingMock).not.toHaveBeenCalled();
+    expect(mocks.createAuditEventMock).not.toHaveBeenCalled();
+  });
+
+  it('real confirmed lead rating change still submits and returns inline success feedback', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({ leadRating: 'warm' });
+    const change = new FormData();
+    change.set('submissionId', 'sub-1');
+    change.set('action', 'change');
+    change.set('reason', 'upgraded after review');
+    change.set('rating', 'hot');
+
+    const result = await runLeadRatingAction(change);
+
+    expect(result).toEqual({ status: 'success', message: 'Confirmed rating updated to Hot.' });
+    expect(mocks.changeLeadRatingMock).toHaveBeenCalled();
+  });
+
   it('lead rating actions do not trigger client communication', async () => {
     const suggest = new FormData();
     suggest.set('submissionId', 'sub-1');
@@ -594,6 +624,17 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Internal review actions');
     expect(html).toContain('Mark Under Review');
     expect(html).toContain('Current Review State');
+  });
+
+
+
+  it('renders staff action pending labels for lead rating and internal review actions', async () => {
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('data-pending-label="Updating rating…"');
+    expect(html).toContain('data-pending-label="Updating status…"');
+    expect(html).toContain('data-pending-label="Saving note…"');
+    expect(html).toContain('data-pending-label="Recording action…"');
   });
 
   it('staff tasks tab renders task controls and excludes internal review action labels', async () => {
