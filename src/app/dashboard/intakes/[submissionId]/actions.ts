@@ -136,7 +136,7 @@ export async function runInternalReviewAction(formData: FormData) {
 
   const submissionId = String(formData.get('submissionId') ?? '');
   const action = String(formData.get('action') ?? '');
-  const note = internalReasonFromForm(formData, '');
+  const note = internalReasonFromForm(formData, 'Quick stage action from Workflow Stage Snapshot.');
   const { actorId, actorName, actorRole, actorStaffUserId } = actor;
 
   if (!submissionId || !action || !note || !actorId) return;

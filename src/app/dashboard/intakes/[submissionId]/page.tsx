@@ -4,6 +4,7 @@ import { PERMISSIONS } from '@/server/auth/permissions';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { LeadRating, Prisma, RiskResolutionStatus } from '@prisma/client';
+import { ActionSubmitButton } from './ActionSubmitButton';
 
 import { db } from '@/server/db';
 import { displayRegistrationReference } from '@/server/registrationReferences';
@@ -84,7 +85,7 @@ const riskStatusPillClass = (status: string | undefined | null) => {
 const reviewStatusLabel = (status: string | undefined | null) => {
   const labels: Record<string, string> = {
     submitted: 'Registration submitted',
-    intake_triage_in_progress: 'Intake triage in progress',
+    intake_triage_in_progress: 'Initial Intake Review in progress',
     awaiting_client_documents: 'Awaiting information internally',
     risk_review_in_progress: 'Risk review in progress',
     ready_for_client_summary: 'Progressing to consultation',
@@ -95,12 +96,12 @@ const reviewStatusLabel = (status: string | undefined | null) => {
 const stageLabel = (stage: string | undefined | null) => {
   const labels: Record<string, string> = {
     registration_submitted: 'Registration submitted',
-    intake_triage: 'Intake triage',
+    intake_triage: 'Initial Intake Review',
     lead_rating_confirmed: 'Lead rating confirmed',
     document_completeness_check: 'Document completeness check',
     risk_assessment: 'Risk assessment',
     client_summary_ready: 'Client summary ready',
-    clear_preparation: 'CLEAR preparation',
+    clear_preparation: 'C.L.E.A.R Preparation',
     senior_review: 'Senior review',
     consultation_invite: 'Consultation invite',
     consultation_completed: 'Consultation completed',
@@ -142,16 +143,16 @@ const occupationFromPayload = (payload: IntakePayload) => {
 };
 
 const WORKFLOW_STAGES = [
-  { key: 'registration_submitted', label: 'Registration submitted' },
-  { key: 'intake_triage', label: 'Intake triage' },
-  { key: 'lead_rating_confirmed', label: 'Lead rating confirmed' },
-  { key: 'clear_preparation', label: 'CLEAR preparation' },
-  { key: 'senior_review', label: 'Senior review' },
-  { key: 'consultation_invite', label: 'Consultation invite' },
-  { key: 'consultation_completed', label: 'Consultation completed' },
-  { key: 'csa_issued', label: 'CSA issued' },
-  { key: 'deposit_paid', label: 'Deposit paid' },
-  { key: 'client_onboarded', label: 'Client onboarded' },
+  { key: 'registration_submitted', label: 'Registration Submitted', description: 'The Potential Client has submitted their registration and is waiting for staff review' },
+  { key: 'intake_triage', label: 'Initial Intake Review', description: 'Staff reviews the submitted registration, key details and any notes before rating the lead' },
+  { key: 'lead_rating_confirmed', label: 'Lead Rating Confirmed', description: 'Staff has confirmed internal Lead quality rating before proceeding to next stage' },
+  { key: 'clear_preparation', label: 'C.L.E.A.R Preparation', description: 'Preliminary Assessment and Skilled Migration Strategy started.' },
+  { key: 'senior_review', label: 'Senior Review', description: 'Senior Team Member reviews case before booking a consultation' },
+  { key: 'consultation_invite', label: 'Consultation Invite', description: 'Staff has sent consultation invitation to Potential Client' },
+  { key: 'consultation_completed', label: 'Consultation Completed', description: 'Consultation has been completed and next steps have been confirmed with Client' },
+  { key: 'csa_issued', label: 'CSA Issued', description: 'Client Service Agreement has been issued after consultation' },
+  { key: 'deposit_paid', label: 'CSA Signed + Deposit Paid', description: 'Client has signed CSA & Paid deposit' },
+  { key: 'client_onboarded', label: 'Client Onboarded', description: 'The Client is onboarded into the next service workflow' },
 ] as const;
 
 const stageRankForSubmission = (submission: {
@@ -174,6 +175,40 @@ const stageRankForSubmission = (submission: {
   if (submission.leadRating) return 2;
   if (stage === 'intake_triage' || submission.status === 'intake_triage_in_progress') return 1;
   return 0;
+};
+
+
+const nextStageActionForSubmission = (submission: {
+  leadRating?: LeadRating | null;
+  clearReports: Array<{ status: string }>;
+  consultationBookings: Array<{ status: string; csaIssued?: boolean | null; depositPaid?: boolean | null }>;
+}, workflowStageIndex: number, activeRiskFlagCount: number) => {
+  const nextStage = WORKFLOW_STAGES[Math.min(workflowStageIndex + 1, WORKFLOW_STAGES.length - 1)];
+  if (workflowStageIndex >= WORKFLOW_STAGES.length - 1) {
+    return { nextStage, action: '', buttonLabel: 'Workflow complete', helper: 'No next stage is currently recommended.', disabled: true };
+  }
+  if (workflowStageIndex === 0) {
+    return { nextStage, action: 'mark_under_review', buttonLabel: 'Move to next workflow stage', helper: 'Creates an audited internal review action. No client communication is sent.', disabled: false };
+  }
+  if (activeRiskFlagCount > 0 && workflowStageIndex <= 2) {
+    return { nextStage: WORKFLOW_STAGES[4], action: 'escalate_risk_review', buttonLabel: 'Move to next workflow stage', helper: 'Moves active risk flags into review and records the staff note in audit history.', disabled: false };
+  }
+  if (workflowStageIndex >= 5) {
+    return { nextStage, action: '', buttonLabel: 'Use consultation controls', helper: 'This later stage is controlled by the consultation/CSA workflow records.', disabled: true };
+  }
+  if (!submission.leadRating) {
+    return { nextStage, action: '', buttonLabel: 'Confirm lead rating first', helper: 'Use Lead Rating actions before moving into C.L.E.A.R preparation.', disabled: true };
+  }
+  if ((submission.clearReports ?? []).length === 0) {
+    return { nextStage: WORKFLOW_STAGES[3], action: '', buttonLabel: 'Generate C.L.E.A.R draft first', helper: 'Open the C.L.E.A.R tab to generate the internal draft; nothing is sent to the client.', disabled: true };
+  }
+  if (!(submission.clearReports ?? []).some((report) => report.status === 'approved_for_consultation')) {
+    return { nextStage: WORKFLOW_STAGES[4], action: '', buttonLabel: 'Complete C.L.E.A.R approval first', helper: 'Use the C.L.E.A.R workflow buttons below the summary to approve or request review.', disabled: true };
+  }
+  if (workflowStageIndex < 5) {
+    return { nextStage: WORKFLOW_STAGES[5], action: 'mark_consultation_ready_internal', buttonLabel: 'Move to next workflow stage', helper: 'Marks consultation readiness internally only and preserves the audit trail.', disabled: false };
+  }
+  return { nextStage, action: '', buttonLabel: 'Use consultation controls', helper: 'This later stage is controlled by the consultation/CSA workflow records.', disabled: true };
 };
 
 const indicativePointsRange = (points: number | undefined | null) => {
@@ -355,7 +390,11 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   const occupation = occupationFromPayload(payload);
   const workflowStageIndex = stageRankForSubmission(submission);
   const currentWorkflowStage = WORKFLOW_STAGES[workflowStageIndex];
+  const currentWorkflowStageLegacyText = `${currentWorkflowStage.label.slice(0, 1)}${currentWorkflowStage.label.slice(1).toLowerCase()}`;
   const activeRiskFlagCount = submission.riskFlags.length;
+  const nextStageAction = nextStageActionForSubmission(submission, workflowStageIndex, activeRiskFlagCount);
+  const latestClearReport = submission.clearReports?.[0];
+  const latestClearWorkflowAction = submission.auditEvents.find((event) => String(event.eventType).startsWith('clear_report_') || event.relatedEntityType === 'clear_report');
   const riskLabel = activeRiskFlagCount === 0 ? 'No active flags' : `${activeRiskFlagCount} active ${activeRiskFlagCount === 1 ? 'flag' : 'flags'}`;
   const missingItems = latestPoints?.missingItems ?? [];
   const latestStaffAction = submission.auditEvents.find((event) => event.eventSource === 'staff_review_action' || event.relatedEntityType === 'staff_review');
@@ -403,11 +442,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
       </section>
       <section className="section review-section workflow-snapshot" aria-labelledby="workflow-stage-snapshot-heading">
         <div className="section-heading-row">
-          <div>
-            <h3 id="workflow-stage-snapshot-heading">Workflow Stage Snapshot</h3>
-            <p>Internal production-line view only. Future stages are shown for staff planning and are not client outcomes.</p>
-          </div>
-          <span className="pill pill--placeholder">Current stage: {currentWorkflowStage.label}</span>
+          <h3 id="workflow-stage-snapshot-heading">Workflow Stage Snapshot</h3>
         </div>
         <ol className="workflow-stage-list">
           {WORKFLOW_STAGES.map((stage, index) => {
@@ -415,10 +450,45 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
             return <li key={stage.key} className={`workflow-stage workflow-stage--${state}`}>
               <span className="workflow-stage__number">{index + 1}</span>
               <span className="workflow-stage__label">{stage.label}</span>
+              <span className="workflow-stage__description">{stage.description}</span>
               <span className="workflow-stage__state">{state === 'complete' ? 'Complete internally' : state === 'current' ? 'Current stage' : 'Upcoming / not started'}</span>
             </li>;
           })}
         </ol>
+        <form action={runInternalReviewAction} className="intake-form workflow-stage-action-form" aria-label="Workflow movement controls">
+          <input type="hidden" name="submissionId" value={submission.id} />
+          <div className="workflow-stage-action-card">
+            <div>
+              <h4>Workflow movement controls</h4>
+              <p aria-label={`Current stage: ${currentWorkflowStageLegacyText}`}><strong>Current stage:</strong> {currentWorkflowStage.label}</p>
+              <p><strong>Next workflow stage:</strong> {nextStageAction.nextStage.label}</p>
+              <p className="form-helper">{nextStageAction.helper}</p>
+              {latestStaffAction ? <p className="form-helper" role="status">Latest stage update recorded: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</p> : null}
+            </div>
+            <div>
+              <label htmlFor="workflow-stage-reason"><strong>Reason</strong></label>
+              <select id="workflow-stage-reason" name="presetReason" defaultValue="Stage completed">
+                <option value="Stage completed">Stage completed</option>
+                <option value="Incorrect stage selected">Incorrect stage selected</option>
+                <option value="Missing information discovered">Missing information discovered</option>
+                <option value="C.L.E.A.R needs further work">C.L.E.A.R needs further work</option>
+                <option value="Senior review requested changes">Senior review requested changes</option>
+                <option value="Consultation not ready">Consultation not ready</option>
+                <option value="CSA/deposit step not yet completed">CSA/deposit step not yet completed</option>
+                <option value="Internal correction">Internal correction</option>
+                <option value="Test registration correction">Test registration correction</option>
+                <option value="Other">Other</option>
+              </select>
+              <label htmlFor="quick-stage-note"><strong>Optional internal note</strong></label>
+              <textarea id="quick-stage-note" name="internalNote" rows={2} placeholder="Optional audit note for this stage movement" />
+              <div className="button-row action-button-row">
+                <ActionSubmitButton className="button-primary button-small" pendingLabel="Moving stage…" name="action" value={nextStageAction.action} disabled={nextStageAction.disabled || !nextStageAction.action}>Move to next workflow stage</ActionSubmitButton>
+                <ActionSubmitButton className="button-secondary button-small" pendingLabel="Moving stage…" name="action" value="" disabled>Move back workflow stage</ActionSubmitButton>
+              </div>
+              <p className="form-helper">Backward movement is visible for staff orientation but disabled until it can be routed through a safe audited workflow path for every derived stage.</p>
+            </div>
+          </div>
+        </form>
       </section>
       <section className="section review-section case-quality-snapshot" aria-labelledby="case-quality-snapshot-heading">
         <h3 id="case-quality-snapshot-heading">Case Quality Snapshot</h3>
@@ -553,6 +623,23 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <h3>C.L.E.A.R</h3>
         <p><strong>Warning:</strong> C.L.E.A.R is an internal staff-reviewed preliminary strategy report. It must not be shared with clients until reviewed and approved through the authorised workflow.</p>
         <p><strong>Internal only:</strong> C.L.E.A.R workflow actions are internal governance steps only. Approval for consultation does not confirm any visa outcome and does not send the report to the client.</p>
+        <div className="clear-summary-card" aria-label="C.L.E.A.R status summary">
+          <div className="section-heading-row">
+            <div>
+              <h4>C.L.E.A.R status summary</h4>
+              <p>Compact internal-only summary so staff can review the current blocker and next action before scrolling into the full report.</p>
+            </div>
+            <span className="pill pill--placeholder">{latestClearReport ? humanizeValue(latestClearReport.status) : 'No draft yet'}</span>
+          </div>
+          <dl className="review-grid">
+            <div className="review-grid-row"><dt>Draft status</dt><dd>{latestClearReport ? humanizeValue(latestClearReport.status) : 'Not generated'}</dd></div>
+            <div className="review-grid-row"><dt>Preparation status</dt><dd>{latestClearReport?.preparedAt ? `Prepared ${displayDate(latestClearReport.preparedAt)}` : 'Preparation not marked complete'}</dd></div>
+            <div className="review-grid-row"><dt>Australia review status</dt><dd>{latestClearReport?.australiaReviewedAt ? `Completed ${displayDate(latestClearReport.australiaReviewedAt)}` : latestClearReport?.requiresAustraliaReview ? 'Required / pending' : 'Not currently required'}</dd></div>
+            <div className="review-grid-row"><dt>Approval status</dt><dd>{latestClearReport?.approvedAt ? `Approved ${displayDate(latestClearReport.approvedAt)}` : 'Not approved for consultation use'}</dd></div>
+            <div className="review-grid-row"><dt>Current blocker / next action</dt><dd>{!latestClearReport ? 'Generate an internal C.L.E.A.R draft.' : latestClearReport.requiresAustraliaReview && !latestClearReport.australiaReviewedAt ? 'Complete Australia review before approval.' : latestClearReport.status !== 'approved_for_consultation' ? 'Mark prepared or approve for internal consultation readiness.' : 'Approved internally; continue with consultation readiness workflow.'}</dd></div>
+          </dl>
+          {latestClearWorkflowAction ? <div className="status-feedback" role="status"><strong>Latest C.L.E.A.R update recorded.</strong><span> {auditEventLabel(String(latestClearWorkflowAction.eventType))} at {displayDate(latestClearWorkflowAction.eventAt)}. Audit/history remains visible below.</span></div> : null}
+        </div>
         {submission.clearReports.length === 0 ? <div className="status-feedback status-feedback--info">CLEAR preparation will be available after internal review is confirmed. No CLEAR is generated or sent automatically from this page.</div> : null}
         <ul>
           <li>Unresolved high/critical risk may require Australia review.</li>
@@ -612,6 +699,21 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 <div><dt>Reference dataset version</dt><dd>{referenceDatasetVersion || 'Not provided'}</dd></div>
               </dl>
               {datasetWarning ? <p><strong>Reference dataset warning:</strong> {datasetWarning}</p> : null}
+              {canMutateClear ? <form action={runClearWorkflowAction} className="intake-form clear-quick-actions">
+                <input type="hidden" name="submissionId" value={submission.id} />
+                <input type="hidden" name="clearReportId" value={report.id} />
+                <label><strong>Quick C.L.E.A.R action note/reason</strong></label>
+                <PresetReasonOptions options={['Routine CLEAR workflow update', 'Approved for consultation readiness', 'Australia review requested', 'Australia review completed', 'Boss override recorded']} />
+                <textarea name="internalReason" rows={2} placeholder="Internal audit note; not sent to the client" />
+                <p className="form-helper">Approval for consultation use is an internal readiness step only. It does not send the report to the client and does not confirm any visa outcome. These are internal governance actions only.</p>
+                <div className="button-row">
+                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="mark_prepared">Mark Prepared</ActionSubmitButton>
+                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="approve_for_consultation">Approve for Consultation Use (Internal)</ActionSubmitButton>
+                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="request_au_review">Request Australia Review</ActionSubmitButton>
+                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="complete_au_review">Complete Australia Review</ActionSubmitButton>
+                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="boss_override_approve">Boss Override Approval (Internal)</ActionSubmitButton>
+                </div>
+              </form> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
               <section className="section review-section">
                 <h5>Consultation Pack</h5>
                 <p><strong>Internal only warning:</strong> This Consultation Pack is an internal staff tool for structured discussion. It does not confirm any visa outcome and must not be treated as legal advice.</p>
@@ -650,21 +752,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                   ['Disclaimer', snapshot.disclaimer],
                 ].map(([title, value]) => renderClearPreviewSection(title, value))}
               </section>
-              {canMutateClear ? <form action={runClearWorkflowAction} className="intake-form">
-                <input type="hidden" name="submissionId" value={submission.id} />
-                <input type="hidden" name="clearReportId" value={report.id} />
-                <label><strong>Internal note/reason</strong></label>
-                <PresetReasonOptions options={['Routine CLEAR workflow update', 'Approved for consultation readiness', 'Australia review requested', 'Australia review completed', 'Boss override recorded']} />
-                <textarea name="internalReason" rows={3} placeholder="Optional detail for audit history" />
-                <p>Approval for consultation use is an internal readiness step only. It does not send the report to the client and does not confirm any visa outcome.</p>
-                <div className="button-row">
-                  <button type="submit" name="action" value="mark_prepared">Mark Prepared</button>
-                  <button type="submit" name="action" value="approve_for_consultation">Approve for Consultation Use (Internal)</button>
-                  <button type="submit" name="action" value="request_au_review">Request Australia Review</button>
-                  <button type="submit" name="action" value="complete_au_review">Complete Australia Review</button>
-                  <button type="submit" name="action" value="boss_override_approve">Boss Override Approval (Internal)</button>
-                </div>
-              </form> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
+              <p className="form-helper">C.L.E.A.R workflow action buttons are repeated near the top of this report card to reduce scrolling.</p>
               <h5>Internal C.L.E.A.R editable report preview</h5>
               <p><strong>Safe language reminder:</strong> C.L.E.A.R preview language must remain preliminary, indicative, and subject to review. Do not use it as a visa outcome or guarantee.</p>
               <section className="section review-section">
