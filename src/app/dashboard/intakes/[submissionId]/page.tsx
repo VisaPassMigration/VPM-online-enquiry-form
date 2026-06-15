@@ -104,6 +104,7 @@ const stageLabel = (stage: string | undefined | null) => {
     client_summary_ready: 'Client summary ready',
     clear_preparation: 'C.L.E.A.R Preparation',
     senior_review: 'Senior review',
+    senior_consultant_check: 'Senior Review',
     consultation_invite: 'Consultation invite',
     consultation_completed: 'Consultation completed',
     csa_issued: 'CSA issued',
@@ -171,7 +172,8 @@ const stageRankForSubmission = (submission: {
   if (consultationBookings.some((booking) => booking.status === 'completed')) return 6;
   if (consultationBookings.length > 0) return 5;
   if (stage === 'client_summary_ready' || submission.status === 'ready_for_client_summary') return 5;
-  if (clearReports.some((report) => report.status === 'approved_for_consultation')) return 4;
+  if (stage === 'senior_consultant_check' || submission.status === 'senior_review_in_progress') return 4;
+  if (clearReports.some((report) => report.status === 'approved_for_consultation')) return 3;
   if (clearReports.length > 0) return 3;
   if (submission.leadRating) return 2;
   if (stage === 'intake_triage' || submission.status === 'intake_triage_in_progress') return 1;
@@ -206,8 +208,11 @@ const nextStageActionForSubmission = (submission: {
   if (!(submission.clearReports ?? []).some((report) => report.status === 'approved_for_consultation')) {
     return { nextStage: WORKFLOW_STAGES[4], action: '', buttonLabel: 'Complete C.L.E.A.R approval first', helper: 'Use the C.L.E.A.R workflow buttons below the summary to approve or request review.', disabled: true };
   }
-  if (workflowStageIndex < 5) {
-    return { nextStage: WORKFLOW_STAGES[5], action: 'mark_consultation_ready_internal', buttonLabel: 'Move to next workflow stage', helper: 'Marks consultation readiness internally only and preserves the audit trail.', disabled: false };
+  if (workflowStageIndex === 3) {
+    return { nextStage: WORKFLOW_STAGES[4], action: 'send_for_senior_review', buttonLabel: 'Send for Senior Review', helper: 'Sends this case to the required Senior Review governance gate. No client communication is sent.', disabled: false };
+  }
+  if (workflowStageIndex === 4) {
+    return { nextStage: WORKFLOW_STAGES[5], action: 'mark_consultation_ready_internal', buttonLabel: 'Mark Consultation Ready', helper: 'Marks consultation readiness internally only and preserves the audit trail. No invitation is sent automatically.', disabled: false };
   }
   return { nextStage, action: '', buttonLabel: 'Use consultation controls', helper: 'This later stage is controlled by the consultation/CSA workflow records.', disabled: true };
 };

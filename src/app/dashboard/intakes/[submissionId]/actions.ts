@@ -197,7 +197,37 @@ export async function runInternalReviewAction(first: FormData | StaffActionFeedb
         where: { submissionId, resolutionStatus: RiskResolutionStatus.open },
         data: { resolutionStatus: RiskResolutionStatus.under_review },
       });
+    } else if (action === 'send_for_senior_review') {
+      nextStatus = SubmissionStatus.senior_review_in_progress;
+      decision = submission.currentReviewState?.lastDecision ?? ReviewDecision.manual_hold;
+      nextStage = ReviewStage.senior_consultant_check;
+      auditType = AuditEventType.status_transition_executed;
     } else if (action === 'mark_consultation_ready_internal') {
+      const seniorReviewReached = submission.status === SubmissionStatus.senior_review_in_progress
+        || submission.currentReviewState?.currentStage === ReviewStage.senior_consultant_check
+        || submission.status === SubmissionStatus.ready_for_client_summary
+        || submission.currentReviewState?.currentStage === ReviewStage.client_summary_ready;
+
+      if (!seniorReviewReached) {
+        resultMessage = 'Senior Review must be completed first.';
+        await recordAuditEventInTx(tx, {
+          submissionId,
+          eventType: AuditEventType.submission_updated,
+          actorId,
+          actorName,
+          actorRole,
+          actorStaffUserId,
+          relatedEntityType: 'staff_review',
+          fromValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
+          toValue: { status: submission.status, stage: submission.currentReviewState?.currentStage },
+          reason: 'Senior Review must be completed first.',
+          internalNote: note,
+          metadata: { action, internalOnly: true, blockedBySeniorReviewGate: true, actorStaffUserId },
+          eventSource: 'staff_review_action',
+        });
+        return;
+      }
+
       const hasUnresolvedHighOrCriticalRisk = submission.riskFlags.some((flag) =>
         hasBlockingConsultationRisk(flag.severity, flag.resolutionStatus),
       );
@@ -237,7 +267,8 @@ export async function runInternalReviewAction(first: FormData | StaffActionFeedb
     const statusLabel = nextStatus === SubmissionStatus.intake_triage_in_progress ? 'Initial Intake Review in Progress'
       : nextStatus === SubmissionStatus.awaiting_client_documents ? 'Awaiting Information Internally'
         : nextStatus === SubmissionStatus.risk_review_in_progress ? 'Risk Review in Progress'
-          : nextStatus === SubmissionStatus.ready_for_client_summary ? 'Ready for Client Summary'
+          : nextStatus === SubmissionStatus.senior_review_in_progress ? 'Senior Review'
+            : nextStatus === SubmissionStatus.ready_for_client_summary ? 'Ready for Client Summary'
             : nextStatus;
     if (action === 'add_internal_note') resultMessage = 'Internal note recorded.';
     else if (action === 'request_more_information') resultMessage = 'More information request marked internally.';
