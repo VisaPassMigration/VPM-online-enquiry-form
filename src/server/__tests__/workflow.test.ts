@@ -7,6 +7,14 @@ describe('workflow', () => {
     expect(() => validateWorkflowTransition('submitted', 'intake_triage_in_progress')).not.toThrow();
   });
 
+  it('routes C.L.E.A.R preparation through Senior Review before consultation readiness', () => {
+    expect(canTransition('preliminary_points_review_in_progress', 'senior_review_in_progress')).toBe(true);
+    expect(canTransition('preliminary_points_review_in_progress', 'ready_for_client_summary')).toBe(false);
+    expect(canTransition('senior_review_in_progress', 'ready_for_client_summary')).toBe(true);
+    expect(() => validateWorkflowTransition('preliminary_points_review_in_progress', 'ready_for_client_summary')).toThrow(/Unsafe transition/);
+    expect(() => validateWorkflowTransition('senior_review_in_progress', 'ready_for_client_summary')).not.toThrow();
+  });
+
   it('disallowed transitions fail', () => {
     expect(canTransition('draft', 'closed')).toBe(false);
     expect(() => validateWorkflowTransition('draft', 'closed')).toThrow(/Unsafe transition/);

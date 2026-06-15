@@ -364,7 +364,72 @@ describe('intake dashboard actions', () => {
     expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
   });
 
+  it('sending C.L.E.A.R preparation forward lands on Senior Review without client communication', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', status: 'preliminary_points_review_in_progress',
+      currentReviewState: { currentStage: 'preliminary_points_review', lastDecision: 'manual_hold' },
+      riskFlags: [],
+    });
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('action', 'send_for_senior_review');
+    formData.set('internalNote', 'C.L.E.A.R approved; governance review required.');
+
+    const result = await runInternalReviewAction(formData);
+
+    expect(result).toEqual({ status: 'success', message: 'Status updated → Senior Review.' });
+    expect(mocks.updateSubmissionMock).toHaveBeenCalledWith({
+      where: { id: 'sub-1' },
+      data: { status: 'senior_review_in_progress' },
+    });
+    expect(mocks.upsertReviewStateMock).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ currentStage: 'senior_consultant_check', lastDecision: 'manual_hold' }),
+    }));
+    expect(mocks.createAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventType: 'status_transition_executed',
+        metadata: expect.objectContaining({ action: 'send_for_senior_review', internalOnly: true }),
+      }),
+    }));
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks consultation-ready transition before Senior Review', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', status: 'preliminary_points_review_in_progress',
+      currentReviewState: { currentStage: 'preliminary_points_review', lastDecision: 'manual_hold' },
+      riskFlags: [],
+    });
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('action', 'mark_consultation_ready_internal');
+    formData.set('internalNote', 'Attempted early consultation readiness.');
+
+    const result = await runInternalReviewAction(formData);
+
+    expect(result).toEqual({ status: 'success', message: 'Senior Review must be completed first.' });
+    expect(mocks.updateSubmissionMock).not.toHaveBeenCalled();
+    expect(mocks.upsertReviewStateMock).not.toHaveBeenCalled();
+    expect(mocks.createStaffReviewMock).not.toHaveBeenCalled();
+    expect(mocks.createAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        reason: 'Senior Review must be completed first.',
+        metadata: expect.objectContaining({ action: 'mark_consultation_ready_internal', blockedBySeniorReviewGate: true }),
+      }),
+    }));
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
   it('marking consultation-ready internally is a readiness transition only and does not call client communication helpers', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', status: 'senior_review_in_progress',
+      currentReviewState: { currentStage: 'senior_consultant_check', lastDecision: 'manual_hold' },
+      riskFlags: [],
+    });
     const formData = new FormData();
     formData.set('submissionId', 'sub-1');
     formData.set('action', 'mark_consultation_ready_internal');
