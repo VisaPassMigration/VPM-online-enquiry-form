@@ -293,6 +293,104 @@ describe('intake dashboard actions', () => {
     expect(auditData.actorStaffUserId).toBe('staff-1');
   });
 
+  it('request more information is internal-only, audited, and does not call client communication helpers', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('action', 'request_more_information');
+    formData.set('internalNote', 'Need staff to verify missing passport evidence before progressing.');
+
+    const result = await runInternalReviewAction(formData);
+
+    expect(result).toEqual({ status: 'success', message: 'More information request marked internally.' });
+    expect(mocks.updateSubmissionMock).toHaveBeenCalledWith({
+      where: { id: 'sub-1' },
+      data: { status: 'awaiting_client_documents' },
+    });
+    expect(mocks.upsertReviewStateMock).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ currentStage: 'document_completeness_check', lastDecision: 'needs_more_documents' }),
+    }));
+    expect(mocks.createStaffReviewMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        decision: 'needs_more_documents',
+        internalNotes: 'Need staff to verify missing passport evidence before progressing.',
+      }),
+    }));
+    expect(mocks.createAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventType: 'status_transition_executed',
+        internalNote: 'Need staff to verify missing passport evidence before progressing.',
+        metadata: expect.objectContaining({ action: 'request_more_information', internalOnly: true }),
+      }),
+    }));
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
+  it('escalate for risk review is internal-only, audited, and does not call client communication helpers', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('action', 'escalate_risk_review');
+    formData.set('internalNote', 'Senior risk review required before any client-facing next step.');
+
+    const result = await runInternalReviewAction(formData);
+
+    expect(result).toEqual({ status: 'success', message: 'Risk review escalation recorded.' });
+    expect(mocks.updateSubmissionMock).toHaveBeenCalledWith({
+      where: { id: 'sub-1' },
+      data: { status: 'risk_review_in_progress' },
+    });
+    expect(mocks.updateManyRiskMock).toHaveBeenCalledWith({
+      where: { submissionId: 'sub-1', resolutionStatus: 'open' },
+      data: { resolutionStatus: 'under_review' },
+    });
+    expect(mocks.upsertReviewStateMock).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ currentStage: 'risk_assessment', lastDecision: 'needs_risk_clarification' }),
+    }));
+    expect(mocks.createStaffReviewMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        decision: 'needs_risk_clarification',
+        internalNotes: 'Senior risk review required before any client-facing next step.',
+      }),
+    }));
+    expect(mocks.createAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventType: 'status_transition_executed',
+        metadata: expect.objectContaining({ action: 'escalate_risk_review', internalOnly: true }),
+      }),
+    }));
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
+  it('marking consultation-ready internally is a readiness transition only and does not call client communication helpers', async () => {
+    const formData = new FormData();
+    formData.set('submissionId', 'sub-1');
+    formData.set('action', 'mark_consultation_ready_internal');
+    formData.set('internalNote', 'Checklist complete; prepare invite separately only if authorised.');
+
+    const result = await runInternalReviewAction(formData);
+
+    expect(result).toEqual({ status: 'success', message: 'Status updated → Ready for Client Summary.' });
+    expect(mocks.updateSubmissionMock).toHaveBeenCalledWith({
+      where: { id: 'sub-1' },
+      data: { status: 'ready_for_client_summary' },
+    });
+    expect(mocks.upsertReviewStateMock).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ currentStage: 'client_summary_ready', lastDecision: 'manual_hold' }),
+    }));
+    expect(mocks.createAuditEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventType: 'status_transition_executed',
+        metadata: expect.objectContaining({ action: 'mark_consultation_ready_internal', internalOnly: true }),
+      }),
+    }));
+    expect(mocks.createClientCommunicationDraftMock).not.toHaveBeenCalled();
+    expect(mocks.releaseRequestMoreInformationCommunicationMock).not.toHaveBeenCalled();
+    expect(mocks.releaseConsultationInvitationCommunicationMock).not.toHaveBeenCalled();
+  });
+
   it('accepted document writes document_accepted audit event', async () => {
     const fd = new FormData();
     fd.set('submissionId', 'sub-1'); fd.set('documentId', 'doc-1'); fd.set('action', 'accept'); fd.set('internalReason', 'all good'); fd.set('isRequired', 'true');
@@ -539,6 +637,8 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('value="6f36b53d-3f13-49ef-81e8-2ac6d75fabcd"');
     expect(html).toContain('Progressing to consultation');
     expect(html).toContain('Workflow Stage Snapshot');
+    expect(html).toContain('Ready to prepare/send consultation invitation; no invitation is sent automatically by entering this stage');
+    expect(html).not.toContain('Staff has sent consultation invitation to Potential Client');
     expect(html).toContain('Quick Workflow Movement Controls');
     expect(html).not.toContain('Current stage: Consultation invite');
     expect(html).not.toContain('Next workflow stage:');
