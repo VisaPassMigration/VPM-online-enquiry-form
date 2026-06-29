@@ -485,10 +485,10 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
               <textarea id="quick-stage-note" name="internalNote" rows={2} placeholder="Optional audit note for this stage movement" />
               </label>
               <div className="button-row action-button-row workflow-stage-button-row">
-                <ActionSubmitButton className="button-primary button-small" pendingLabel="Moving stage…" name="action" value={nextStageAction.action} disabled={nextStageAction.disabled || !nextStageAction.action}>Move to Next Workflow Stage</ActionSubmitButton>
+                <ActionSubmitButton className="button-primary button-small" pendingLabel="Moving stage…" name="action" value={nextStageAction.action} disabled={nextStageAction.disabled || !nextStageAction.action}>{nextStageAction.buttonLabel}</ActionSubmitButton>
                 <ActionSubmitButton className="button-secondary button-small" pendingLabel="Moving stage…" name="action" value="" disabled>Move Back Workflow Stage</ActionSubmitButton>
               </div>
-              <p className="form-helper workflow-stage-action-muted">Move back remains disabled until the safe audit path is available.</p>
+              <p className="form-helper workflow-stage-action-muted">{nextStageAction.helper} Move back remains disabled until the safe audit path is available.</p>
             </div>
           </div>
         </StaffActionForm>
@@ -539,7 +539,18 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
           ].map(([tab, label]) => <Link key={tab} className={`review-tab ${activeTab === tab ? 'review-tab--active' : ''}`} href={`/dashboard/intakes/${submission.id}?tab=${tab}#review-workspace-tabs`} scroll={false}>{label}</Link>)}
         </nav>
       </section>
-      {(activeTab === 'overview' || activeTab === 'lead-rating') && canViewLeadRating ? <section className="section review-section">
+      {activeTab === 'overview' && canViewLeadRating ? <section className="section review-section lead-rating-overview-summary" aria-labelledby="lead-rating-summary-heading">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Lead Rating</p>
+            <h3 id="lead-rating-summary-heading">Lead Rating Summary</h3>
+            <p className="form-helper">Compact triage status only. Open Lead Rating for rating details, history, and rating actions.</p>
+          </div>
+          <span className={`pill lead-rating-feature ${leadRatingPillClass(submission.leadRating)}`}>Confirmed: {leadRatingLabel(submission.leadRating)}</span>
+        </div>
+        <Link className="secondary-btn button-small" href={`/dashboard/intakes/${submission.id}?tab=lead-rating#review-workspace-tabs`} scroll={false}>Open Lead Rating</Link>
+      </section> : null}
+      {activeTab === 'lead-rating' && canViewLeadRating ? <section className="section review-section">
         <div className="section-heading-row">
           <div>
             <h3>Lead Quality Rating</h3>
@@ -601,24 +612,36 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
         <strong>Important:</strong> Internal review page only. No client outcome should be released without authorised human review.
         <p>These actions update internal workflow only. No client outcome is released from this page.</p>
       </section> : null}
-      {activeTab === 'overview' ? <section className="section review-section">
-        <h3>Internal Review Actions</h3>
-        <p><strong>Internal workflow only:</strong> Internal review actions update internal workflow status only. They do not send client communications, consultation invitations, or migration advice.</p>
+      {activeTab === 'overview' ? <section className="section review-section internal-review-actions">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">Stage-aware action centre</p>
+            <h3>Internal Review Actions</h3>
+            <p className="form-helper"><strong>Internal workflow only:</strong> Updates internal status only. No client communications, invitations, or migration advice are sent.</p>
+          </div>
+        </div>
         {latestStaffAction ? <div className="status-feedback" role="status">
           <strong>Status updated: {reviewStatusLabel(submission.status)}.</strong>
           <span> Internal review state updated successfully. Latest action: {auditEventLabel(String(latestStaffAction.eventType))} at {displayDate(latestStaffAction.eventAt)}.</span>
         </div> : null}
         <StaffActionForm action={runInternalReviewAction} className="intake-form">
           <input type="hidden" name="submissionId" value={submission.id} />
-          <label htmlFor="internal-note"><strong>Internal note</strong></label>
+          <label htmlFor="internal-note"><strong>Fast reason / internal note</strong></label>
           <PresetReasonOptions options={['Routine workflow update', 'Client information follow-up', 'Risk review escalation', 'Consultation readiness check']} />
-          <textarea id="internal-note" name="internalNote" rows={4} placeholder="Optional detail for audit history" />
-          <div className="button-row">
-            <ActionSubmitButton pendingLabel="Updating status…" name="action" value="mark_under_review">Mark Under Review</ActionSubmitButton>
-            <ActionSubmitButton pendingLabel="Recording action…" name="action" value="request_more_information">Request More Information</ActionSubmitButton>
-            <ActionSubmitButton pendingLabel="Recording action…" name="action" value="escalate_risk_review">Escalate for Risk Review</ActionSubmitButton>
-            <ActionSubmitButton pendingLabel="Saving note…" name="action" value="add_internal_note">Add Internal Note</ActionSubmitButton>
-            <ActionSubmitButton pendingLabel="Updating status…" name="action" value="mark_consultation_ready_internal">Mark Consultation-Ready Internally</ActionSubmitButton>
+          <textarea id="internal-note" name="internalNote" rows={2} placeholder="Optional audit detail" />
+          <div className="internal-review-action-layout">
+            <div className="internal-review-primary-action">
+              <span className="form-helper">Recommended next action</span>
+              <ActionSubmitButton className="button-primary" pendingLabel="Updating status…" name="action" value={nextStageAction.action || 'mark_under_review'} disabled={nextStageAction.disabled}>
+                {nextStageAction.buttonLabel}
+              </ActionSubmitButton>
+              <p className="form-helper">{nextStageAction.helper}</p>
+            </div>
+            <div className="button-row internal-review-secondary-actions" aria-label="Secondary internal review actions">
+              <ActionSubmitButton className="button-secondary button-small" pendingLabel="Recording action…" name="action" value="request_more_information">Request More Information</ActionSubmitButton>
+              <ActionSubmitButton className="button-secondary button-small" pendingLabel="Recording action…" name="action" value="escalate_risk_review">Escalate for Risk Review</ActionSubmitButton>
+              <ActionSubmitButton className="button-secondary button-small" pendingLabel="Saving note…" name="action" value="add_internal_note">Add Internal Note</ActionSubmitButton>
+            </div>
           </div>
         </StaffActionForm>
       </section> : null}

@@ -2622,6 +2622,42 @@ button[type='submit']:not(.secondary-btn):hover {
   border: 1px solid #1d4ed8;
 }
 
+
+.lead-rating-overview-summary {
+  border-left: 5px solid #1d4ed8;
+}
+
+.lead-rating-overview-summary .secondary-btn {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.internal-review-actions {
+  border-top: 4px solid #dbeafe;
+}
+
+.internal-review-action-layout {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.internal-review-primary-action {
+  border: 1px solid #bfdbfe;
+  border-radius: 0.9rem;
+  padding: 0.85rem;
+  background: #eff6ff;
+}
+
+.internal-review-primary-action .button-primary {
+  width: 100%;
+  justify-content: center;
+}
+
+.internal-review-secondary-actions {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.75rem;
+}
+
 .status-feedback {
   margin: 0.7rem 0;
   border: 1px solid #bfdbfe;
