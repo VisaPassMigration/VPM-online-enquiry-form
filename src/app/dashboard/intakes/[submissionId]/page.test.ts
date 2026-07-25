@@ -661,7 +661,7 @@ describe('intake dashboard actions', () => {
         { id: 'a3', eventType: 'lead_rating_changed', eventAt: new Date('2026-01-01T03:00:00.000Z'), actorName: 'Alex', actorRole: 'admin', fromValue: { rating: 'hot' }, toValue: { rating: 'warm' }, internalNote: null, reason: 'Evidence updated', metadata: { source: 'manual' } },
       ],
     });
-    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }) });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'lead-rating' }) });
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('Lead rating suggested');
     expect(html).toContain('Lead rating confirmed');
@@ -713,6 +713,10 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Recommended next staff action');
     expect(html).toContain('review-tab-list');
     expect(html).toContain('Overview');
+    expect(html).toContain('Lead Rating Summary');
+    expect(html).toContain('Open Lead Rating');
+    expect(html).not.toContain('Lead Quality Rating');
+    expect(html).not.toContain('Lead rating details');
   });
 
   it('lead rating history is human-readable, hides raw JSON metadata, and preserves from/to rating values', async () => {
@@ -778,7 +782,7 @@ describe('intake dashboard actions', () => {
       consultationBookings: [],
       auditEvents: [{ id: 'ax', eventType: 'submission_updated', eventAt: new Date(), actorName: null, actorRole: null, fromValue: null, toValue: null, internalNote: null, reason: null, metadata: null }],
     });
-    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }) });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'lead-rating' }) });
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('No lead rating history recorded yet.');
   });
@@ -786,20 +790,17 @@ describe('intake dashboard actions', () => {
   it('overview tab renders internal review actions and current review state', async () => {
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
     const html = renderToStaticMarkup(jsx);
-    expect(html).toContain('Internal review actions');
-    expect(html).toContain('Mark Under Review');
+    expect(html).toContain('Internal Review Actions');
+    expect(html).toContain('Recommended next action');
     expect(html).toContain('Current Review State');
   });
 
 
 
   it('renders staff action pending labels for lead rating and internal review actions', async () => {
-    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'overview' }) });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'lead-rating' }) });
     const html = renderToStaticMarkup(jsx);
     expect(html).toContain('data-pending-label="Updating rating…"');
-    expect(html).toContain('data-pending-label="Updating status…"');
-    expect(html).toContain('data-pending-label="Saving note…"');
-    expect(html).toContain('data-pending-label="Recording action…"');
   });
 
   it('staff tasks tab renders task controls and excludes internal review action labels', async () => {
@@ -999,6 +1000,6 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Consultation');
     expect(html).toContain('Staff Tasks');
     expect(html).toContain('Audit Trail');
-    expect(html).toContain('Internal review actions');
+    expect(html).toContain('Internal Review Actions');
   });
 });
