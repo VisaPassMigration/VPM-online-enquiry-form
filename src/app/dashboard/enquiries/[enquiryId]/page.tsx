@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { requirePermission } from '@/server/auth/requirePermission';
 import { PERMISSIONS } from '@/server/auth/permissions';
 import { db } from '@/server/db';
@@ -23,6 +23,7 @@ export default async function EnquiryDetailPage({
   });
 
   if (!enquiry) notFound();
+  if (enquiry.intakeSubmissionId) redirect(`/dashboard/intakes/${enquiry.intakeSubmissionId}`);
 
   const displayName = `${enquiry.firstName ?? ''} ${enquiry.lastName ?? ''}`.trim() || 'Not provided';
 

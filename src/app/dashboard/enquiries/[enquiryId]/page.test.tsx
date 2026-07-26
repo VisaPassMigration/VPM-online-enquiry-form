@@ -5,10 +5,12 @@ import { PERMISSIONS } from '@/server/auth/permissions';
 const mocks = vi.hoisted(() => ({
   requirePermission: vi.fn(),
   findUnique: vi.fn(),
+  redirect: vi.fn((url: string) => { throw new Error(`NEXT_REDIRECT:${url}`); }),
 }));
 
 vi.mock('@/server/auth/requirePermission', () => ({ requirePermission: mocks.requirePermission }));
 vi.mock('@/server/db', () => ({ db: { enquiry: { findUnique: mocks.findUnique } } }));
+vi.mock('next/navigation', () => ({ notFound: vi.fn(() => { throw new Error('NEXT_NOT_FOUND'); }), redirect: mocks.redirect }));
 
 describe('enquiry detail page', () => {
   beforeEach(() => {
@@ -38,6 +40,27 @@ describe('enquiry detail page', () => {
     await expect(page({ params: Promise.resolve({ enquiryId: 'e1' }) })).rejects.toThrow('blocked');
     expect(mocks.requirePermission).toHaveBeenCalledWith(PERMISSIONS.VIEW_DASHBOARD);
     expect(mocks.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('redirects to the intake detail page instead of rendering stale enquiry-only state when an intake submission now exists', async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: 'e1',
+      firstName: 'Ann',
+      lastName: 'Lee',
+      email: 'a@b.com',
+      phone: '0400 000 000',
+      enquirySource: 'Website',
+      enquiryMessage: 'Interested in skilled migration options.',
+      intendedPathway: 'Skilled',
+      countryOfResidence: 'Kenya',
+      nationality: 'Kenyan',
+      intakeSubmissionId: 'sub1',
+      createdAt: new Date('2026-05-19T00:00:00Z'),
+      updatedAt: new Date('2026-05-20T00:00:00Z'),
+      communications: [],
+    });
+    const page = (await import('./page')).default;
+    await expect(page({ params: Promise.resolve({ enquiryId: 'e1' }) })).rejects.toThrow('NEXT_REDIRECT:/dashboard/intakes/sub1');
   });
 
   it('renders the enquiry own fields and a clear not-yet-submitted label', async () => {
