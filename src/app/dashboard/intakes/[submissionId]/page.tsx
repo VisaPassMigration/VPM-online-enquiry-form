@@ -955,7 +955,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                   <div><dt>Consultation outcome</dt><dd>{booking.consultationOutcome || 'Not recorded'}</dd></div>
                   <div><dt>CSA recommended</dt><dd>{booking.csaRecommended === null ? 'Not recorded' : boolText(booking.csaRecommended ?? undefined)}</dd></div>
                   <div><dt>CSA issued</dt><dd>{boolText(booking.csaIssued)}</dd></div>
-                  <div><dt>Deposit paid</dt><dd>{boolText(booking.depositPaid)}</dd></div>
+                  <div><dt>Deposit paid</dt><dd>{booking.depositPaid && booking.depositPaidAt ? `Payment confirmed on ${displayDate(booking.depositPaidAt)}` : boolText(booking.depositPaid)}</dd></div>
                   <div><dt>Internal notes</dt><dd>{booking.notesInternal || 'Not recorded'}</dd></div>
                   <div><dt>Created</dt><dd>{displayDate(booking.createdAt)}</dd></div>
                   <div><dt>Updated</dt><dd>{displayDate(booking.updatedAt)}</dd></div>
@@ -971,7 +971,11 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                   <button type="submit" name="action" value="mark_cancelled">Mark Cancelled</button>
                   <button type="submit" name="action" value="mark_rescheduled">Mark Rescheduled</button>
                   <button type="submit" name="action" value="mark_csa_issued">Mark CSA Issued</button>
-                  <button type="submit" name="action" value="mark_deposit_paid">Mark Deposit Paid</button>
+                  {booking.depositPaid ? (
+                    <span className="pill pill--ok">Payment confirmed on {booking.depositPaidAt ? displayDate(booking.depositPaidAt) : 'date not recorded'}</span>
+                  ) : (
+                    <button type="submit" name="action" value="mark_deposit_paid">Mark payment received</button>
+                  )}
                 </form>
                 <form action={runConsultationBookingAction} className="intake-form">
                   <input type="hidden" name="submissionId" value={submission.id} />
