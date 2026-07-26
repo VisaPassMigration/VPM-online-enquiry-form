@@ -33,6 +33,23 @@ describe('dashboard enquiries page', () => {
     expect(markup).toContain('/dashboard/intakes/sub1');
   });
 
+  it('links the enquiry row and a view action to the linked intake detail page', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page());
+    expect(markup).toContain('<a class="review-queue-client-link" href="/dashboard/intakes/sub1">Ann Lee</a>');
+    expect(markup).toContain('View enquiry');
+    expect(markup.match(/href="\/dashboard\/intakes\/sub1"/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not link enquiries with no intake submission and explains why', async () => {
+    mocks.findMany.mockResolvedValue([{ id: 'e2', firstName: 'Ben', lastName: 'Ng', email: 'b@c.com', phone: null, enquirySource: 'Referral', intendedPathway: null, countryOfResidence: null, createdAt: new Date('2026-05-19T00:00:00Z'), intakeSubmission: null, communications: [] }]);
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page());
+    expect(markup).toContain('<strong>Ben Ng</strong>');
+    expect(markup).toContain('No intake submitted yet to view.');
+    expect(markup).not.toContain('review-queue-client-link');
+  });
+
 
   it('prioritizes table columns, maps draft status clearly, and shows secondary details compactly', async () => {
     const page = (await import('./page')).default;

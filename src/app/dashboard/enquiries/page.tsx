@@ -164,10 +164,15 @@ export default async function EnquiriesPage({
                 const latest = enq.communications[0];
                 const displayName = `${enq.firstName ?? ''} ${enq.lastName ?? ''}`.trim() || 'Not provided';
                 const intakeStatus = intakeStatusFor(Boolean(enq.intakeSubmission), enq.intakeSubmission?.status, latest?.status);
+                const detailHref = enq.intakeSubmission ? `/dashboard/intakes/${enq.intakeSubmission.id}` : null;
                 return (
                   <tr key={enq.id}>
                     <td>
-                      <strong>{displayName}</strong>
+                      {detailHref ? (
+                        <Link href={detailHref} className="review-queue-client-link">{displayName}</Link>
+                      ) : (
+                        <strong>{displayName}</strong>
+                      )}
                       <span className="cell-secondary">Source: {enq.enquirySource || 'Not provided'} · Residence: {enq.countryOfResidence || 'Not provided'}</span>
                     </td>
                     <td>{enq.email}</td>
@@ -186,6 +191,11 @@ export default async function EnquiriesPage({
                     </td>
                     <td>
                       <div className="table-actions">
+                        {detailHref ? (
+                          <Link href={detailHref} className="secondary-btn review-queue-open-link">View enquiry</Link>
+                        ) : (
+                          <span className="cell-secondary">No intake submitted yet to view.</span>
+                        )}
                         <form action={runDraftFaqAction} className="inline-staff-form">
                           <input type="hidden" name="enquiryId" value={enq.id} />
                           <label className="field"><span>Email template</span><select name="template">{TEMPLATE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select></label>
