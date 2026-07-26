@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { PERMISSIONS } from '@/server/auth/permissions';
 
 const mocks = vi.hoisted(() => ({
   requirePermission: vi.fn(),
@@ -32,9 +33,11 @@ describe('enquiry detail page', () => {
   });
 
   it('checks permission before querying the enquiry', async () => {
+    mocks.requirePermission.mockRejectedValueOnce(new Error('blocked'));
     const page = (await import('./page')).default;
-    await page({ params: Promise.resolve({ enquiryId: 'e1' }) });
-    expect(mocks.requirePermission).toHaveBeenCalled();
+    await expect(page({ params: Promise.resolve({ enquiryId: 'e1' }) })).rejects.toThrow('blocked');
+    expect(mocks.requirePermission).toHaveBeenCalledWith(PERMISSIONS.VIEW_DASHBOARD);
+    expect(mocks.findUnique).not.toHaveBeenCalled();
   });
 
   it('renders the enquiry own fields and a clear not-yet-submitted label', async () => {
