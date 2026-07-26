@@ -266,6 +266,45 @@ describe('intake dashboard actions', () => {
     expect(mocks.requirePermissionMock).toHaveBeenCalledWith(PERMISSIONS.MARK_DEPOSIT_PAID);
   });
 
+  it('consultation tab shows the Mark payment received action while deposit is unpaid', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', status: 'submitted', payload: {},
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], clearReports: [], auditEvents: [],
+      consultationBookings: [{
+        id: 'booking-1', clientName: 'Jane Client', status: 'booked',
+        assignedSeniorStaffId: null, assignedSeniorStaffName: null,
+        bookingDateTime: null, bookingTimezone: null, bookingSource: 'manual_staff_entry',
+        consultationOutcome: null, csaRecommended: null, csaIssued: false,
+        depositPaid: false, depositPaidAt: null, notesInternal: null,
+        createdAt: new Date('2026-06-01T00:00:00Z'), updatedAt: new Date('2026-06-01T00:00:00Z'),
+      }],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'consultation' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Mark payment received');
+    expect(html).not.toContain('Payment confirmed on');
+  });
+
+  it('consultation tab shows a payment-confirmed state and hides the action once deposit is paid', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', status: 'submitted', payload: {},
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], clearReports: [], auditEvents: [],
+      consultationBookings: [{
+        id: 'booking-1', clientName: 'Jane Client', status: 'booked',
+        assignedSeniorStaffId: null, assignedSeniorStaffName: null,
+        bookingDateTime: null, bookingTimezone: null, bookingSource: 'manual_staff_entry',
+        consultationOutcome: null, csaRecommended: null, csaIssued: false,
+        depositPaid: true, depositPaidAt: new Date('2026-06-05T04:30:00Z'), notesInternal: null,
+        createdAt: new Date('2026-06-01T00:00:00Z'), updatedAt: new Date('2026-06-05T04:30:00Z'),
+      }],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'consultation' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Payment confirmed on');
+    expect(html).not.toContain('Mark payment received');
+    expect(html).not.toContain('name="action" value="mark_deposit_paid"');
+  });
+
   it('read_only_reviewer cannot perform booking actions', async () => {
     mocks.requirePermissionMock.mockRejectedValueOnce(new Error('notFound'));
     const fd = new FormData(); fd.set('submissionId','sub-1'); fd.set('action','create_booking'); fd.set('internalReason','note'); fd.set('clientName','Jane'); fd.set('clientEmail','jane@example.com');
