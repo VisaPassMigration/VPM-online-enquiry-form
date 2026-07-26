@@ -1,9 +1,11 @@
+import React from 'react';
 import Link from 'next/link';
 import { EnquiryCommunicationType } from '@prisma/client';
 import { requirePermission } from '@/server/auth/requirePermission';
 import { PERMISSIONS } from '@/server/auth/permissions';
 import { db } from '@/server/db';
 import { runCreateEnquiryAction, runDraftFaqAction, runSendFaqAction } from './actions';
+import { formatStaffDate, faqStatusLabel, statusPillClass } from './format';
 
 export const dynamic = "force-dynamic";
 
@@ -17,33 +19,6 @@ const TEMPLATE_OPTIONS: Array<{ value: EnquiryCommunicationType; label: string }
 ];
 
 const isIntakeUrlConfigured = Boolean(process.env.NEXT_PUBLIC_INTAKE_FORM_URL?.trim());
-
-const formatStaffDate = (dateTime: Date) =>
-  new Intl.DateTimeFormat('en-AU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'Australia/Perth',
-  }).format(dateTime).replace(/\s(am|pm)$/i, (match) => match.toUpperCase());
-
-const faqStatusLabel = (status: string | undefined) => {
-  if (!status) return 'Not prepared';
-  if (status === 'drafted_internal' || status === 'pending_staff_release') return 'Draft prepared';
-  if (status === 'sent') return 'Sent';
-  if (status === 'failed') return 'Failed';
-  if (status === 'cancelled') return 'Cancelled';
-  return status.replaceAll('_', ' ');
-};
-
-const statusPillClass = (status: string | undefined) => {
-  if (!status) return 'status-badge status-badge--muted';
-  if (status === 'sent') return 'status-badge status-badge--success';
-  if (status === 'failed') return 'status-badge status-badge--danger';
-  return 'status-badge status-badge--warning';
-};
 
 const intakeStatusFor = (hasIntakeSubmission: boolean, intakeStatus: string | undefined, latestStatus: string | undefined) => {
   if (hasIntakeSubmission) return { label: `Intake submitted: ${intakeStatus ?? 'status pending'}`, className: 'status-badge status-badge--success' };
@@ -164,10 +139,11 @@ export default async function EnquiriesPage({
                 const latest = enq.communications[0];
                 const displayName = `${enq.firstName ?? ''} ${enq.lastName ?? ''}`.trim() || 'Not provided';
                 const intakeStatus = intakeStatusFor(Boolean(enq.intakeSubmission), enq.intakeSubmission?.status, latest?.status);
+                const detailHref = enq.intakeSubmission ? `/dashboard/intakes/${enq.intakeSubmission.id}` : `/dashboard/enquiries/${enq.id}`;
                 return (
                   <tr key={enq.id}>
                     <td>
-                      <strong>{displayName}</strong>
+                      <Link href={detailHref} className="review-queue-client-link">{displayName}</Link>
                       <span className="cell-secondary">Source: {enq.enquirySource || 'Not provided'} · Residence: {enq.countryOfResidence || 'Not provided'}</span>
                     </td>
                     <td>{enq.email}</td>
@@ -186,6 +162,7 @@ export default async function EnquiriesPage({
                     </td>
                     <td>
                       <div className="table-actions">
+                        <Link href={detailHref} className="secondary-btn review-queue-open-link">View enquiry</Link>
                         <form action={runDraftFaqAction} className="inline-staff-form">
                           <input type="hidden" name="enquiryId" value={enq.id} />
                           <label className="field"><span>Email template</span><select name="template">{TEMPLATE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select></label>

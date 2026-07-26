@@ -26,11 +26,28 @@ describe('dashboard enquiries page', () => {
 
   it('renders enquiries page with required columns and internal note', async () => {
     const page = (await import('./page')).default;
-    const markup = renderToStaticMarkup(await page());
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
     expect(markup).toContain('Enquiries');
     expect(markup).toContain('FAQ status');
     expect(markup).toContain('FAQ / Pre-Intake emails are staff-controlled information emails only.');
     expect(markup).toContain('/dashboard/intakes/sub1');
+  });
+
+  it('links the enquiry row and a view action to the linked intake detail page', async () => {
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+    expect(markup).toContain('<a class="review-queue-client-link" href="/dashboard/intakes/sub1">Ann Lee</a>');
+    expect(markup).toContain('View enquiry');
+    expect(markup.match(/href="\/dashboard\/intakes\/sub1"/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('links enquiries with no intake submission to their own enquiry detail page', async () => {
+    mocks.findMany.mockResolvedValue([{ id: 'e2', firstName: 'Ben', lastName: 'Ng', email: 'b@c.com', phone: null, enquirySource: 'Referral', intendedPathway: null, countryOfResidence: null, createdAt: new Date('2026-05-19T00:00:00Z'), intakeSubmission: null, communications: [] }]);
+    const page = (await import('./page')).default;
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
+    expect(markup).toContain('<a class="review-queue-client-link" href="/dashboard/enquiries/e2">Ben Ng</a>');
+    expect(markup).toContain('View enquiry');
+    expect(markup.match(/href="\/dashboard\/enquiries\/e2"/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
 
@@ -54,7 +71,7 @@ describe('dashboard enquiries page', () => {
 
   it('template selector includes all six templates', async () => {
     const page = (await import('./page')).default;
-    const markup = renderToStaticMarkup(await page());
+    const markup = renderToStaticMarkup(await page({ searchParams: Promise.resolve({}) }));
     expect(markup).toContain('General migration enquiry');
     expect(markup).toContain('Skilled migration enquiry');
     expect(markup).toContain('Student visa enquiry');
