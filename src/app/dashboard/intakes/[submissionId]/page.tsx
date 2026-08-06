@@ -748,6 +748,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                   {canCompleteAustraliaClearReview ? <ActionSubmitButton pendingLabel="Updating…" name="action" value="complete_au_review">Complete Australia Review</ActionSubmitButton> : null}
                   {canOverrideClearApproval ? <ActionSubmitButton pendingLabel="Updating…" name="action" value="boss_override_approve">Boss Override Approval (Internal)</ActionSubmitButton> : null}
                 </div>
+                {canOverrideClearApproval ? <p className="form-helper">Boss Override Approval requires a reason — add a note or pick a preset reason above before submitting. Other quick actions above are optional.</p> : null}
               </StaffActionForm> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
               <section className="section review-section">
                 <h5>Consultation Pack</h5>

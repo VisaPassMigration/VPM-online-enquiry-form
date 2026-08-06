@@ -690,16 +690,26 @@ const CLEAR_APPROVAL_GATE_REASON_LABELS: Record<string, string> = {
 const clearApprovalGateReasonSummary = (reasons: string[]): string =>
   reasons.map((reason) => CLEAR_APPROVAL_GATE_REASON_LABELS[reason] ?? reason.replaceAll('_', ' ')).join('; ');
 
+const CLEAR_QUICK_ACTION_REASON_FALLBACKS: Record<string, string> = {
+  mark_prepared: 'C.L.E.A.R report marked as prepared via quick action.',
+  approve_for_consultation: 'C.L.E.A.R report approved for consultation use via quick action.',
+  request_au_review: 'Australia review requested via quick action.',
+  complete_au_review: 'Australia review completed via quick action.',
+};
+
 export async function runClearWorkflowAction(first: FormData | StaffActionFeedbackState, second?: FormData): Promise<StaffActionFeedbackState> {
   'use server';
   const formData = formDataFromActionArgs(first, second);
   const clearReportId = String(formData.get('clearReportId') ?? '').trim();
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const internalReason = internalReasonFromForm(formData, '');
+  const internalReason = internalReasonFromForm(formData, CLEAR_QUICK_ACTION_REASON_FALLBACKS[action] ?? '');
   const actor = await requireStaffActorContext();
-  if (!clearReportId || !submissionId || !action || !internalReason || !actor.actorId) {
+  if (!clearReportId || !submissionId || !action || !actor.actorId) {
     return actionError('C.L.E.A.R action could not be recorded. Check the required fields and try again.');
+  }
+  if (action === 'boss_override_approve' && !internalReason) {
+    return actionError('Boss Override Approval requires a reason. Add a note or select a preset reason before submitting.');
   }
 
   try {

@@ -997,7 +997,7 @@ describe('intake dashboard actions', () => {
     }));
   });
 
-  it('clear workflow actions call mapped services and require reason', async () => {
+  it('clear workflow actions call mapped services when a reason is provided', async () => {
     const actions = [
       ['mark_prepared', mocks.markClearReportPreparedMock],
       ['approve_for_consultation', mocks.approveClearReportForConsultationMock],
@@ -1010,9 +1010,59 @@ describe('intake dashboard actions', () => {
       await runClearWorkflowAction(fd);
       expect(fn).toHaveBeenCalled();
     }
-    const missingReason = new FormData(); missingReason.set('submissionId', 'sub-1'); missingReason.set('clearReportId', 'cr-1'); missingReason.set('action', 'mark_prepared');
-    await runClearWorkflowAction(missingReason);
-    expect(mocks.markClearReportPreparedMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mark_prepared succeeds with no reason provided, recording a plain fallback note', async () => {
+    mocks.markClearReportPreparedMock.mockResolvedValueOnce({ id: 'cr-1', submissionId: 'sub-1' });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'mark_prepared');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.markClearReportPreparedMock).toHaveBeenCalledWith(expect.objectContaining({
+      note: 'C.L.E.A.R report marked as prepared via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('approve_for_consultation succeeds with no reason provided, recording a plain fallback note', async () => {
+    mocks.approveClearReportForConsultationMock.mockResolvedValueOnce({ approved: true, clearReport: { id: 'cr-1', submissionId: 'sub-1' } });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'approve_for_consultation');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.approveClearReportForConsultationMock).toHaveBeenCalledWith(expect.objectContaining({
+      approvalNote: 'C.L.E.A.R report approved for consultation use via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('request_au_review succeeds with no reason provided, recording a plain fallback note', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'request_au_review');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.requestAustraliaClearReviewMock).toHaveBeenCalledWith(expect.objectContaining({
+      reason: 'Australia review requested via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('complete_au_review succeeds with no reason provided, recording a plain fallback note', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'complete_au_review');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.completeAustraliaClearReviewMock).toHaveBeenCalledWith(expect.objectContaining({
+      reviewNotes: 'Australia review completed via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('boss_override_approve still requires a reason and reports a clear, specific error instead of the generic fallback', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'boss_override_approve');
+    const result = await runClearWorkflowAction(fd);
+    expect(result).toEqual({
+      status: 'error',
+      message: 'Boss Override Approval requires a reason. Add a note or select a preset reason before submitting.',
+    });
+    expect(mocks.overrideApproveClearReportMock).not.toHaveBeenCalled();
   });
 
   it('a successful CLEAR quick action resolves to a success state instead of throwing, so StaffActionForm can clear its pending state', async () => {
