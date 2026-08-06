@@ -55,6 +55,12 @@ export async function authorizeStaffCredentials(raw: Partial<Record<string, unkn
       throw new Error('Staff login is temporarily unavailable. Please try again shortly.');
     }
 
+    console.error('[auth] Staff login authorize() failed (non-connectivity).', {
+      name: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message : String(error),
+      code: getErrorCode(error),
+    });
+
     throw error;
   }
 }

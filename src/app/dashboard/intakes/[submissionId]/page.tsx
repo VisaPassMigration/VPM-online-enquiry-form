@@ -360,6 +360,10 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   let canViewClear = true;
   let canMutateClear = true;
   let canEditClear = true;
+  let canApproveStandardClear = true;
+  let canRequestAustraliaClearReview = true;
+  let canCompleteAustraliaClearReview = true;
+  let canOverrideClearApproval = true;
   try { await requirePermission(PERMISSIONS.VIEW_LEAD_RATING); } catch { canViewLeadRating = false; }
   try { await requirePermission(PERMISSIONS.SUGGEST_LEAD_RATING); } catch { canSuggestLeadRating = false; }
   try { await requirePermission(PERMISSIONS.CONFIRM_LEAD_RATING); } catch { canConfirmLeadRating = false; }
@@ -368,6 +372,10 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
   try { await requirePermission(PERMISSIONS.VIEW_CLEAR_REPORT); } catch { canViewClear = false; }
   try { await requirePermission(PERMISSIONS.PREPARE_CLEAR_REPORT); } catch { canMutateClear = false; }
   try { await requirePermission(PERMISSIONS.EDIT_CLEAR_REPORT); } catch { canEditClear = false; }
+  try { await requirePermission(PERMISSIONS.APPROVE_STANDARD_CLEAR_REPORT); } catch { canApproveStandardClear = false; }
+  try { await requirePermission(PERMISSIONS.REQUEST_AUSTRALIA_CLEAR_REVIEW); } catch { canRequestAustraliaClearReview = false; }
+  try { await requirePermission(PERMISSIONS.COMPLETE_AUSTRALIA_CLEAR_REVIEW); } catch { canCompleteAustraliaClearReview = false; }
+  try { await requirePermission(PERMISSIONS.OVERRIDE_CLEAR_REPORT_APPROVAL); } catch { canOverrideClearApproval = false; }
   const { submissionId } = await params;
   const submission = await db.intakeSubmission.findUnique({
     where: { id: submissionId },
@@ -726,7 +734,7 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 <div><dt>Reference dataset version</dt><dd>{referenceDatasetVersion || 'Not provided'}</dd></div>
               </dl>
               {datasetWarning ? <p><strong>Reference dataset warning:</strong> {datasetWarning}</p> : null}
-              {canMutateClear ? <form action={runClearWorkflowAction} className="intake-form clear-quick-actions">
+              {canMutateClear || canApproveStandardClear || canRequestAustraliaClearReview || canCompleteAustraliaClearReview || canOverrideClearApproval ? <StaffActionForm action={runClearWorkflowAction} className="intake-form clear-quick-actions">
                 <input type="hidden" name="submissionId" value={submission.id} />
                 <input type="hidden" name="clearReportId" value={report.id} />
                 <label><strong>Quick C.L.E.A.R action note/reason</strong></label>
@@ -734,13 +742,14 @@ export default async function IntakeReviewPage({ params, searchParams }: { param
                 <textarea name="internalReason" rows={2} placeholder="Internal audit note; not sent to the client" />
                 <p className="form-helper">Approval for consultation use is an internal readiness step only. It does not send the report to the client and does not confirm any visa outcome. These are internal governance actions only.</p>
                 <div className="button-row">
-                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="mark_prepared">Mark Prepared</ActionSubmitButton>
-                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="approve_for_consultation">Approve for Consultation Use (Internal)</ActionSubmitButton>
-                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="request_au_review">Request Australia Review</ActionSubmitButton>
-                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="complete_au_review">Complete Australia Review</ActionSubmitButton>
-                  <ActionSubmitButton pendingLabel="Updating…" name="action" value="boss_override_approve">Boss Override Approval (Internal)</ActionSubmitButton>
+                  {canMutateClear ? <ActionSubmitButton pendingLabel="Updating…" name="action" value="mark_prepared">Mark Prepared</ActionSubmitButton> : null}
+                  {canApproveStandardClear ? <ActionSubmitButton pendingLabel="Updating…" name="action" value="approve_for_consultation">Approve for Consultation Use (Internal)</ActionSubmitButton> : null}
+                  {canRequestAustraliaClearReview ? <ActionSubmitButton pendingLabel="Updating…" name="action" value="request_au_review">Request Australia Review</ActionSubmitButton> : null}
+                  {canCompleteAustraliaClearReview ? <ActionSubmitButton pendingLabel="Updating…" name="action" value="complete_au_review">Complete Australia Review</ActionSubmitButton> : null}
+                  {canOverrideClearApproval ? <ActionSubmitButton pendingLabel="Updating…" name="action" value="boss_override_approve">Boss Override Approval (Internal)</ActionSubmitButton> : null}
                 </div>
-              </form> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
+                {canOverrideClearApproval ? <p className="form-helper">Boss Override Approval requires a reason — add a note or pick a preset reason above before submitting. Other quick actions above are optional.</p> : null}
+              </StaffActionForm> : <p>Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.</p>}
               <section className="section review-section">
                 <h5>Consultation Pack</h5>
                 <p><strong>Internal only warning:</strong> This Consultation Pack is an internal staff tool for structured discussion. It does not confirm any visa outcome and must not be treated as legal advice.</p>

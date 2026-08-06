@@ -677,21 +677,72 @@ export async function runGenerateClearReportDraftAction(formData: FormData) {
   revalidatePath(`/dashboard/intakes/${submissionId}`);
 }
 
-export async function runClearWorkflowAction(formData: FormData) {
+const CLEAR_APPROVAL_GATE_REASON_LABELS: Record<string, string> = {
+  missing_submission_link: 'this C.L.E.A.R report is not linked to a submission',
+  lead_rating_not_hot_or_escalate: 'lead rating must be Hot or Escalate',
+  escalate_requires_australia_review_or_override: 'an Escalate-rated case requires Australia review or boss override first',
+  unresolved_high_or_critical_risk: 'there are unresolved high/critical risk flags',
+  reference_dataset_not_approved: 'reference dataset not yet approved',
+  reference_dataset_stale: 'reference dataset is marked stale',
+  unsafe_wording_detected: 'the draft snapshot contains wording that must be reviewed before approval',
+};
+
+const clearApprovalGateReasonSummary = (reasons: string[]): string =>
+  reasons.map((reason) => CLEAR_APPROVAL_GATE_REASON_LABELS[reason] ?? reason.replaceAll('_', ' ')).join('; ');
+
+const CLEAR_QUICK_ACTION_REASON_FALLBACKS: Record<string, string> = {
+  mark_prepared: 'C.L.E.A.R report marked as prepared via quick action.',
+  approve_for_consultation: 'C.L.E.A.R report approved for consultation use via quick action.',
+  request_au_review: 'Australia review requested via quick action.',
+  complete_au_review: 'Australia review completed via quick action.',
+};
+
+export async function runClearWorkflowAction(first: FormData | StaffActionFeedbackState, second?: FormData): Promise<StaffActionFeedbackState> {
   'use server';
+  const formData = formDataFromActionArgs(first, second);
   const clearReportId = String(formData.get('clearReportId') ?? '').trim();
   const submissionId = String(formData.get('submissionId') ?? '').trim();
   const action = String(formData.get('action') ?? '').trim();
-  const internalReason = internalReasonFromForm(formData, '');
+  const internalReason = internalReasonFromForm(formData, CLEAR_QUICK_ACTION_REASON_FALLBACKS[action] ?? '');
   const actor = await requireStaffActorContext();
-  if (!clearReportId || !submissionId || !action || !internalReason || !actor.actorId) return;
+  if (!clearReportId || !submissionId || !action || !actor.actorId) {
+    return actionError('C.L.E.A.R action could not be recorded. Check the required fields and try again.');
+  }
+  if (action === 'boss_override_approve' && !internalReason) {
+    return actionError('Boss Override Approval requires a reason. Add a note or select a preset reason before submitting.');
+  }
 
-  if (action === 'mark_prepared') await markClearReportPrepared({ clearReportId, actor, note: internalReason });
-  if (action === 'approve_for_consultation') await approveClearReportForConsultation({ clearReportId, actor, approvalNote: internalReason });
-  if (action === 'request_au_review') await requestAustraliaClearReview({ clearReportId, actor, reason: internalReason });
-  if (action === 'complete_au_review') await completeAustraliaClearReview({ clearReportId, actor, reviewNotes: internalReason });
-  if (action === 'boss_override_approve') await overrideApproveClearReport({ clearReportId, actor, overrideReason: internalReason });
-  revalidatePath(`/dashboard/intakes/${submissionId}`);
+  try {
+    if (action === 'mark_prepared') {
+      await markClearReportPrepared({ clearReportId, actor, note: internalReason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      return actionSuccess('C.L.E.A.R report marked as prepared.');
+    }
+    if (action === 'approve_for_consultation') {
+      const result = await approveClearReportForConsultation({ clearReportId, actor, approvalNote: internalReason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      if (!result.approved) return actionError(`Cannot approve: ${clearApprovalGateReasonSummary(result.reasons)}.`);
+      return actionSuccess('C.L.E.A.R report approved for consultation use.');
+    }
+    if (action === 'request_au_review') {
+      await requestAustraliaClearReview({ clearReportId, actor, reason: internalReason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      return actionSuccess('Australia review requested.');
+    }
+    if (action === 'complete_au_review') {
+      await completeAustraliaClearReview({ clearReportId, actor, reviewNotes: internalReason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      return actionSuccess('Australia review completed.');
+    }
+    if (action === 'boss_override_approve') {
+      await overrideApproveClearReport({ clearReportId, actor, overrideReason: internalReason });
+      revalidatePath(`/dashboard/intakes/${submissionId}`);
+      return actionSuccess('C.L.E.A.R report approved via boss override.');
+    }
+    return actionError('Unknown C.L.E.A.R action.');
+  } catch {
+    return actionError('C.L.E.A.R action failed. Nothing was recorded; please try again.');
+  }
 }
 
 export async function runUpdateClearReportNotesAction(formData: FormData) {

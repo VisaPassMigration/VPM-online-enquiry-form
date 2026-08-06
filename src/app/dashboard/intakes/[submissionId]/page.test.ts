@@ -942,6 +942,10 @@ describe('intake dashboard actions', () => {
       if (permission === PERMISSIONS.GENERATE_CLEAR_REPORT) throw new Error('not allowed');
       if (permission === PERMISSIONS.PREPARE_CLEAR_REPORT) throw new Error('not allowed');
       if (permission === PERMISSIONS.EDIT_CLEAR_REPORT) throw new Error('not allowed');
+      if (permission === PERMISSIONS.APPROVE_STANDARD_CLEAR_REPORT) throw new Error('not allowed');
+      if (permission === PERMISSIONS.REQUEST_AUSTRALIA_CLEAR_REVIEW) throw new Error('not allowed');
+      if (permission === PERMISSIONS.COMPLETE_AUSTRALIA_CLEAR_REVIEW) throw new Error('not allowed');
+      if (permission === PERMISSIONS.OVERRIDE_CLEAR_REPORT_APPROVAL) throw new Error('not allowed');
     });
     const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
     const html = renderToStaticMarkup(jsx);
@@ -949,8 +953,31 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Draft generation is not available for your role.');
     expect(html).not.toContain('Generate C.L.E.A.R Draft');
     expect(html).not.toContain('Mark Prepared');
+    expect(html).not.toContain('Approve for Consultation Use (Internal)');
+    expect(html).not.toContain('Request Australia Review');
+    expect(html).not.toContain('Complete Australia Review');
+    expect(html).not.toContain('Boss Override Approval (Internal)');
+    expect(html).toContain('Read-only mode: you can view C.L.E.A.R details but cannot run workflow actions.');
     expect(html).not.toContain('Update C.L.E.A.R Notes');
     expect(html).toContain('Read-only mode: you can view C.L.E.A.R notes but cannot edit them.');
+  });
+
+  it('a staff member missing one specific CLEAR permission sees every other action but not that one', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', payload: {}, status: 'submitted', leadRating: null, leadRatingSuggested: null, leadRatingReason: null, leadRatingConfirmedAt: null, leadRatingConfirmedBy: null, leadRatingSuggestedAt: null,
+      pointsSnapshots: [], riskFlags: [], documents: [], currentReviewState: null, clientCommunications: [], consultationBookings: [], auditEvents: [],
+      clearReports: [{ id: 'cr-1', status: 'draft', reportVersion: 'clear-v1', createdAt: new Date(), updatedAt: new Date(), preparedByStaffUserId: null, preparedAt: null, reviewedAt: null, approvedByStaffUserId: null, approvedAt: null, approvalScope: null, requiresAustraliaReview: false, australiaReviewReason: null, australiaReviewedByStaffUserId: null, australiaReviewedAt: null, escalationReason: null, reviewNotes: null, reviewedByStaffUserId: null, sharedAt: null, staffNotes: 'a', clientFacingNotes: 'b', generatedSnapshotJson: {} }],
+    });
+    mocks.requirePermissionMock.mockImplementation(async (permission) => {
+      if (permission === PERMISSIONS.OVERRIDE_CLEAR_REPORT_APPROVAL) throw new Error('not allowed');
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'clear' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('Mark Prepared');
+    expect(html).toContain('Approve for Consultation Use (Internal)');
+    expect(html).toContain('Request Australia Review');
+    expect(html).toContain('Complete Australia Review');
+    expect(html).not.toContain('Boss Override Approval (Internal)');
   });
 
   it('clear notes edit action calls service for users with edit permission', async () => {
@@ -970,7 +997,7 @@ describe('intake dashboard actions', () => {
     }));
   });
 
-  it('clear workflow actions call mapped services and require reason', async () => {
+  it('clear workflow actions call mapped services when a reason is provided', async () => {
     const actions = [
       ['mark_prepared', mocks.markClearReportPreparedMock],
       ['approve_for_consultation', mocks.approveClearReportForConsultationMock],
@@ -983,9 +1010,91 @@ describe('intake dashboard actions', () => {
       await runClearWorkflowAction(fd);
       expect(fn).toHaveBeenCalled();
     }
-    const missingReason = new FormData(); missingReason.set('submissionId', 'sub-1'); missingReason.set('clearReportId', 'cr-1'); missingReason.set('action', 'mark_prepared');
-    await runClearWorkflowAction(missingReason);
-    expect(mocks.markClearReportPreparedMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mark_prepared succeeds with no reason provided, recording a plain fallback note', async () => {
+    mocks.markClearReportPreparedMock.mockResolvedValueOnce({ id: 'cr-1', submissionId: 'sub-1' });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'mark_prepared');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.markClearReportPreparedMock).toHaveBeenCalledWith(expect.objectContaining({
+      note: 'C.L.E.A.R report marked as prepared via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('approve_for_consultation succeeds with no reason provided, recording a plain fallback note', async () => {
+    mocks.approveClearReportForConsultationMock.mockResolvedValueOnce({ approved: true, clearReport: { id: 'cr-1', submissionId: 'sub-1' } });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'approve_for_consultation');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.approveClearReportForConsultationMock).toHaveBeenCalledWith(expect.objectContaining({
+      approvalNote: 'C.L.E.A.R report approved for consultation use via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('request_au_review succeeds with no reason provided, recording a plain fallback note', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'request_au_review');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.requestAustraliaClearReviewMock).toHaveBeenCalledWith(expect.objectContaining({
+      reason: 'Australia review requested via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('complete_au_review succeeds with no reason provided, recording a plain fallback note', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'complete_au_review');
+    const result = await runClearWorkflowAction(fd);
+    expect(mocks.completeAustraliaClearReviewMock).toHaveBeenCalledWith(expect.objectContaining({
+      reviewNotes: 'Australia review completed via quick action.',
+    }));
+    expect(result.status).toBe('success');
+  });
+
+  it('boss_override_approve still requires a reason and reports a clear, specific error instead of the generic fallback', async () => {
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'boss_override_approve');
+    const result = await runClearWorkflowAction(fd);
+    expect(result).toEqual({
+      status: 'error',
+      message: 'Boss Override Approval requires a reason. Add a note or select a preset reason before submitting.',
+    });
+    expect(mocks.overrideApproveClearReportMock).not.toHaveBeenCalled();
+  });
+
+  it('a successful CLEAR quick action resolves to a success state instead of throwing, so StaffActionForm can clear its pending state', async () => {
+    mocks.markClearReportPreparedMock.mockResolvedValueOnce({ id: 'cr-1', submissionId: 'sub-1' });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'mark_prepared'); fd.set('internalReason', 'ready for review');
+    const result = await runClearWorkflowAction(fd);
+    expect(result).toEqual({ status: 'success', message: expect.stringContaining('prepared') });
+  });
+
+  it('a thrown error from the underlying CLEAR service is caught and surfaced as an error message, not left unhandled', async () => {
+    mocks.overrideApproveClearReportMock.mockRejectedValueOnce(new Error('Missing permission: override_clear_report_approval.'));
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'boss_override_approve'); fd.set('internalReason', 'override note');
+    const result = await runClearWorkflowAction(fd);
+    expect(result).toEqual({ status: 'error', message: 'C.L.E.A.R action failed. Nothing was recorded; please try again.' });
+  });
+
+  it('a gated (not approved) result from approveClearReportForConsultation surfaces the actual reason instead of doing nothing', async () => {
+    mocks.approveClearReportForConsultationMock.mockResolvedValueOnce({ approved: false, reasons: ['reference_dataset_not_approved'] });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'approve_for_consultation'); fd.set('internalReason', 'trying approval');
+    const result = await runClearWorkflowAction(fd);
+    expect(result).toEqual({ status: 'error', message: 'Cannot approve: reference dataset not yet approved.' });
+  });
+
+  it('a gated result with multiple reasons joins them into one readable message', async () => {
+    mocks.approveClearReportForConsultationMock.mockResolvedValueOnce({ approved: false, reasons: ['lead_rating_not_hot_or_escalate', 'unresolved_high_or_critical_risk'] });
+    const fd = new FormData();
+    fd.set('submissionId', 'sub-1'); fd.set('clearReportId', 'cr-1'); fd.set('action', 'approve_for_consultation'); fd.set('internalReason', 'trying approval');
+    const result = await runClearWorkflowAction(fd);
+    expect(result).toEqual({ status: 'error', message: 'Cannot approve: lead rating must be Hot or Escalate; there are unresolved high/critical risk flags.' });
   });
 
   it('renders all tab labels and supports tab query parameter fallback', async () => {
