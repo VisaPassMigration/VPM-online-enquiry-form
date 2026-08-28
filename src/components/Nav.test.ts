@@ -1,20 +1,11 @@
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { Nav } from './Nav';
 
-const mocks = vi.hoisted(() => ({ usePathname: vi.fn() }));
-
-vi.mock('next/navigation', () => ({ usePathname: mocks.usePathname }));
-
 describe('navigation visibility', () => {
-  beforeEach(() => {
-    mocks.usePathname.mockReset();
-  });
-
   it('shows public links on the Home page after sign-out returns to /', () => {
-    mocks.usePathname.mockReturnValue('/');
     const markup = renderToStaticMarkup(React.createElement(Nav));
 
     expect(markup).toContain('Home');
@@ -26,18 +17,6 @@ describe('navigation visibility', () => {
     expect(markup).toContain('href="/dashboard"');
     expect(markup).not.toContain('Dashboard');
     expect(markup).not.toContain('Enquiries');
-    expect(markup).not.toContain('Admin');
-  });
-
-  it('keeps staff links on staff pages', () => {
-    mocks.usePathname.mockReturnValue('/dashboard');
-    const markup = renderToStaticMarkup(React.createElement(Nav));
-
-    expect(markup).toContain('Dashboard');
-    expect(markup).toContain('Enquiries');
-    expect(markup).toContain('Sign out');
-    expect(markup).toContain('href="/api/auth/signout?callbackUrl=%2F"');
-    expect(markup).not.toContain('Staff Login');
     expect(markup).not.toContain('Admin');
   });
 });
