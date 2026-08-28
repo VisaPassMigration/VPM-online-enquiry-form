@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Nav } from '@/components/Nav';
+import { AppShell } from '@/components/AppShell';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,13 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <div className="app-shell">
-          <header className="site-header">
-            <div className="site-header__inner">
-              <strong>Visa Pass Migration</strong>
-              <Nav />
-            </div>
-          </header>
-          <main className="page">{children}</main>
+          <AppShell>{children}</AppShell>
         </div>
       </body>
     </html>
