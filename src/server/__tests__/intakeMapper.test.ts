@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapToAuditEventCreateInput, mapToIntakeValidationPayload, mapToPointsSnapshotCreateInput, mapToRiskPayload } from '../intakeMapper';
+import { mapToAuditEventCreateInput, mapToIntakeSubmissionCreateInput, mapToIntakeValidationPayload, mapToPointsSnapshotCreateInput, mapToRiskPayload } from '../intakeMapper';
 
 const baseClientPayload = {
   firstName: 'Ava',
@@ -62,6 +62,39 @@ describe('intakeMapper', () => {
     expect(mapped.generatedBy).toBe('system');
     expect(mapped.generatedAt).toEqual(new Date('2026-01-01T00:00:00.000Z'));
     expect(mapped.missingItems).toEqual(['English test evidence']);
+  });
+
+  it('maps an empty documents array into a create shape with no nested document writes', () => {
+    const mapped = mapToIntakeSubmissionCreateInput(baseClientPayload);
+    expect(mapped.documents).toBeUndefined();
+    expect(mapped.payload).toEqual(baseClientPayload);
+  });
+
+  it('maps uploaded document metadata into nested SubmissionDocument create input', () => {
+    const mapped = mapToIntakeSubmissionCreateInput({
+      ...baseClientPayload,
+      documents: [
+        {
+          documentType: 'passportBioPage',
+          originalFilename: 'passport.pdf',
+          mimeType: 'application/pdf',
+          fileSizeBytes: 12345,
+          uploadedBy: 'client',
+          storageKey: 'intake-documents/abc123-passport.pdf',
+        },
+      ],
+    });
+
+    expect(mapped.documents).toEqual({
+      create: [{
+        documentType: 'passportBioPage',
+        originalFilename: 'passport.pdf',
+        mimeType: 'application/pdf',
+        fileSizeBytes: 12345,
+        uploadedBy: 'client',
+        storageKey: 'intake-documents/abc123-passport.pdf',
+      }],
+    });
   });
 
   it('maps internal audit event output into Prisma create shape with enum-safe conversion', () => {

@@ -832,6 +832,29 @@ describe('intake dashboard actions', () => {
     expect(html).toContain('Stale/unapproved reference data blocks normal approval');
   });
 
+  it('documents tab links to the download route only for documents with a storage key', async () => {
+    mocks.findUniqueMock.mockResolvedValueOnce({
+      id: 'sub-1', status: 'submitted',
+      payload: {},
+      pointsSnapshots: [],
+      currentReviewState: { currentStage: 'intake_triage', lastDecision: 'manual_hold' },
+      riskFlags: [],
+      documents: [
+        { id: 'doc-1', documentType: 'passportBioPage', originalFilename: 'passport.pdf', fileSizeBytes: 100, verificationStatus: 'uploaded_unchecked', waived: false, waivedReason: null, verificationNotesInternal: null, uploadedAt: new Date('2026-01-01'), verifiedBy: null, waivedBy: null, storageKey: 'intake-documents/passportBioPage-passport.pdf' },
+        { id: 'doc-2', documentType: 'resume', originalFilename: 'resume.pdf', fileSizeBytes: 200, verificationStatus: 'uploaded_unchecked', waived: false, waivedReason: null, verificationNotesInternal: null, uploadedAt: new Date('2026-01-01'), verifiedBy: null, waivedBy: null, storageKey: '' },
+      ],
+      clientCommunications: [],
+      consultationBookings: [],
+      clearReports: [],
+      auditEvents: [],
+    });
+    const jsx = await IntakeReviewPage({ params: Promise.resolve({ submissionId: 'sub-1' }), searchParams: Promise.resolve({ tab: 'documents' }) });
+    const html = renderToStaticMarkup(jsx);
+    expect(html).toContain('href="/api/intakes/sub-1/documents/doc-1/download"');
+    expect(html).not.toContain('href="/api/intakes/sub-1/documents/doc-2/download"');
+    expect(html).toContain('resume.pdf');
+  });
+
   it('generate clear draft action calls service', async () => {
     const fd = new FormData();
     fd.set('submissionId', 'sub-1');

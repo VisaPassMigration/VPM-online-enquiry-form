@@ -128,5 +128,17 @@ export function mapToAuditEventCreateInput(event: AuditEventRecord): Prisma.Audi
 export function mapToIntakeSubmissionCreateInput(payload: IntakeSubmissionInput): Prisma.IntakeSubmissionUncheckedCreateInput {
   return {
     payload: payload as Prisma.InputJsonValue,
+    documents: payload.documents.length > 0
+      ? {
+        create: payload.documents.map((document) => ({
+          documentType: document.documentType,
+          originalFilename: document.originalFilename,
+          mimeType: document.mimeType,
+          fileSizeBytes: document.fileSizeBytes,
+          uploadedBy: document.uploadedBy,
+          storageKey: document.storageKey,
+        })),
+      }
+      : undefined,
   };
 }
