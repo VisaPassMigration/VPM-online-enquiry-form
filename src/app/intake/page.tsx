@@ -1,8 +1,10 @@
 'use client';
 
 import React, { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import { calculateEstimatedSkilledMigrationPoints } from '@/lib/pointsCalculator';
 import { buildCanonicalIntakePayload } from '@/lib/intakePayloadContract';
+import { INTAKE_DOCUMENT_PATH_PREFIX } from '@/lib/blobUploadConfig';
 
 type ContactMethod = 'Email' | 'Phone' | 'WhatsApp';
 type InterestedCountry = 'Australia' | 'New Zealand' | 'Both';
@@ -246,6 +248,8 @@ const pointsBreakdownLabels: Record<string, string> = {
 
 const getInitialData = () => ({ ...initialData });
 
+const sanitizeFileNameForUpload = (name: string) => name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+
 export default function IntakePage() {
   const [formData, setFormData] = useState<IntakeFormData>(() => getInitialData());
   const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof IntakeFormData, string>>>({});
@@ -433,15 +437,31 @@ export default function IntakePage() {
     }
 
     setSubmitState('submitting');
-    setSubmitMessage('Submitting registration…');
+
+    const selectedEntries = documentUploadConfig.flatMap((doc) => {
+      const selected = selectedFiles[doc.key];
+      return selected?.file ? [{ doc, file: selected.file }] : [];
+    });
 
     try {
-      const documents = documentUploadConfig.flatMap((doc) => {
-        const selected = selectedFiles[doc.key];
-        return selected?.file
-          ? [{ documentType: doc.key, originalFilename: selected.file.name, mimeType: selected.file.type || 'application/octet-stream', fileSizeBytes: selected.file.size, uploadedBy: 'client' as const }]
-          : [];
-      });
+      let documents: ReturnType<typeof buildCanonicalIntakePayload>['documents'];
+      try {
+        setSubmitMessage(selectedEntries.length ? 'Uploading documents…' : 'Submitting registration…');
+        documents = await Promise.all(selectedEntries.map(async ({ doc, file }) => {
+          const blob = await upload(`${INTAKE_DOCUMENT_PATH_PREFIX}${doc.key}-${sanitizeFileNameForUpload(file.name)}`, file, {
+            access: 'private',
+            handleUploadUrl: '/api/blob/upload',
+            contentType: file.type || 'application/octet-stream',
+          });
+          return { documentType: doc.key, originalFilename: file.name, mimeType: file.type || 'application/octet-stream', fileSizeBytes: file.size, uploadedBy: 'client' as const, storageKey: blob.pathname };
+        }));
+      } catch {
+        setSubmitMessage('Something went wrong while uploading your documents. Please try again or contact VPM.');
+        setSubmitState('error');
+        return;
+      }
+
+      setSubmitMessage('Submitting registration…');
       const payload = buildCanonicalIntakePayload(formData, pointsEstimate.estimatedTotalPoints, documents);
       const createResponse = await fetch('/api/intakes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const createBody = await createResponse.json();
@@ -573,12 +593,12 @@ export default function IntakePage() {
             {requiresHealthDetails ? <Input required label="Health details" value={formData.healthDetails} error={shouldShowError('healthDetails') ? validationErrors.healthDetails : undefined} onBlur={() => onBlur('healthDetails')} onChange={(v) => onChange('healthDetails', v)} /> : null}
           </SectionCard>
 
-          <SectionCard id="documents" title="Document preparation" helper="Document upload selection is currently for preliminary review preparation only. VPM may request documents again through a confirmed secure channel if required.">
+          <SectionCard id="documents" title="Document preparation" helper="Files you attach here are uploaded and stored privately when you submit, and are only accessible to authorised VPM staff for review. VPM may request documents again later if needed.">
             {documentUploadConfig.map((doc) => (
               <label key={doc.key} className="field file-field">
                 <span>{doc.label} {doc.required ? <em className="required-indicator" aria-label="required">*</em> : null}</span>
                 <input type="file" accept={doc.acceptedTypes} onChange={(event) => onSelectFile(doc.key, doc.acceptedTypes, event.target.files)} />
-                {selectedFiles[doc.key]?.file ? <small>Selected: {selectedFiles[doc.key]?.file.name}</small> : <small>Preparation only — VPM may request final upload instructions later.</small>}
+                {selectedFiles[doc.key]?.file ? <small>Selected: {selectedFiles[doc.key]?.file.name}</small> : <small>Not yet added.</small>}
                 {selectedFiles[doc.key]?.warning ? <small className="field-error">{selectedFiles[doc.key]?.warning}</small> : null}
               </label>
             ))}

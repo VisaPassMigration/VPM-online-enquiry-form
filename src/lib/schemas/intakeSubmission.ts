@@ -32,6 +32,7 @@ export const intakeDocumentMetadataSchema = z.object({
   mimeType: z.string().min(1),
   fileSizeBytes: z.number().int().positive(),
   uploadedBy: z.enum(['client', 'staff']),
+  storageKey: z.string().min(1),
 });
 
 const baseSchema = z.object({
@@ -207,6 +208,7 @@ export type IntakeSubmissionInput = {
     mimeType: string;
     fileSizeBytes: number;
     uploadedBy: "client" | "staff";
+    storageKey: string;
   }>;
 };
 type IntakeSubmissionRefinementInput = IntakeSubmissionInput;

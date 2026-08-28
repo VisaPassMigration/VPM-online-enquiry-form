@@ -29,10 +29,12 @@ describe('public registration form page', () => {
 
     expect(markup).toContain('Health/Character/Visa Refusal Declaration');
     expect(markup).toContain('Please disclose any health, character, visa refusal, cancellation, overstay, or removal history');
-    expect(markup).toContain('Document upload selection is currently for preliminary review preparation only');
-    expect(markup).toContain('VPM may request documents again through a confirmed secure channel if required');
-    expect(markup).not.toContain('documents are securely stored');
-    expect(markup).not.toContain('secure document storage');
+    expect(markup).toContain('Files you attach here are uploaded and stored privately when you submit');
+    expect(markup).toContain('only accessible to authorised VPM staff for review');
+    expect(markup).toContain('VPM may request documents again later if needed');
+    expect(markup).not.toContain('bank-level');
+    expect(markup).not.toContain('fully secure');
+    expect(markup).not.toContain('guaranteed');
   });
 
   it('shows human-readable preliminary points summary labels', () => {
